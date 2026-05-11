@@ -1,10 +1,15 @@
 # data-dict.yaml
 
-A data dictionary has three top-level keys: 
+This document describes version **0.1** of the `data-dict.yaml` specification.
 
-* [`tables`](#tables) is the where the bulk of most data-dict.yaml files will be. It describes the tables and their columns.
+A data dictionary has one required top-level key, `version`, plus three optional keys that hold the actual content:
+
+* `version` (required): the version of the `data-dict.yaml` spec this document conforms to. Currently `"0.1"`. Quote the value so it's parsed as a string, not a number.
+* [`tables`](#tables) is where the bulk of most data-dict.yaml files will be. It describes the tables and their columns.
 * [`relationships`](#relationships) describes the relationships between tables. It gives the details you need to safely create joins.
-* [`glossary`](#glossary) provides a place to define important domain specific terms. This is a good place to write down those special words that your company loves to use.
+* [`glossary`](#glossary) provides a place to define important domain-specific terms. This is a good place to write down those special words that your company loves to use.
+
+While the spec is pre-1.0, breaking changes between versions should be expected. Once the spec stabilises at 1.0, the major version will only change on breaking changes.
 
 ## Tables
 
