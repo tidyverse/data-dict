@@ -1,0 +1,13 @@
+# expected: fails - when `type: enum`, the column must also have a `values` key.
+
+version: "0.1"
+
+tables:
+  t:
+    description: A table.
+    source:
+      parquet: t.parquet
+    columns:
+      - name: c
+        type: enum
+        description: A column.

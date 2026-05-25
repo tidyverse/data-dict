@@ -1,5 +1,7 @@
 # source: https://github.com/hadley/foodbank
 
+version: "0.1"
+
 name: foodbank
 description: >
   USDA FoodData Central foundation foods, including nutrient values,

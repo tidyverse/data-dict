@@ -1,5 +1,7 @@
 # source: https://github.com/hadley/elevators
 
+version: "0.1"
+
 tables:
   elevators:
     description: >

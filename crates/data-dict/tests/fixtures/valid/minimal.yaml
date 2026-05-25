@@ -1,0 +1,3 @@
+# expected: validates (smallest legal document - just the required version key).
+
+version: "0.1"

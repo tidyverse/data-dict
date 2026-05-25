@@ -1,5 +1,7 @@
 # source: https://github.com/hadley/otters
 
+version: "0.1"
+
 tables:
   otters:
     description: >

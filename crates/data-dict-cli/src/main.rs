@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 
@@ -15,11 +16,18 @@ enum Command {
     Validate { path: PathBuf },
 }
 
-fn main() {
+fn main() -> ExitCode {
     let cli = Cli::parse();
     match cli.command {
-        Command::Validate { path } => {
-            println!("validate: {}", path.display());
-        }
+        Command::Validate { path } => match data_dict::validate(&path) {
+            Ok(()) => {
+                println!("{}: ok", path.display());
+                ExitCode::SUCCESS
+            }
+            Err(err) => {
+                eprintln!("{err}");
+                ExitCode::FAILURE
+            }
+        },
     }
 }

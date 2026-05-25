@@ -1,0 +1,172 @@
+# Schema for data-dict.yaml documents (spec version 0.1).
+#
+# Written in the quarto-cli YAML schema dialect understood by the
+# quarto-yaml-validation crate. See spec.md for the prose specification.
+#
+# Conventions in this schema:
+#   - All objects are closed (`closed: true`): unknown keys are rejected.
+#     This is appropriate while the spec is pre-1.0; bump the schema with the
+#     spec when new fields are added.
+#   - The column subschema is an `anyOf` over `type` literals so that the
+#     per-type rules in spec.md (e.g. `values` is required when `type: enum`,
+#     `range` is only meaningful on ordered/date types) are enforced
+#     structurally.
+#   - Cross-table / cross-field semantics (foreign-key targets really exist,
+#     `join` expressions parse, `conflicts` columns appear in both sides) are
+#     out of scope for the schema and belong in a separate linter.
+
+object:
+  closed: true
+  required: [version]
+  properties:
+
+    version:
+      enum: ["0.1"]
+      description: >
+        Version of the data-dict.yaml spec this document conforms to. Must be
+        quoted in YAML so it's parsed as a string, not a number.
+
+    # `name` and `description` are not in spec.md but appear in real-world
+    # files (see examples/foodbank.yaml). Allowed as optional top-level
+    # metadata; may be promoted into the spec in a later version.
+    name: string
+    description: string
+
+    tables:
+      object:
+        # Keys are arbitrary table names, so no fixed `properties` — every
+        # value must match the table schema.
+        additionalProperties:
+          object:
+            closed: true
+            required: [description, source, columns]
+            properties:
+
+              description: string
+              details: string
+
+              source:
+                object:
+                  closed: true
+                  minProperties: 1
+                  properties:
+                    parquet: string
+                    SQL: string
+                    R: string
+                    Python: string
+                    pin: string
+
+              columns:
+                arrayOf:
+                  anyOf:
+
+                    # Branch 1: type: enum  --  `values` is required.
+                    - object:
+                        closed: true
+                        required: [name, description, type, values]
+                        properties:
+                          name: string
+                          description: string
+                          details: string
+                          type:
+                            enum: ["enum"]
+                          values:
+                            anyOf:
+                              - arrayOf: any              # [M, F, U]
+                              - object:                   # {M: Male, F: Female, ...}
+                                  additionalProperties: any
+                          constraints:
+                            arrayOf:
+                              enum: [primary_key, foreign_key, required, unique]
+                          examples:
+                            arrayOf: any
+
+                    # Branch 2: ordered numeric types  --  `range` allowed
+                    # (numeric), no `values`.
+                    - object:
+                        closed: true
+                        required: [name, description, type]
+                        properties:
+                          name: string
+                          description: string
+                          details: string
+                          type:
+                            enum: ["number(ordinal)", "number(quantity)"]
+                          range:
+                            arrayOf:
+                              schema: number
+                              length: 2
+                          constraints:
+                            arrayOf:
+                              enum: [primary_key, foreign_key, required, unique]
+                          examples:
+                            arrayOf: any
+
+                    # Branch 3: date / datetime  --  `range` allowed (ISO
+                    # strings), no `values`.
+                    - object:
+                        closed: true
+                        required: [name, description, type]
+                        properties:
+                          name: string
+                          description: string
+                          details: string
+                          type:
+                            enum: ["date", "datetime"]
+                          range:
+                            arrayOf:
+                              schema: string
+                              length: 2
+                          constraints:
+                            arrayOf:
+                              enum: [primary_key, foreign_key, required, unique]
+                          examples:
+                            arrayOf: any
+
+                    # Branch 4: unordered / plain types  --  no `range`, no
+                    # `values`.
+                    - object:
+                        closed: true
+                        required: [name, description, type]
+                        properties:
+                          name: string
+                          description: string
+                          details: string
+                          type:
+                            enum: ["number", "number(id)", "string", "boolean"]
+                          constraints:
+                            arrayOf:
+                              enum: [primary_key, foreign_key, required, unique]
+                          examples:
+                            arrayOf: any
+
+                    # Branch 5: `type` omitted  --  no `range`, no `values`.
+                    - object:
+                        closed: true
+                        required: [name, description]
+                        properties:
+                          name: string
+                          description: string
+                          details: string
+                          constraints:
+                            arrayOf:
+                              enum: [primary_key, foreign_key, required, unique]
+                          examples:
+                            arrayOf: any
+
+    relationships:
+      arrayOf:
+        object:
+          closed: true
+          required: [description, cardinality, join]
+          properties:
+            description: string
+            cardinality:
+              enum: [one-to-one, one-to-many, many-to-one]
+            join: string
+            conflicts:
+              arrayOf: string
+
+    glossary:
+      object:
+        additionalProperties: string

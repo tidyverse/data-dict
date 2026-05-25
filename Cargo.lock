@@ -139,6 +139,8 @@ checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 name = "data-dict"
 version = "0.0.1"
 dependencies = [
+ "quarto-source-map",
+ "quarto-yaml",
  "quarto-yaml-validation",
 ]
 

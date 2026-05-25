@@ -1,0 +1,9 @@
+# expected: fails - `cardinality` must be one of one-to-one / one-to-many /
+# many-to-one (no many-to-many in the spec).
+
+version: "0.1"
+
+relationships:
+  - description: A bogus relationship.
+    cardinality: many-to-many
+    join: a.x = b.y

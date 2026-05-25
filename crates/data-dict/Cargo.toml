@@ -8,3 +8,5 @@ repository.workspace = true
 
 [dependencies]
 quarto-yaml-validation.workspace = true
+quarto-yaml = { git = "https://github.com/quarto-dev/q2", branch = "main" }
+quarto-source-map = { git = "https://github.com/quarto-dev/q2", branch = "main" }

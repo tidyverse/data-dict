@@ -1,0 +1,6 @@
+# expected: fails - `glossary` values must be strings (the definition text).
+
+version: "0.1"
+
+glossary:
+  term: 42

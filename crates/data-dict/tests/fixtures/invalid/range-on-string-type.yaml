@@ -1,0 +1,15 @@
+# expected: fails - `range` is only allowed on ordered numeric / date / datetime
+# columns, not on strings.
+
+version: "0.1"
+
+tables:
+  t:
+    description: A table.
+    source:
+      parquet: t.parquet
+    columns:
+      - name: c
+        type: string
+        description: A column.
+        range: ["a", "z"]
