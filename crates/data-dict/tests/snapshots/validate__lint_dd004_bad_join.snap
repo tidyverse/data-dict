@@ -1,0 +1,19 @@
+---
+source: crates/data-dict/tests/validate.rs
+expression: "failing_diagnostic(\"lint/dd004-bad-join.yaml\")"
+---
+Error: [DD004] data-dict.yaml lint
+    ╭─[ lint/dd004-bad-join.yaml:35:33 ]
+    │
+ 35 │     join: food.food_category_id ~ food_category.id
+    │                                 │ 
+    │                                 ╰─ `join` expression does not parse: expected one of `=`, `>=`, `<=`, `>`, `<`
+────╯
+
+Error: [DD001] data-dict.yaml lint
+    ╭─[ lint/dd004-bad-join.yaml:17:15 ]
+    │
+ 17 │       - name: food_category_id
+    │               ────────┬───────  
+    │                       ╰───────── column `food.food_category_id` is marked `foreign_key` but no `relationships` entry points it at a `primary_key` column
+────╯

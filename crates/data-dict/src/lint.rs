@@ -244,6 +244,19 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
 
+        // Skip if any join column references a missing table or column. The
+        // missing reference is already reported (DD002 / DD003), and checking
+        // cardinality against a column that doesn't exist would just produce a
+        // redundant, confusing DD006.
+        let all_cols_resolve = join.qcols().all(|q| {
+            dict.tables
+                .get(&q.table)
+                .map_or(false, |t| t.column(&q.column).is_some())
+        });
+        if !all_cols_resolve {
+            continue;
+        }
+
         // The cardinality rule is defined in terms of the LHS and RHS tables
         // of the join. With multi-conjunct joins (date-range overlap), the
         // LHS and RHS tables are the same across all conjuncts, so we can

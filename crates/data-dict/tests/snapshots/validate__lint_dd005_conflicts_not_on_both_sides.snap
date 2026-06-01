@@ -1,0 +1,11 @@
+---
+source: crates/data-dict/tests/validate.rs
+expression: "failing_diagnostic(\"lint/dd005-conflicts-not-on-both-sides.yaml\")"
+---
+Error: [DD005] data-dict.yaml lint
+    ╭─[ lint/dd005-conflicts-not-on-both-sides.yaml:39:17 ]
+    │
+ 39 │     conflicts: [amount]
+    │                 ───┬──  
+    │                    ╰──── `conflicts` entry `amount` is not a column of `food`
+────╯

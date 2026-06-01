@@ -1,0 +1,11 @@
+---
+source: crates/data-dict/tests/validate.rs
+expression: "failing_diagnostic(\"lint/dd001-fk-no-relationship.yaml\")"
+---
+Error: [DD001] data-dict.yaml lint
+    ╭─[ lint/dd001-fk-no-relationship.yaml:18:15 ]
+    │
+ 18 │       - name: food_category_id
+    │               ────────┬───────  
+    │                       ╰───────── column `food.food_category_id` is marked `foreign_key` but no `relationships` entry points it at a `primary_key` column
+────╯

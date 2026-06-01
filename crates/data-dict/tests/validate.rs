@@ -49,13 +49,14 @@ fn assert_invalid(path: PathBuf, expected: &[&str]) {
 }
 
 /// Validate a fixture that must fail, returning the rendered diagnostic with
-/// machine-specific noise stripped so it can be snapshotted.
+/// machine-specific noise stripped so it can be snapshotted. Used for both
+/// schema-`invalid/` and `lint/` fixtures — any document expected to error.
 ///
 /// The diagnostic carries two unstable bits: terminal styling (ANSI color
 /// escapes and OSC-8 hyperlinks, the latter embedding an absolute `file://`
 /// URL) and the absolute on-disk path of the fixture. We strip the escapes and
 /// rewrite the path to its `tests/fixtures/`-relative form.
-fn invalid_diagnostic(rel: &str) -> String {
+fn failing_diagnostic(rel: &str) -> String {
     let path = fixture(rel);
     let diagnostic = match data_dict::validate(&path) {
         Ok(()) => panic!("expected {rel} to fail validation, but it passed"),
@@ -194,7 +195,7 @@ fn example_otters_has_dd006() {
 #[test]
 #[cfg(unix)]
 fn missing_version() {
-    insta::assert_snapshot!(invalid_diagnostic("invalid/missing-version.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("invalid/missing-version.yaml"));
 }
 
 #[test]
@@ -208,7 +209,7 @@ fn missing_version_errors() {
 #[test]
 #[cfg(unix)]
 fn unknown_top_level_key() {
-    insta::assert_snapshot!(invalid_diagnostic("invalid/unknown-top-level-key.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("invalid/unknown-top-level-key.yaml"));
 }
 
 #[test]
@@ -222,7 +223,7 @@ fn unknown_top_level_key_errors() {
 #[test]
 #[cfg(unix)]
 fn enum_without_values() {
-    insta::assert_snapshot!(invalid_diagnostic("invalid/enum-without-values.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("invalid/enum-without-values.yaml"));
 }
 
 #[test]
@@ -236,7 +237,7 @@ fn enum_without_values_errors() {
 #[test]
 #[cfg(unix)]
 fn range_on_string_type() {
-    insta::assert_snapshot!(invalid_diagnostic("invalid/range-on-string-type.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("invalid/range-on-string-type.yaml"));
 }
 
 #[test]
@@ -250,7 +251,7 @@ fn range_on_string_type_errors() {
 #[test]
 #[cfg(unix)]
 fn bad_cardinality() {
-    insta::assert_snapshot!(invalid_diagnostic("invalid/bad-cardinality.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("invalid/bad-cardinality.yaml"));
 }
 
 #[test]
@@ -264,7 +265,7 @@ fn bad_cardinality_errors() {
 #[test]
 #[cfg(unix)]
 fn non_string_glossary_value() {
-    insta::assert_snapshot!(invalid_diagnostic("invalid/non-string-glossary-value.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("invalid/non-string-glossary-value.yaml"));
 }
 
 #[test]
@@ -282,35 +283,38 @@ fn lint_clean_two_tables() {
     assert_valid(fixture("lint/clean-two-tables.yaml"));
 }
 
+// Each local lint fixture snapshots its full rendered diagnostic. Snapshotting
+// the whole output (rather than asserting a single code is present) guards the
+// exact set of findings — e.g. that `dd003-missing-column` reports the missing
+// column without *also* checking cardinality against it and emitting a
+// redundant DD006.
+
 #[test]
 fn lint_dd001_fk_no_relationship() {
-    assert_lint_codes(fixture("lint/dd001-fk-no-relationship.yaml"), &["DD001"]);
+    insta::assert_snapshot!(failing_diagnostic("lint/dd001-fk-no-relationship.yaml"));
 }
 
 #[test]
 fn lint_dd002_missing_table() {
-    assert_lint_codes(fixture("lint/dd002-missing-table.yaml"), &["DD002"]);
+    insta::assert_snapshot!(failing_diagnostic("lint/dd002-missing-table.yaml"));
 }
 
 #[test]
 fn lint_dd003_missing_column() {
-    assert_lint_codes(fixture("lint/dd003-missing-column.yaml"), &["DD003"]);
+    insta::assert_snapshot!(failing_diagnostic("lint/dd003-missing-column.yaml"));
 }
 
 #[test]
 fn lint_dd004_bad_join() {
-    assert_lint_codes(fixture("lint/dd004-bad-join.yaml"), &["DD004"]);
+    insta::assert_snapshot!(failing_diagnostic("lint/dd004-bad-join.yaml"));
 }
 
 #[test]
 fn lint_dd005_conflicts_not_on_both_sides() {
-    assert_lint_codes(
-        fixture("lint/dd005-conflicts-not-on-both-sides.yaml"),
-        &["DD005"],
-    );
+    insta::assert_snapshot!(failing_diagnostic("lint/dd005-conflicts-not-on-both-sides.yaml"));
 }
 
 #[test]
 fn lint_dd006_cardinality_mismatch() {
-    assert_lint_codes(fixture("lint/dd006-cardinality-mismatch.yaml"), &["DD006"]);
+    insta::assert_snapshot!(failing_diagnostic("lint/dd006-cardinality-mismatch.yaml"));
 }
