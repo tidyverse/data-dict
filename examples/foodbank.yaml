@@ -2,7 +2,6 @@
 
 version: 0.1.0
 
-name: foodbank
 description: >
   USDA FoodData Central foundation foods, including nutrient values,
   portion sizes, and food categories (December 2025).
