@@ -58,7 +58,7 @@ object:
                 arrayOf:
                   object:
                     closed: true
-                    required: [name, description]
+                    required: [name]
                     properties:
                       name: string
                       description: string
