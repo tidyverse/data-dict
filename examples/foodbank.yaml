@@ -1,6 +1,7 @@
 # source: https://github.com/hadley/foodbank
 
-name: foodbank
+version: 0.1.0
+
 description: >
   USDA FoodData Central foundation foods, including nutrient values,
   portion sizes, and food categories (December 2025).
