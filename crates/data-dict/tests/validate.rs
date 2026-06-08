@@ -318,6 +318,14 @@ fn lint_dd007_other_type_missing_examples() {
     insta::assert_snapshot!(failing_diagnostic("lint/dd007-other-type-missing-examples.yaml"));
 }
 
+// A `boolean` column carries no data representation key, so it must lint clean
+// without `examples` — the one non-enum/range type exempt from DD007's
+// missing-`examples` check.
+#[test]
+fn lint_dd007_boolean_no_examples_ok() {
+    assert_valid(fixture("lint/dd007-boolean-no-examples-ok.yaml"));
+}
+
 #[test]
 fn lint_dd007_wrong_rep_on_enum() {
     insta::assert_snapshot!(failing_diagnostic("lint/dd007-wrong-rep-on-enum.yaml"));

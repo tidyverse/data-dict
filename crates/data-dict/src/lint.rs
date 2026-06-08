@@ -20,7 +20,8 @@
 //! - `DD007`: a column's data representation key (`values`, `range`, or
 //!   `examples`) is absent or wrong for its type. Each type expects exactly
 //!   one: `enum` → `values`; `number(ordinal)`, `number(quantity)`, `date`,
-//!   `datetime` → `range`; all others → `examples`.
+//!   `datetime` → `range`; all others → `examples` (except `boolean`, which
+//!   needs no data representation key).
 
 use quarto_error_reporting::DiagnosticMessageBuilder;
 use quarto_source_map::{SourceContext, SourceInfo};
@@ -433,7 +434,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                     });
                 }
             } else {
-                if !col.has_examples {
+                if !col.has_examples && type_name != "boolean" {
                     out.push(Diagnostic {
                         code: "DD007",
                         message: format!(
