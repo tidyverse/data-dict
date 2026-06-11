@@ -47,6 +47,7 @@ tables:
         type: number(id)
         constraints: [foreign_key]
         description: Links to the food_category table.
+        examples: [9, 11, 14, 18, 25]
       - name: data_type
         type: enum
         values: [foundation, branded]
@@ -83,11 +84,7 @@ Each entry in the `columns` list is a column descriptor with the following prope
 * `description` (required): a human-readable description of the column. Can use markdown.
 * `details`: additional information about the column, e.g. how it was computed or edge cases to watch out for. Can be any length.
 
-Most columns will have one of the following three additional:
-
-* `values`: the allowed values for an `enum` column. Required when `type` is `enum`. Can be a list (`[M, F, U]`) when values are self-explanatory, or a map (`{M: Male, F: Female, U: Unknown}`) when values need labels.
-* `range`: an optional two-element list `[min, max]` giving the inclusive range. Applicable to `number(ordinal)`, `number(quantity)`, `date`, and `datetime` columns.
-* `examples`: a list of ~5 representative values from the column. Highly recommended when `type` is `string`. A handful of concrete examples helps LLMs understand the column far better than a description alone. A good baseline is to select 5 evenly spaced values along the sorted unique values, and then add any particularly surprising values as you encounter them.
+A column also carries one of `values`, `range`, or `examples`, which represents the data it contains. Which one is determined by its `type` (see [Types](#types)).
 
 #### Description & details
 
@@ -109,6 +106,12 @@ The supported types are:
 * `date`: calendar dates.
 * `datetime`: date-times with timezone.
 * `enum`: a column with repeated values from a known set. The allowed values are listed in the `values` property.
+
+Every type has some way of representing the data it contains: an exhaustive set of values, a range, or a handful of examples. Each column therefore carries exactly one of the following three properties, and which one is determined by the column's `type`:
+
+* `values`: the allowed values for an `enum` column. Can be a list (`[M, F, U]`) when values are self-explanatory, or a map (`{M: Male, F: Female, U: Unknown}`) when values need labels. (`boolean` columns implicitly have `values: [true, false]`, no need to explicitly include it.)
+* `range`: a two-element list `[min, max]` giving the inclusive range. Used for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`.
+* `examples`: a list of ~5 representative values from the column. Used for all other types: `string`, `number`, and `number(id)`. A handful of concrete examples helps LLMs understand the column far better than a description alone. For instance, knowing that an id column holds `[1, 2, 3, 4, 5]` versus `[10000, 1235452, 234234]`. A good baseline is to select 5 evenly spaced values along the sorted unique values, and then add any particularly surprising values as you encounter them.
 
 #### Measures
 
