@@ -1,0 +1,10 @@
+[package]
+name = "data-dict-parquet"
+description = "Parquet reader for data-dict.yaml validation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+parquet.workspace = true

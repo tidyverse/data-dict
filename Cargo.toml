@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/data-dict", "crates/data-dict-cli"]
+members = ["crates/data-dict", "crates/data-dict-cli", "crates/data-dict-parquet"]
 
 [workspace.package]
 version = "0.0.1"
@@ -12,3 +12,5 @@ repository = "https://github.com/hadley/data-dict.yaml"
 data-dict = { path = "crates/data-dict", version = "0.0.1" }
 clap = { version = "4", features = ["derive"] }
 quarto-yaml-validation = { git = "https://github.com/quarto-dev/q2", branch = "main" }
+parquet = { version = "54", default-features = false }
+data-dict-parquet = { path = "crates/data-dict-parquet", version = "0.0.1" }
