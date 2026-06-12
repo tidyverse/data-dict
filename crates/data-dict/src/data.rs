@@ -199,14 +199,12 @@ pub fn validate_parquet(
     }
 }
 
-/// Collapse a declared dictionary type to its base form for comparison: any
-/// `number`/`number(...)` measure becomes `number`; everything else is
-/// returned unchanged.
+/// Collapse a declared dictionary type to its base form for comparison by
+/// dropping any trailing `(...)` qualifier.
 fn normalize_dict_type(dict_type: &str) -> &str {
-    if dict_type == "number" || dict_type.starts_with("number(") {
-        "number"
-    } else {
-        dict_type
+    match dict_type.find('(') {
+        Some(i) => &dict_type[..i],
+        None => dict_type,
     }
 }
 
