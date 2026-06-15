@@ -17,8 +17,28 @@ jobs:
         with:
           use-public-rspm: true
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build validator
+        run: cargo build -p data-dict-cli --release
+
       - name: Download examples
         run: Rscript download-examples.R
+
+      - name: Validate examples
+        run: |
+          status=0
+          for f in examples/*.yaml; do
+            echo "::group::Validating $f"
+            if ! ./target/release/data-dict validate-schema "$f"; then
+              status=1
+            fi
+            echo "::endgroup::"
+          done
+          if [ "$status" -ne 0 ]; then
+            echo "::error::One or more examples failed validation; not committing."
+            exit 1
+          fi
 
       - name: Commit if changed
         run: |
