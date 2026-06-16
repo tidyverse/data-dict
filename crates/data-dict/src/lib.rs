@@ -27,6 +27,11 @@ use model::DataDict;
 
 const SCHEMA_YAML: &str = include_str!("../../../schema.yaml");
 
+/// The full text of the `data-dict.yaml` specification (`site/spec.md`),
+/// embedded at compile time so the CLI can print it without a network or
+/// filesystem dependency.
+pub const SPEC_MD: &str = include_str!("../../../site/spec.md");
+
 fn schema() -> &'static Schema {
     static SCHEMA: OnceLock<Schema> = OnceLock::new();
     SCHEMA.get_or_init(|| {
