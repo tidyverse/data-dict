@@ -12,15 +12,19 @@ Create or update a `data-dict.yaml` file for a dataset following the
 [spec](https://data-dict.tidyverse.org/spec.html). Read the spec before you
 start.
 
-The two things that matter most, and where data dictionaries most often go
-wrong, are **descriptions** and **types**. Spend your effort there:
+The thing that matters most, and where data dictionaries most often go
+wrong, are **descriptions**. Spend your effort there: a column's `type` and 
+`constraints` can be inferred from the data, but its *meaning* cannot. Every 
+description must say something the data itself doesn't already tell you.
 
--   **Descriptions** are the whole point. A column's `type` and `constraints`
-    can be inferred from the data, but its *meaning* cannot. Every description
-    must say something the data itself doesn't already tell you.
--   **Types must match the physical data exactly.** A type that contradicts the
-    underlying column is worse than no type at all -- it will mislead every
-    agent and query that trusts it. Verify, don't guess (see step 6).
+**You cannot write a good data dictionary alone.** The meaning, provenance,
+units, and gotchas of a dataset live in the head of whoever produced it -- not in
+the data, and not in the column names. So treat this as an *interview*, not a
+transcription job: surface what you don't know and ask the user, rather than
+filling gaps with confident guesses. A description you invented is worse than a
+question you asked -- it looks authoritative and gets trusted. **When you are not
+certain a description is correct, you do not know it: ask.** Never silently write
+a plausible-sounding description for a column whose meaning you had to guess.
 
 ## Steps
 
@@ -31,10 +35,35 @@ wrong, are **descriptions** and **types**. Spend your effort there:
     alongside the data-dict type it maps to -- start from that mapping rather
     than guessing.
 
-2.  **Create the skeleton.** Start a `data-dict.yaml` with the three
+2.  **Interview the user.** Once you know the shape of the data, work out what
+    you genuinely cannot determine from it alone, and ask. This is the step most
+    likely to make or break the result -- do not skip it because the column names
+    look self-explanatory. They rarely are. Ask about:
+
+    -   **What each table and row represents**, and where the data comes from,
+        when it isn't obvious from the schema.
+    -   **The meaning of any column you'd otherwise be guessing at** -- cryptic
+        names, abbreviations, codes, or anything where you can describe the
+        *shape* of the data but not what it *means*.
+    -   **Units and sentinels**: what is this measured in? Are there magic values?
+    -   **Which columns are trustworthy** vs. deprecated, derived, or known to be
+        dirty.
+    -   **Domain terms and acronyms** you don't recognise (these become glossary
+        entries).
+    -   **Relationships and cardinality** you can't infer from the data alone.
+
+    Gather your questions and ask them in batches rather than one at a time, and
+    rather than interrogating the user before you've done your own homework.
+    Where you have a reasonable guess, offer it as a concrete option to confirm
+    or correct ("`amount` looks like it's in cents -- is that right?") -- that's
+    far easier to answer than an open-ended question. Record the answers directly
+    into the relevant `description`, `details`, or `glossary` entry. If the user
+    genuinely doesn't know, say so in `details` rather than papering over it.
+
+3.  **Create the skeleton.** Start a `data-dict.yaml` with the three
     top-level keys: `tables`, `relationships`, and `glossary`.
 
-3.  **Fill in each table.** For every table:
+4.  **Fill in each table.** For every table:
 
     a.  Write a `description`: a few sentences explaining what each row
         represents and where the data comes from.
@@ -47,36 +76,31 @@ wrong, are **descriptions** and **types**. Spend your effort there:
 
         -   `name`: must match the actual column name exactly.
         -   `type`: choose the analytical type that is *consistent with the
-            physical type* of the column (`number`, `string`, `boolean`,
-            `date`, `datetime`, `enum`, `enum<l1, l2, ...>`). Don't declare
-            `number` for a column stored as text, or `date` for a free-text
-            field. For numbers, add a measure when possible: `number(id)`,
-            `number(ordinal)`, or `number(quantity)`.
+            physical type* of the column.
         -   `constraints`: list any that apply (`primary_key`, `required`,
             `unique`, `foreign_key`).
         -   `description` (required): a clear explanation of what the column
             contains. This is the most valuable field -- explain units,
             meaning, and anything non-obvious. Don't just restate the column
-            name ("the user id" for `user_id` adds nothing).
-        -   `examples`: ~5 representative values, chosen by selecting evenly
-            spaced values from the sorted unique values. Omit for enums with
-            listed levels.
+            name ("the user id" for `user_id` adds nothing). If you have nothing
+            new to say, leave it blank.
+        -   `range`, `examples`, or `values` as determined by the type.
 
     d.  Add `details` to the table or any column where there are important
         caveats, edge cases, or methodology notes that don't fit in the
         description.
 
-4.  **Define relationships.** For every foreign key, add a relationship entry
+5.  **Define relationships.** For every foreign key, add a relationship entry
     with `description`, `cardinality` (`one-to-many` or `many-to-one`),
     `join`, and any `conflicts` (column names that appear in both tables with
     different meanings).
 
-5.  **Build the glossary.** Add definitions for domain-specific terms used in
+6.  **Build the glossary.** Add definitions for domain-specific terms used in
     descriptions. If a word would be unfamiliar to a new team member or an AI
     agent, define it. If you don't know what a term refers to, ask the user
-    for clarification.
+    for clarification (see step 2).
 
-6.  **Verify against the data, and against the schema.** A data dictionary
+7.  **Verify against the data, and against the schema.** A data dictionary
     that disagrees with the data is actively harmful, so check it:
 
     -   Run `data-dict validate-schema data-dict.yaml` to confirm it is
@@ -94,7 +118,4 @@ wrong, are **descriptions** and **types**. Spend your effort there:
 -   Use YAML block scalars (`>` for wrapping, `|` for preserving newlines)
     for multi-line text.
 -   Keep descriptions concise but precise. A few sentences is usually right.
--   For `enum` types with a small known set of values, list them inline:
-    `enum<M, F, U>`. Use the `description` to explain what each level means
-    using a markdown list.
 -   Order columns in the same order they appear in the underlying data.
