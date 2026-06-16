@@ -1,0 +1,11 @@
+---
+title: "dabstep"
+description: "Synced from hadley/dabstep"
+---
+
+A real-world `data-dict.yaml`, synced from [hadley/dabstep](https://github.com/hadley/dabstep).
+[Download the raw file](dabstep.yaml).
+
+```{.yaml filename="dabstep.yaml"}
+{{< include dabstep.yaml >}}
+```

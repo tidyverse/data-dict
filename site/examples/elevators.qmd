@@ -1,0 +1,11 @@
+---
+title: "elevators"
+description: "Synced from hadley/elevators"
+---
+
+A real-world `data-dict.yaml`, synced from [hadley/elevators](https://github.com/hadley/elevators).
+[Download the raw file](elevators.yaml).
+
+```{.yaml filename="elevators.yaml"}
+{{< include elevators.yaml >}}
+```

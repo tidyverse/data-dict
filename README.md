@@ -17,7 +17,8 @@ This repo contains two things:
 * **The CLI** — a Rust command-line tool that validates a `data-dict.yaml`
   file against the spec and against the underlying data.
 
-See [`examples/`](examples/) for complete data dictionaries, or the
+See the [examples](https://data-dict.tidyverse.org/examples/) (source in
+[`site/examples/`](site/examples/)) for complete data dictionaries, or the
 [overview](https://data-dict.tidyverse.org) for the motivation behind the
 project.
 
@@ -52,7 +53,7 @@ cargo build --workspace --release
 
 ```bash
 # Validate a dictionary against the spec
-data-dict validate-schema examples/otters.yaml
+data-dict validate-schema site/examples/otters.yaml
 
 # Validate a dictionary against a parquet file
 data-dict parquet validate dict.yaml data/food.parquet --table food

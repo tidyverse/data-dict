@@ -1,0 +1,11 @@
+---
+title: "foodbank"
+description: "Synced from hadley/foodbank"
+---
+
+A real-world `data-dict.yaml`, synced from [hadley/foodbank](https://github.com/hadley/foodbank).
+[Download the raw file](foodbank.yaml).
+
+```{.yaml filename="foodbank.yaml"}
+{{< include foodbank.yaml >}}
+```

@@ -5,9 +5,8 @@
 The repo contains:
 
 - `site/spec.md`: the full specification (v0.1.0)
-- `examples/`: example data dictionaries downloaded from other repos (see `download-examples.R`). Do not edit these directly — they are overwritten on each sync. When spec changes affect example documents, note that examples will need to be re-synced from their source repos.
 - `README.md`: project overview, CLI install/build instructions, and a pointer to the site.
-- `site/`: the [Quarto](https://quarto.org) website published to data-dict.tidyverse.org. Holds the spec and design docs (`spec.md`, `semantic-models.md`). Built and deployed by `.github/workflows/publish-site.yaml`.
+- `site/`: the [Quarto](https://quarto.org) website published to data-dict.tidyverse.org. Holds the spec and design docs (`spec.md`, `semantic-models.md`), as well as example data dictionaries downloaded from other repos (see `download-examples.R`). Built and deployed by `.github/workflows/publish-site.yaml`.
 - `crates/`: Rust workspace (see crate architecture below)
 - `schema.yaml`: JSON Schema for structural validation of data dictionary files
 
@@ -32,7 +31,7 @@ cargo test -p data-dict                 # single crate
 cargo test -p data-dict lint            # tests matching "lint" in data-dict crate
 
 # Validate a file
-cargo run -p data-dict-cli -- validate-schema examples/otters.yaml
+cargo run -p data-dict-cli -- validate-schema site/examples/otters.yaml
 ```
 
 To review/accept insta snapshots: `cargo insta review`.

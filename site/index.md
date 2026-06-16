@@ -6,13 +6,13 @@ title: "data-dict.yaml"
 
 `data-dict.yaml` is designed to be lightweight. It doesn't attempt to precisely describe every possible type of metadata in a machine readable way. Instead it focuses on precisely recording the most important components, leaving the remainder to plain text fields that require a human or agent to interpret. This means that `data-dict.yaml` doesn't itself do **data cleaning**, but it is a useful complement to tools that do.
 
-You can read the details of the spec in [the specification](spec.md), or dive in by looking at a few examples:
+You can read the details of the spec in [the specification](spec.md), or dive in by looking at a few [examples](examples/index.qmd):
 
-* [dabstep](https://github.com/tidyverse/data-dict/blob/main/examples/dabstep.yaml)
-* [elevators](https://github.com/tidyverse/data-dict/blob/main/examples/elevators.yaml)
-* [foodbank](https://github.com/tidyverse/data-dict/blob/main/examples/foodbank.yaml)
-* [loan-application](https://github.com/tidyverse/data-dict/blob/main/examples/loan-application.yaml)
-* [otters](https://github.com/tidyverse/data-dict/blob/main/examples/otters.yaml)
+* [dabstep](examples/dabstep.qmd)
+* [elevators](examples/elevators.qmd)
+* [foodbank](examples/foodbank.qmd)
+* [loan-application](examples/loan-application.qmd)
+* [otters](examples/otters.qmd)
 
 ## Why `data-dict.yaml`?
 

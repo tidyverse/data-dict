@@ -19,6 +19,8 @@ website:
         text: Overview
       - href: spec.md
         text: Specification
+      - href: examples/index.qmd
+        text: Examples
     right:
       - icon: github
         href: https://github.com/tidyverse/data-dict

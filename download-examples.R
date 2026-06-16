@@ -1,3 +1,5 @@
+# If you change this list, also update site/examples: add or remove the matching
+# `<name>.qmd` wrapper (and the entry in download-examples will create the .yaml).
 repos <- list(
   elevators = "hadley/elevators",
   foodbank = "hadley/foodbank",
@@ -12,7 +14,7 @@ for (name in names(repos)) {
     "https://raw.githubusercontent.com/", repo,
     "/refs/heads/main/data-dict.yaml"
   )
-  dest <- file.path("examples", paste0(name, ".yaml"))
+  dest <- file.path("site", "examples", paste0(name, ".yaml"))
   download.file(url, dest)
   contents <- readLines(dest)
   source_url <- paste0("https://github.com/", repo)
