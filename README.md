@@ -1,50 +1,81 @@
 # `data-dict.yaml`
 
-`data-dict.yaml` is a data dictionary specification that describes a collection of related tables: their contents, constraints, connections, and the specialised vocabulary you need to understand them. It is designed to be a living document, co-written by humans and agents, that tracks your understanding of a dataset as it evolves. 
+`data-dict.yaml` is a lightweight, YAML-based data dictionary specification. It
+describes a collection of related tables — their columns, types, constraints,
+relationships, and the domain vocabulary you need to understand them — in a
+single file that humans and AI agents can co-author and keep in sync with your
+data.
 
-`data-dict.yaml` is designed to be lightweight. It doesn't attempt to precisely describe every possible type of metadata in a machine readable way. Instead it focuses on precisely recording the most important components, leaving the remainder to plain text fields that require a human or agent to interpret. This means that `data-dict.yaml` doesn't itself do **data cleaning**, but it is a useful complement to tools that do.
+📖 **Full documentation, including the specification, lives at
+[data-dict.tidyverse.org](https://data-dict.tidyverse.org).**
 
-You can read the details of the spec in [spec.md](spec.md), or dive in by looking at a few examples:
+This repo contains two things:
 
-* [dabstep](examples/dabstep.yaml)
-* [elevators](examples/elevators.yaml)
-* [foodbank](examples/foodbank.yaml)
-* [loan-application](examples/loan-application.yaml)
-* [otters](examples/otters.yaml)
+* **The specification** — the prose definition of the format, in
+  [`site/spec.md`](site/spec.md) (rendered at
+  [data-dict.tidyverse.org](https://data-dict.tidyverse.org)).
+* **The CLI** — a Rust command-line tool that validates a `data-dict.yaml`
+  file against the spec and against the underlying data.
 
-## Why `data-dict.yaml`?
+See [`examples/`](examples/) for complete data dictionaries, or the
+[overview](https://data-dict.tidyverse.org) for the motivation behind the
+project.
 
-There have been many previous attempts to encode data dictionaries in structured text. What makes `data-dict.yaml` different? Why revisit this problem now?
+## The CLI
 
-* The costs of creating a data dictionary are lower than ever before because AI agents can automate much of the boilerplate, including porting documentation from existing unstructured formats (e.g. `.doc`, `.html`, `.pdf`).
-* The benefits of creating a data dictionary are higher, because AI agents need the context that currently exists only in your head. As a very pleasant side-effect, this also helps your human colleagues, particularly those who are newer to your organisation.
-* LLMs change what it means for something to be machine readable. While we explicitly encode the most important structures, we can leave the more unusual quirks to free-form text.
-* Unlike previous data dictionaries, we assume data is stored in parquet files or database tables. This means that many parsing details are out of scope, radically simplifying the spec.
-* The cost of describing the data semantics in multiple places (i.e. `data-dict.yaml` and data transformation code) is lower because an AI agent can easily keep both in sync.
+The `data-dict` CLI validates dictionaries. It can:
 
-## Inspirations
+* Check that a file is structurally valid and internally consistent
+  (`validate-schema`).
+* Compare a dictionary against a real Parquet file to confirm the data matches
+  what the dictionary claims (`parquet validate`).
+* Print the column types of a Parquet file (`parquet types`).
 
-Here are a few of the resources that guided the design of `data-dict.yaml`:
+### Install
 
-* [Data management in large-scale education research](https://datamgmtinedresearch.com/document#document-dataset)
-* [Frictionless data](https://datapackage.org/standard/table-schema)
-* [Hex's semantic modelling](https://learn.hex.tech/docs/connect-to-data/semantic-models/semantic-authoring/modeling-specification)
-* [Snowflake's semantic views](https://docs.snowflake.com/en/user-guide/views-semantic/overview)
-* [Soda's contract language](https://docs.soda.io/reference/contract-language-reference)
-* [dbt tests](https://docs.getdbt.com/docs/build/data-tests?version=1.12)
+Build and install from source with [Cargo](https://rustup.rs):
 
-It's worth noting that while semantic models influenced the design of `data-dict.yaml`, it is not a **[semantic model](semantic-models.md)**. This means it doesn't think about dimensions or metrics, because that distinction reflects intended use, not the data itself. It's primarily designed to support data scientists, not data analysts.
+```bash
+cargo install --git https://github.com/tidyverse/data-dict data-dict-cli
+```
 
-Additionally, and while terminology is still evolving, the "semantic" in semantic models is typically interpreted narrowly, focussing on structural semantics (what's needed for queries to return consistent values) not what the data actually _means_.
+Or clone the repo and build locally:
 
-## Missing features
+```bash
+git clone https://github.com/tidyverse/data-dict.git
+cd data-dict
+cargo build --workspace --release
+# binary is at target/release/data-dict
+```
 
-`data-dict.yaml` is currently just a spec — it has no accompanying tooling to validate dictionaries or perform other useful tasks. We plan to implement these in the future:
+### Usage
 
-* **Data validation**: There's currently no way to verify that a dataset and spec are consistent. We plan to provide a tool that ensures that your yaml file is correctly structured and consistent with the corresponding data. This allows a `data-dict.yaml` to serve as a data contract, ensuring that data meets agreed-upon expectations.
+```bash
+# Validate a dictionary against the spec
+data-dict validate-schema examples/otters.yaml
 
-* **User facing documentation**: There's currently no way to turn your `.yaml` file into attractive HTML documentation of your data. If you've put the time into maintaining an accurate data dictionary, we want to make it easy to turn it into a beautiful website that you can share with your colleagues.
+# Validate a dictionary against a parquet file
+data-dict parquet validate dict.yaml data/food.parquet --table food
 
-* **Large tables**: A standalone `data-dict.yaml` is not designed for hundreds of tables or hundreds of columns. We also plan to provide tools that allow you to aggregate multiple dictionaries and index larger data catalogs.
+# Inspect a parquet file's column types
+data-dict parquet types data/food.parquet
+```
 
-* **Export**: Export your data dictionary to other formats like csv, excel, and googlesheets.
+## Development
+
+This is a Rust workspace with three crates:
+
+* `crates/data-dict/` — core library: YAML parsing, schema validation, lowering
+  to a typed model, and semantic linting.
+* `crates/data-dict-cli/` — thin CLI wrapper.
+* `crates/data-dict-parquet/` — reads Parquet schemas and maps column types to
+  data-dict types.
+
+```bash
+cargo build --workspace
+cargo test --workspace
+```
+
+The website is a [Quarto](https://quarto.org) project in [`site/`](site/),
+published automatically to [data-dict.tidyverse.org](https://data-dict.tidyverse.org)
+on every push to `main`.

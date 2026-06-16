@@ -1,7 +1,7 @@
 # Write a data dictionary
 
 Create or update a `data-dict.yaml` file for a dataset following the
-[spec](https://github.com/hadley/data-dict.yaml/blob/main/spec.md). Read the spec before you start.
+[spec](https://github.com/tidyverse/data-dict/blob/main/site/spec.md). Read the spec before you start.
 
 ## Steps
 

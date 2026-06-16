@@ -1,0 +1,33 @@
+project:
+  type: website
+  output-dir: _site
+  resources:
+    - CNAME
+
+website:
+  title: "data-dict.yaml"
+  site-url: https://data-dict.tidyverse.org
+  repo-url: https://github.com/tidyverse/data-dict
+  description: >
+    A YAML-based data dictionary specification for describing collections of
+    related tables — their columns, types, constraints, relationships, and
+    domain vocabulary.
+  llms-txt: true
+  navbar:
+    left:
+      - href: index.md
+        text: Overview
+      - href: spec.md
+        text: Specification
+    right:
+      - icon: github
+        href: https://github.com/tidyverse/data-dict
+        aria-label: GitHub
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    include-in-header:
+      text: |
+        <script defer data-domain="data-dict.tidyverse.org" src="https://plausible.io/js/plausible.js"></script>

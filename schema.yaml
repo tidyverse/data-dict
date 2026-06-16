@@ -1,7 +1,7 @@
 # Schema for data-dict.yaml documents (spec version 0.1.0).
 #
 # Written in the quarto-cli YAML schema dialect understood by the
-# quarto-yaml-validation crate. See spec.md for the prose specification.
+# quarto-yaml-validation crate. See site/spec.md for the prose specification.
 #
 # Conventions in this schema:
 #   - All objects are closed (`closed: true`): unknown keys are rejected.
@@ -25,7 +25,7 @@ object:
       description: >
         Version of the data-dict.yaml spec this document conforms to.
 
-    # `description` is not in spec.md but appears in real-world files
+    # `description` is not in site/spec.md but appears in real-world files
     # (see examples/foodbank.yaml). Allowed as optional top-level metadata;
     # may be promoted into the spec in a later version.
     description: string

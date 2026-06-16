@@ -4,5 +4,7 @@
 .httr-oauth
 .DS_Store
 .quarto
+site/.quarto
+site/_site
 .claude/settings.local.json
 /target/
