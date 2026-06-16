@@ -12,7 +12,7 @@ The repo contains:
 
 ## Code principles
 
-* Reserve comment from explaining why, not what or how.
+* Reserve comments for explaining why, not what or how.
 * User facing code should be accompanied by a test.
 
 ## Spec and implementation must stay in sync
