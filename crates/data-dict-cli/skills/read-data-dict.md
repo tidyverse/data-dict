@@ -33,8 +33,7 @@ the dataset it describes.
 4.  **Briefly summarise the tables.** Once you've read the file, give the user
     a short orientation rather than dumping the whole dictionary back at them:
 
-    -   One line per table: its name, what a row represents, and roughly how
-        many columns it has.
+    -   One line per table: its name, what a row represents, and how many columns.
     -   A sentence on how the tables relate (the key joins).
 
     Keep it tight -- a few lines total. The point is to confirm your
@@ -46,9 +45,7 @@ the dataset it describes.
 
     -   Respect column types and measures (e.g. don't average an `id` column).
     -   Honour constraints (e.g. primary keys are unique and non-null).
-    -   Use `relationships` to determine correct joins and carefully watch for
-        `conflicts`.
+    -   Use `relationships` to determine correct joins and carefully watch for `conflicts`.
     -   Use `source` to determine how to access the data.
 
-6.  **If needed, read the spec**. If you're confused about the spec, you can 
-    read it with `data-dict spec`.
+6.  **If needed, read the spec**. If you need more details about what the spec means, read it with `data-dict spec`.
