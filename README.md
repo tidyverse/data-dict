@@ -31,6 +31,8 @@ The `data-dict` CLI validates dictionaries. It can:
 * Compare a dictionary against a real Parquet file to confirm the data matches
   what the dictionary claims (`parquet validate`).
 * Print the column types of a Parquet file (`parquet types`).
+* Print an embedded agent skill for reading or writing data dictionaries
+  (`skill read` / `skill write`).
 
 ### Install
 
@@ -60,6 +62,23 @@ data-dict parquet validate dict.yaml data/food.parquet --table food
 
 # Inspect a parquet file's column types
 data-dict parquet types data/food.parquet
+
+# Print an agent skill (e.g. save it to .claude/skills/ for Claude Code)
+data-dict skill read
+data-dict skill write
+```
+
+### Skills
+
+The CLI embeds two [agent skills](https://docs.claude.com/en/docs/claude-code/skills)
+for working with data dictionaries: `read` (understand an existing dictionary)
+and `write` (create or update one). Each is printed as a complete `SKILL.md`,
+frontmatter included, so you can drop it straight into an agent's skills
+directory:
+
+```bash
+mkdir -p .claude/skills/read-data-dict
+data-dict skill read > .claude/skills/read-data-dict/SKILL.md
 ```
 
 ## Development

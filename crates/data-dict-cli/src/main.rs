@@ -20,7 +20,23 @@ enum Command {
         #[command(subcommand)]
         command: ParquetCommand,
     },
+    /// Agents: read these skills to learn how to work with data-dict files
+    Skill {
+        #[command(subcommand)]
+        command: SkillCommand,
+    },
 }
+
+#[derive(Subcommand)]
+enum SkillCommand {
+    /// Skill for reading and understanding a data dictionary
+    Read,
+    /// Skill for creating or updating a data dictionary
+    Write,
+}
+
+const READ_SKILL: &str = include_str!("../skills/read-data-dict/SKILL.md");
+const WRITE_SKILL: &str = include_str!("../skills/write-data-dict/SKILL.md");
 
 #[derive(Subcommand)]
 enum ParquetCommand {
@@ -90,6 +106,14 @@ fn main() -> ExitCode {
                     ExitCode::FAILURE
                 }
             }
+        }
+        Command::Skill { command } => {
+            let skill = match command {
+                SkillCommand::Read => READ_SKILL,
+                SkillCommand::Write => WRITE_SKILL,
+            };
+            print!("{skill}");
+            ExitCode::SUCCESS
         }
     }
 }
