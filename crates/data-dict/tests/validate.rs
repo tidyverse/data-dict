@@ -117,24 +117,6 @@ fn strip_terminal_escapes(s: &str) -> String {
     String::from_utf8(out).expect("stripping ASCII escapes preserves UTF-8")
 }
 
-/// Assert that `validate` returns `Err` whose rendered text contains every
-/// expected diagnostic code. Used for bundled examples that exhibit a known
-/// lint finding we can't fix locally (examples/ is overwritten on each
-/// sync).
-fn assert_lint_codes(path: PathBuf, codes: &[&str]) {
-    let err = data_dict::validate(&path)
-        .err()
-        .unwrap_or_else(|| panic!("expected {} to fail lint, but it passed", path.display()));
-    let text = err.to_string();
-    for code in codes {
-        assert!(
-            text.contains(code),
-            "expected diagnostic `{code}` in output for {}, got:\n{text}",
-            path.display(),
-        );
-    }
-}
-
 // --- valid fixtures ------------------------------------------------------
 
 #[test]
@@ -142,44 +124,21 @@ fn minimal() {
     assert_valid(fixture("valid/minimal.yaml"));
 }
 
-#[test]
-fn example_elevators() {
-    // Three date columns (dv_lastper_insp_date, dv_approval_date,
-    // dv_status_date) lack a `range` property. The fix belongs upstream.
-    assert_lint_codes(
-        workspace_root().join("examples/elevators.yaml"),
-        &["DD007"],
-    );
-}
-
-// --- bundled examples with known upstream lint findings ------------------
+// --- bundled examples ----------------------------------------------------
 //
-// foodbank lists `data_points` and `amount` as `conflicts` between `food` and
-// `food_nutrient`, but neither column exists in `food` (they only appear in
-// `food_nutrient` and `food_portion`). The spec says `conflicts` must name
-// columns that appear in BOTH tables on either side of the join, so the
-// linter reports DD005. The fix belongs upstream in foodbank/data-dict.yaml.
+// The bundled examples under `site/examples/` are downloaded and refreshed by
+// the `update-examples` workflow, which only commits files that pass
+// validation. They must therefore validate cleanly here too.
 
 #[test]
-fn example_foodbank_has_dd005() {
-    assert_lint_codes(
-        workspace_root().join("examples/foodbank.yaml"),
-        &["DD005"],
-    );
-}
-
-// otters' self-join is `cardinality: one-to-many, join: otters.pup_number =
-// otters.otter_no`. With the spec's "left is the one side" interpretation,
-// `pup_number` would need to be `primary_key` or `unique`. It is not, so the
-// linter reports DD006. The example author likely meant `many-to-one`.
-// Additionally, the `comments` column (type: string) is missing `examples`.
-
-#[test]
-fn example_otters_has_dd006_and_dd007() {
-    assert_lint_codes(
-        workspace_root().join("examples/otters.yaml"),
-        &["DD006", "DD007"],
-    );
+fn examples_validate() {
+    let dir = workspace_root().join("site/examples");
+    for entry in std::fs::read_dir(&dir).expect("read site/examples") {
+        let path = entry.expect("dir entry").path();
+        if path.extension().and_then(|e| e.to_str()) == Some("yaml") {
+            assert_valid(path);
+        }
+    }
 }
 
 // --- invalid fixtures ----------------------------------------------------
@@ -301,6 +260,14 @@ fn lint_dd005_undeclared_conflict_ok() {
 #[test]
 fn lint_dd006_cardinality_mismatch() {
     insta::assert_snapshot!(failing_diagnostic("lint/dd006-cardinality-mismatch.yaml"));
+}
+
+// Recreated from the bundled `otters` example: a one-to-many self-join whose
+// "one" side is not unique (DD006), alongside a string column missing
+// `examples` (DD007). Guards that both findings surface together.
+#[test]
+fn lint_dd006_self_join_one_to_many() {
+    insta::assert_snapshot!(failing_diagnostic("lint/dd006-self-join-one-to-many.yaml"));
 }
 
 #[test]
