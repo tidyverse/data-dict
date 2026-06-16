@@ -85,6 +85,7 @@ Each entry in the `columns` list is a column descriptor with the following prope
 * `constraints`: a list of column-level constraints (see [Column constraints](#column-constraints)).
 * `description`: a human-readable description of the column. Can use markdown.
 * `details`: additional information about the column, e.g. how it was computed or edge cases to watch out for. Can be any length.
+* `units`: the unit of measurement, for `number(quantity)` columns only (see [Measures](#measures)).
 
 A column also carries one of `values`, `range`, or `examples`, which represents the data it contains. Which one is determined by its `type` (see [Types](#types)).
 
@@ -120,6 +121,15 @@ The `number` type can be qualified with a measure in parentheses that classifies
 | `number(id)` | No | No | No | primary keys, foreign keys, codes |
 | `number(ordinal)` | Yes | No | No | ranks, years, sequence numbers |
 | `number(quantity)` | Yes | Yes | Yes | weights, counts, amounts |
+
+A `number(quantity)` column can also declare its `units`: a free-text string naming the unit of measurement, such as `kg`, `USD`, or `seconds`. Units are only meaningful for quantities — they're how you tell apart two columns that share a `range` but measure different things — so `units` is an error on any other type.
+
+```yaml
+- name: mass
+  type: number(quantity)
+  units: g
+  range: [0, 5000]
+```
 
 #### Column constraints
 
