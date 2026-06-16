@@ -106,18 +106,7 @@ fn main() -> ExitCode {
             let dict = match resolve_dict_path(Some(dict)) {
                 Ok(dict) => dict,
                 Err(err) => {
-                    if json {
-                        println!(
-                            "{}",
-                            serde_json::json!({
-                                "status": "error",
-                                "kind": "schema",
-                                "message": err,
-                            })
-                        );
-                    } else {
-                        eprintln!("{err}");
-                    }
+                    eprintln!("{err}");
                     return ExitCode::FAILURE;
                 }
             };
