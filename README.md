@@ -68,19 +68,6 @@ data-dict skill read
 data-dict skill write
 ```
 
-### Skills
-
-The CLI embeds two [agent skills](https://docs.claude.com/en/docs/claude-code/skills)
-for working with data dictionaries: `read` (understand an existing dictionary)
-and `write` (create or update one). Each is printed as a complete `SKILL.md`,
-frontmatter included, so you can drop it straight into an agent's skills
-directory:
-
-```bash
-mkdir -p .claude/skills/read-data-dict
-data-dict skill read > .claude/skills/read-data-dict/SKILL.md
-```
-
 ## Development
 
 This is a Rust workspace with three crates:
