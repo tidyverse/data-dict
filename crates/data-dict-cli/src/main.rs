@@ -1,14 +1,14 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use data_dict::data::{ColumnIssue, DataError};
 
 #[derive(Parser)]
 #[command(name = "data-dict", version, about)]
 struct Cli {
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Subcommand)]
@@ -58,7 +58,11 @@ enum ParquetCommand {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    match cli.command {
+    let Some(command) = cli.command else {
+        print_all_subcommands();
+        return ExitCode::SUCCESS;
+    };
+    match command {
         Command::ValidateSchema { path } => match data_dict::validate(&path) {
             Ok(()) => {
                 println!("{}: ok", path.display());
@@ -120,6 +124,50 @@ fn main() -> ExitCode {
             };
             print!("{skill}");
             ExitCode::SUCCESS
+        }
+    }
+}
+
+/// Print every (leaf) subcommand, including nested ones like `skill read`.
+fn print_all_subcommands() {
+    print!("{}", subcommands_listing());
+}
+
+/// Build the listing of all leaf subcommands, including nested ones like
+/// `skill read`. The top-level `help` command is kept, but the auto-generated
+/// `help` entries on each subcommand group are dropped as noise.
+fn subcommands_listing() -> String {
+    // `build()` injects clap's auto-generated `help` subcommand into the tree.
+    let mut cmd = Cli::command();
+    cmd.build();
+    let mut rows = Vec::new();
+    collect_subcommands(&cmd, "", &mut rows);
+    let width = rows.iter().map(|(path, _)| path.len()).max().unwrap_or(0);
+    let mut out = String::from("Usage: data-dict <COMMAND>\n\nCommands:\n");
+    for (path, about) in rows {
+        out.push_str(&format!("  {path:<width$}  {about}\n"));
+    }
+    out
+}
+
+fn collect_subcommands(cmd: &clap::Command, prefix: &str, rows: &mut Vec<(String, String)>) {
+    for sub in cmd.get_subcommands() {
+        let is_help = sub.get_name() == "help";
+        // Keep only the top-level `help`; nested `help` entries are noise.
+        if is_help && !prefix.is_empty() {
+            continue;
+        }
+        let path = if prefix.is_empty() {
+            sub.get_name().to_string()
+        } else {
+            format!("{prefix} {}", sub.get_name())
+        };
+        // `help` carries a mirror of the whole command tree; treat it as a leaf.
+        if !is_help && sub.get_subcommands().any(|s| s.get_name() != "help") {
+            collect_subcommands(sub, &path, rows);
+        } else {
+            let about = sub.get_about().map(|s| s.to_string()).unwrap_or_default();
+            rows.push((path, about));
         }
     }
 }

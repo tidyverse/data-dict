@@ -273,6 +273,7 @@ dependencies = [
  "clap",
  "data-dict",
  "data-dict-parquet",
+ "insta",
  "serde_json",
 ]
 
