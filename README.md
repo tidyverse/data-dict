@@ -33,6 +33,7 @@ The `data-dict` CLI validates dictionaries. It can:
 * Print the column types of a Parquet file (`parquet types`).
 * Print an embedded agent skill for reading or writing data dictionaries
   (`skill read` / `skill write`).
+* Print the full specification (`spec`).
 
 ### Install
 
@@ -66,6 +67,9 @@ data-dict parquet types data/food.parquet
 # Print an agent skill (e.g. save it to .claude/skills/ for Claude Code)
 data-dict skill read
 data-dict skill write
+
+# Print the specification
+data-dict spec
 ```
 
 ## Development
