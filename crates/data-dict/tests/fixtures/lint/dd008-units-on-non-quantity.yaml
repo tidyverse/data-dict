@@ -1,0 +1,14 @@
+# expected: fails DD008 - `units` is only valid on `number(quantity)` columns,
+# not on `number(ordinal)`.
+
+version: "0.1.0"
+
+tables:
+  races:
+    source:
+      parquet: races.parquet
+    columns:
+      - name: finish_rank
+        type: number(ordinal)
+        units: place
+        range: [1, 100]
