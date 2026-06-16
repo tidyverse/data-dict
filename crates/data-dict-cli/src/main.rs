@@ -15,6 +15,8 @@ struct Cli {
 enum Command {
     /// Validate a data-dict.yaml file against the schema
     ValidateSchema { path: PathBuf },
+    /// Print the data-dict.yaml specification
+    Spec,
     /// Work with parquet files
     Parquet {
         #[command(subcommand)]
@@ -51,6 +53,10 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
+        Command::Spec => {
+            print!("{}", data_dict::SPEC_MD);
+            ExitCode::SUCCESS
+        }
         Command::Parquet {
             command: ParquetCommand::Types { path },
         } => match data_dict_parquet::column_type_info(&path) {
