@@ -6,7 +6,7 @@ relationships, and the domain vocabulary you need to understand them — in a
 single file that humans and AI agents can co-author and keep in sync with your
 data.
 
-📖 **Full documentation, including the specification, lives at
+**Full documentation, including the detailed specification, lives at
 [data-dict.tidyverse.org](https://data-dict.tidyverse.org).**
 
 This repo contains two things:
@@ -76,6 +76,4 @@ cargo build --workspace
 cargo test --workspace
 ```
 
-The website is a [Quarto](https://quarto.org) project in [`site/`](site/),
-published automatically to [data-dict.tidyverse.org](https://data-dict.tidyverse.org)
-on every push to `main`.
+The website is a [Quarto](https://quarto.org) project in [`site/`](site/), published automatically to [data-dict.tidyverse.org](https://data-dict.tidyverse.org) on every push to `main`.

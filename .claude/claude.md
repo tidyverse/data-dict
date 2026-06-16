@@ -15,7 +15,7 @@ The repo contains:
 
 The spec (`site/spec.md`) and the implementation (the crates + `schema.yaml`) are two views of the same thing and must never drift apart.
 
-- **New features start in the spec.** Propose and iterate on any new feature in `site/spec.md` first. Implement it only once the spec text describes the intended behaviour.
+- **New features start in the spec.** Propose and iterate on any new feature in `site/spec.md` first. Implement it only once you've confirmed with a human that the spec is correct.
 - **Implementation refinements flow back to the spec.** If you discover during implementation that the spec is wrong, incomplete, or ambiguous, update `site/spec.md` to match what you actually built.
 - **Touch one, check the other.** Whenever you change the spec, double-check the implementation still matches; whenever you change the implementation, update the spec. A change to either is incomplete until both agree.
 
