@@ -37,8 +37,8 @@ enum SkillCommand {
     Write,
 }
 
-const READ_SKILL: &str = include_str!("../skills/read-data-dict/SKILL.md");
-const WRITE_SKILL: &str = include_str!("../skills/write-data-dict/SKILL.md");
+const READ_SKILL: &str = include_str!("../skills/read-data-dict.md");
+const WRITE_SKILL: &str = include_str!("../skills/write-data-dict.md");
 
 #[derive(Subcommand)]
 enum ParquetCommand {
