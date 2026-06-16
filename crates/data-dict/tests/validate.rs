@@ -3,7 +3,7 @@
 //! Each test points at a YAML fixture under `tests/fixtures/{valid,invalid}/`.
 //! The fixtures double as runnable inputs for the CLI:
 //!
-//!     cargo run -p data-dict-cli -- validate-schema \
+//!     cargo run -p data-dict-cli -- validate \
 //!         crates/data-dict/tests/fixtures/lint/dd007-enum-without-values.yaml
 //!
 //! When adding a new rule, prefer adding a fixture file (with a one-line

@@ -27,7 +27,7 @@ project.
 The `data-dict` CLI validates dictionaries. It can:
 
 * Check that a file is structurally valid and internally consistent
-  (`validate-schema`).
+  (`validate`).
 * Compare a dictionary against a real Parquet file to confirm the data matches
   what the dictionary claims (`parquet validate`).
 * Print the column types of a Parquet file (`parquet types`).
@@ -53,7 +53,7 @@ cargo build --workspace --release
 
 ```bash
 # Validate a dictionary against the spec
-data-dict validate-schema site/examples/otters.yaml
+data-dict validate site/examples/otters.yaml
 
 # Validate a dictionary against a parquet file
 data-dict parquet validate dict.yaml data/food.parquet --table food
