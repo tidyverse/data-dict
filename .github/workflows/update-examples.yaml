@@ -30,7 +30,7 @@ jobs:
           status=0
           for f in site/examples/*.yaml; do
             echo "::group::Validating $f"
-            if ! ./target/release/data-dict validate "$f"; then
+            if ! ./target/release/data-dict validate-schema "$f"; then
               status=1
             fi
             echo "::endgroup::"

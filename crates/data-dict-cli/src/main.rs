@@ -14,7 +14,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Validate a data-dict.yaml file or directory against the schema [default: .]
-    Validate { path: Option<PathBuf> },
+    ValidateSchema { path: Option<PathBuf> },
     /// Work with parquet files
     Parquet {
         #[command(subcommand)]
@@ -41,7 +41,7 @@ enum ParquetCommand {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match cli.command {
-        Command::Validate { path } => {
+        Command::ValidateSchema { path } => {
             let path = match resolve_dict_path(path) {
                 Ok(path) => path,
                 Err(err) => {
