@@ -10,11 +10,20 @@ The repo contains:
 - `crates/`: Rust workspace (see crate architecture below)
 - `schema.yaml`: JSON Schema for structural validation of data dictionary files
 
+## Code principles
+
+* Reserve comments for explaining why, not what or how.
+* User facing code should be accompanied by a test.
+
 ## Spec and implementation must stay in sync
 
 The spec (`site/spec.md`) and the implementation (the crates + `schema.yaml`) are two views of the same thing and must never drift apart.
 
-- **New features start in the spec.** Propose and iterate on any new feature in `site/spec.md` first. Implement it only once you've confirmed with a human that the spec is correct.
+- **New features start in the spec, and REQUIRE human sign-off.** This is the single most important rule in this file. Any new feature is a two-phase process with a hard stop between the phases:
+    1. **Write the spec.** Draft and iterate the change in `site/spec.md` *only*. Do not touch `schema.yaml`, the crates, the tests, or any other file in this phase.
+    2. **Stop and get an explicit "yes" from a human on the spec text.** Asking clarifying questions is not sign-off. Presenting a plan is not sign-off. You must show the human the actual spec wording and wait for them to explicitly approve *that wording* before writing a single line of implementation. If you are unsure whether you have approval, you do not have approval — ask again.
+
+  Only after that explicit yes do you implement (`schema.yaml`, crates, tests). Starting implementation before the human has signed off on the spec is a process violation, even if the feature itself is fine.
 - **Implementation refinements flow back to the spec.** If you discover during implementation that the spec is wrong, incomplete, or ambiguous, update `site/spec.md` to match what you actually built.
 - **Touch one, check the other.** Whenever you change the spec, double-check the implementation still matches; whenever you change the implementation, update the spec. A change to either is incomplete until both agree.
 
@@ -51,11 +60,11 @@ YAML file
   → quarto_yaml: parse to AST with source spans
   → structural validation against schema.yaml (embedded via include_str!)
   → lower.rs: AST → typed model (DataDict, Table, Column, Relationship, ...)
-  → lint.rs: semantic rules DD001–DD007
+  → lint.rs: semantic rules DD001–DD008
   → Result<(), Vec<Diagnostic>>
 ```
 
-### Lint rules (DD001–DD007)
+### Lint rules (DD001–DD008)
 
 | Rule | Description |
 |------|-------------|
@@ -66,6 +75,7 @@ YAML file
 | DD005 | Column in `conflicts` doesn't appear on both sides of the join |
 | DD006 | Cardinality inconsistent with column constraints |
 | DD007 | Column missing required representation key (`values`, `range`, or `examples`) |
+| DD008 | Column has `units` but its type is not `number(quantity)` |
 
 Test fixtures for these rules are in `crates/data-dict/tests/fixtures/{valid,invalid,lint}/`. Each fixture has a `# expected: ...` header documenting the intended outcome.
 

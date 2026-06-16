@@ -302,3 +302,15 @@ fn lint_dd007_wrong_rep_on_enum() {
 fn lint_dd008_range_on_string_type() {
     insta::assert_snapshot!(failing_diagnostic("lint/dd008-range-on-string-type.yaml"));
 }
+
+// `units` is valid only on `number(quantity)`. A quantity column with units
+// lints clean; units on any other type is DD008.
+#[test]
+fn lint_dd008_units_ok_on_quantity() {
+    assert_valid(fixture("lint/dd008-units-on-quantity-ok.yaml"));
+}
+
+#[test]
+fn lint_dd008_units_on_non_quantity() {
+    insta::assert_snapshot!(failing_diagnostic("lint/dd008-units-on-non-quantity.yaml"));
+}

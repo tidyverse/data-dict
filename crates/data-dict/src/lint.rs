@@ -22,6 +22,8 @@
 //!   one: `enum` → `values`; `number(ordinal)`, `number(quantity)`, `date`,
 //!   `datetime` → `range`; all others → `examples` (except `boolean`, which
 //!   needs no data representation key).
+//! - `DD008`: a column carries `units` but its type is not `number(quantity)`.
+//!   Units are only meaningful for quantities.
 
 use quarto_error_reporting::DiagnosticMessageBuilder;
 use quarto_source_map::{SourceContext, SourceInfo};
@@ -74,6 +76,7 @@ pub fn lint(dict: &DataDict) -> Vec<Diagnostic> {
     check_conflicts_present_on_both_sides(dict, &mut out); // DD005
     check_cardinality_consistency(dict, &mut out); // DD006
     check_column_data_representation(dict, &mut out); // DD007
+    check_units_only_on_quantity(dict, &mut out); // DD008
     out
 }
 
@@ -470,6 +473,35 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         related: Vec::new(),
                     });
                 }
+            }
+        }
+    }
+}
+
+// --- DD008 --------------------------------------------------------------
+
+fn check_units_only_on_quantity(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+    for (table_name, table) in &dict.tables {
+        for col in &table.columns {
+            let Some(units) = &col.units else { continue };
+            let is_quantity = col
+                .col_type
+                .as_ref()
+                .map_or(false, |t| t.value == "number(quantity)");
+            if !is_quantity {
+                let type_desc = col
+                    .col_type
+                    .as_ref()
+                    .map_or_else(|| "no type".to_string(), |t| format!("type `{}`", t.value));
+                out.push(Diagnostic {
+                    code: "DD008",
+                    message: format!(
+                        "column `{}.{}` has `units` but {}; `units` is only valid on `number(quantity)` columns",
+                        table_name, col.name.value, type_desc
+                    ),
+                    span: units.span.clone(),
+                    related: Vec::new(),
+                });
             }
         }
     }

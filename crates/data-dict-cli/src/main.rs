@@ -13,8 +13,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Validate a data-dict.yaml file against the schema
-    ValidateSchema { path: PathBuf },
+    /// Validate a data-dict.yaml file or directory against the schema [default: .]
+    ValidateSchema { path: Option<PathBuf> },
     /// Print the data-dict.yaml specification
     Spec,
     /// Work with parquet files
@@ -63,16 +63,25 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     };
     match command {
-        Command::ValidateSchema { path } => match data_dict::validate(&path) {
-            Ok(()) => {
-                println!("{}: ok", path.display());
-                ExitCode::SUCCESS
+        Command::ValidateSchema { path } => {
+            let path = match resolve_dict_path(path) {
+                Ok(path) => path,
+                Err(err) => {
+                    eprintln!("{err}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            match data_dict::validate(&path) {
+                Ok(()) => {
+                    println!("{}: ok", path.display());
+                    ExitCode::SUCCESS
+                }
+                Err(err) => {
+                    eprintln!("{err}");
+                    ExitCode::FAILURE
+                }
             }
-            Err(err) => {
-                eprintln!("{err}");
-                ExitCode::FAILURE
-            }
-        },
+        }
         Command::Spec => {
             print!("{}", data_dict::SPEC_MD);
             ExitCode::SUCCESS
@@ -98,6 +107,13 @@ fn main() -> ExitCode {
                     json,
                 },
         } => {
+            let dict = match resolve_dict_path(Some(dict)) {
+                Ok(dict) => dict,
+                Err(err) => {
+                    eprintln!("{err}");
+                    return ExitCode::FAILURE;
+                }
+            };
             let result = data_dict::data::validate_parquet(&dict, &parquet, table.as_deref());
             if json {
                 println!("{}", validate_result_to_json(&result));
@@ -169,6 +185,74 @@ fn collect_subcommands(cmd: &clap::Command, prefix: &str, rows: &mut Vec<(String
             let about = sub.get_about().map(|s| s.to_string()).unwrap_or_default();
             rows.push((path, about));
         }
+    }
+}
+
+fn resolve_dict_path(path: Option<PathBuf>) -> Result<PathBuf, String> {
+    let path = path.unwrap_or_else(|| PathBuf::from("."));
+    if path.is_dir() {
+        let candidate = path.join("data-dict.yaml");
+        if candidate.is_file() {
+            Ok(candidate)
+        } else {
+            Err(format!("no data-dict.yaml found in {}", path.display()))
+        }
+    } else {
+        Ok(path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "data-dict-cli-test-{}-{}",
+            name,
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn explicit_file_is_returned_as_is() {
+        let dir = temp_dir("file");
+        let file = dir.join("custom.yaml");
+        fs::write(&file, "tables: {}\n").unwrap();
+        assert_eq!(resolve_dict_path(Some(file.clone())).unwrap(), file);
+    }
+
+    #[test]
+    fn directory_resolves_to_data_dict_yaml() {
+        let dir = temp_dir("dir");
+        let dict = dir.join("data-dict.yaml");
+        fs::write(&dict, "tables: {}\n").unwrap();
+        assert_eq!(resolve_dict_path(Some(dir)).unwrap(), dict);
+    }
+
+    #[test]
+    fn directory_without_data_dict_yaml_errors() {
+        let dir = temp_dir("empty");
+        let err = resolve_dict_path(Some(dir.clone())).unwrap_err();
+        assert!(err.contains("no data-dict.yaml found"));
+        assert!(err.contains(&dir.display().to_string()));
+    }
+
+    #[test]
+    fn none_defaults_to_current_directory() {
+        assert_eq!(resolve_dict_path(None), resolve_dict_path(Some(".".into())));
+    }
+
+    #[test]
+    fn nonexistent_file_is_returned_as_is() {
+        // A path that is neither a dir nor an existing file is passed through
+        // so the caller surfaces the real read error.
+        let path = PathBuf::from("does-not-exist.yaml");
+        assert_eq!(resolve_dict_path(Some(path.clone())).unwrap(), path);
     }
 }
 

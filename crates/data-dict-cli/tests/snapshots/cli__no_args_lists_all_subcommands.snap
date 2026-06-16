@@ -5,7 +5,7 @@ expression: stdout
 Usage: data-dict <COMMAND>
 
 Commands:
-  validate-schema   Validate a data-dict.yaml file against the schema
+  validate-schema   Validate a data-dict.yaml file or directory against the schema [default: .]
   spec              Print the data-dict.yaml specification
   parquet types     Print column types for a parquet file
   parquet validate  Validate a parquet file's columns against a data dictionary
