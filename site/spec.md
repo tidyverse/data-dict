@@ -15,8 +15,10 @@ While the spec is pre-1.0, breaking changes between versions should be expected.
 
 `tables` is a named list that describes each table in the dataset. Each table represents a rectangle of data with observations in the rows and variables in the columns. Each table has the following properties:
 
-* `description` (required): a human-readable description of the table. May contain markdown, and is usually a few sentences or a paragraph.
-* `details`: additional information about the table, e.g. how it was collected, constructed, or any important caveats for its use. Can be any length.
+* `description`: a human-readable description of the table. May contain markdown, and is usually a few sentences or a paragraph. A good description answers two questions:
+    * **What's the grain?** What does a row represent? (e.g. "each row is a food item", "each row is one patient visit").
+    * **What's the population?** What's been included or filtered out to produce this dataset? (e.g. "only completed orders from 2020 onwards", "excludes test accounts").
+* `details`: additional information about the table. This is the place for "here be dragons": assumptions baked into the data, known weak spots, surprising calculations, and known problems. Also covers how the data was collected or constructed. Can be any length.
 * `source` (required): ways to access the data.
 * `columns` (required): an ordered list of column metadata.
 
@@ -81,18 +83,14 @@ Each entry in the `columns` list is a column descriptor with the following prope
 * `name` (required): column name. Must match the column name in the underlying data.
 * `type`: the column's data type. Must match (approximately) the underlying data type (see [Types](#types)).
 * `constraints`: a list of column-level constraints (see [Column constraints](#column-constraints)).
-* `description` (required): a human-readable description of the column. Can use markdown.
+* `description`: a human-readable description of the column. Can use markdown.
 * `details`: additional information about the column, e.g. how it was computed or edge cases to watch out for. Can be any length.
 
 A column also carries one of `values`, `range`, or `examples`, which represents the data it contains. Which one is determined by its `type` (see [Types](#types)).
 
 #### Description & details
 
-The `description` and `details` are free text fields that humans and agents can use to jot down important notes.
-
-The `description` is required, and typically a few sentences or at most a paragraph. It's a good place to document the most important information about the column. It will be displayed in user interfaces.
-
-The `details` are optional, can be any length, and is a good place to carefully record all the details of the table.
+The `description` and `details` are free text fields that humans and agents can use to jot down important notes. The `description` should be short, typically a few sentences or at most a paragraph and will be displayed in user interfaces. The `details` can be any length, and is a good place to carefully record all the details of the table.
 
 #### Types
 
@@ -136,16 +134,15 @@ The `constraints` property is a list of constraint names. The supported constrai
 
 `relationships` is a list of join descriptors. Each entry describes how two tables are related.
 
-* `description` (required): human-readable description of the relationship.
 * `cardinality` (required): either `one-to-one`, `one-to-many`, or `many-to-one`. Describes the relationship from the left table to the right table in the join expression.
 * `join` (required): a join expression of the form `table1.column = table2.column`, or `table1.date >= table2.start AND table1.date <= table2.end`.
+* `description`: human-readable description of the relationship. Only needed if it's not clear from the context.
 * `conflicts`: a list of column names that appear in both tables with different meanings. These fields would cause ambiguity in a join and may need to be renamed or dropped.
 
 For example:
 
 ```yaml
 relationships:
-  - description: Each food belongs to one food category; each category contains many foods.
     cardinality: many-to-one
     join: food.food_category_id = food_category.id
     conflicts: [description]

@@ -89,7 +89,7 @@ object:
       arrayOf:
         object:
           closed: true
-          required: [description, cardinality, join]
+          required: [cardinality, join]
           properties:
             description: string
             cardinality:
