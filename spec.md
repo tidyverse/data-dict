@@ -19,6 +19,7 @@ While the spec is pre-1.0, breaking changes between versions should be expected.
 * `details`: additional information about the table, e.g. how it was collected, constructed, or any important caveats for its use. Can be any length.
 * `source` (required): ways to access the data.
 * `columns` (required): an ordered list of column metadata.
+* `constraints`: a list of table-level assertions.
 
 For example:
 
@@ -125,12 +126,87 @@ The `number` type can be qualified with a measure in parentheses that classifies
 
 #### Column constraints
 
-The `constraints` property is a list of constraint names. The supported constraints are:
+The `constraints` property is a list of constraints. Each entry is either a **structural constraint** (a bareword naming a structural or relational fact about the column) or an **assertion** (a map carrying an expression that must hold for the data).
+
+The structural constraints are:
 
 * `primary_key`: the set of columns with the `primary_key` constraint uniquely identifies each row. Implies `required` and `unique`.
 * `foreign_key`: the column references a primary key in another table. The specific relationship is defined in [`relationships`](#relationships).
 * `required`: the column does not contain null/missing values.
 * `unique`: the column's values are distinct (no duplicates).
+
+An assertion is a map with an `assert` key holding a boolean expression that must be true for every row, plus an optional `description`:
+
+```yaml
+columns:
+  - name: postcode
+    type: string
+    constraints:
+      - required
+      - assert: LENGTH(postcode) <= 10
+```
+
+Bare column names in the expression refer to columns of the same table, so a column assertion may relate its column to any sibling. See [Assertions](#assertions) for the expression grammar.
+
+Note that `values` and `range` (see [Types](#types)) already express membership and bounds constraints — `values` restricts an `enum` to its listed set, and `range` bounds an ordered column — so you don't need an assertion to repeat them.
+
+### Table constraints
+
+A table's `constraints` property is a list of assertions, using exactly the same form as a [column assertion](#column-constraints): a map with an `assert` key and an optional `description`. The only difference is scope — a table constraint isn't tied to a single column, so it's the natural home for rules that span columns:
+
+```yaml
+tables:
+  survey:
+    constraints:
+      - assert: end_date >= start_date
+        description: A contract can't end before it starts.
+      - assert: NOT(q3) OR (q4 IS NOT NULL AND q5 IS NOT NULL)
+        description: If q3 is true, q4 and q5 must be answered.
+```
+
+Table constraints can only carry assertions; the structural barewords (`primary_key`, `unique`, …) live on columns.
+
+### Assertions
+
+An `assert` expression is a single-table, row-level boolean expression written in a small SQL-like sublanguage. It is evaluated against every row, and the constraint holds when the expression is true for all of them. Bare names refer to columns of the table.
+
+Assertions are deliberately **per-row and single-table**: an expression sees only the columns of one row at a time. There are no aggregates and no subqueries — cross-table rules belong in [`relationships`](#relationships), and the per-row restriction keeps assertions deterministic and cheap to check.
+
+The supported grammar is:
+
+* **Comparison:** `=`, `!=` / `<>`, `<`, `<=`, `>`, `>=`
+* **Logic:** `AND`, `OR`, `NOT`, parentheses for grouping
+* **Null tests:** `IS NULL`, `IS NOT NULL`
+* **Membership:** `x BETWEEN lo AND hi`, `x IN (...)`, `x NOT IN (...)`
+* **Pattern matching:** `LIKE` / `NOT LIKE` (with `%` and `_` wildcards) and `SIMILAR TO` (regular expressions)
+* **Conditional:** `CASE WHEN ... THEN ... ELSE ... END`
+* **String functions:** `LENGTH`, `LOWER`, `UPPER`, `TRIM`, `STARTS_WITH`, `ENDS_WITH`
+* **Numeric functions & arithmetic:** `ABS`, `ROUND`, `FLOOR`, `CEIL`, `MOD`, and `+ - * /`
+* **Date/time:** `NOW()`, `interval(<n>, <unit>)`, and arithmetic between dates and intervals
+* **Column selection:** `COLUMNS(...)`, to apply one predicate to many columns at once (see below)
+
+Assertions state what must be **true**, so conditional rules are written as implications, e.g. `NOT(q3) OR q4 IS NOT NULL` or `NOT(q3 AND q4 IS NULL)`.
+
+#### Selecting multiple columns
+
+To apply the same predicate to a group of columns without repeating it, an assertion may use a `COLUMNS(...)` expression — a simple subset of [DuckDB's `COLUMNS`](https://duckdb.org/docs/current/sql/expressions/star). The supported forms select columns by:
+
+* `COLUMNS(*)`: all columns in the table.
+* `COLUMNS('<regex>')`: columns whose name matches the regular expression.
+* `COLUMNS([a, b, c])`: an explicit list of column names.
+
+The enclosing expression is evaluated once per selected column, and the assertion holds only when it is true for **every** selected column (the results are combined with `AND`). So:
+
+```yaml
+constraints:
+  # Every q4–q8 answer is present whenever q3 is true.
+  - assert: NOT(q3) OR COLUMNS('q[4-8]') IS NOT NULL
+    description: q4–q8 must be answered when q3 is true.
+  # No column anywhere in the table is null.
+  - assert: COLUMNS(*) IS NOT NULL
+```
+
+The lambda form (`COLUMNS(c -> ...)`) and the star modifiers (`EXCLUDE`, `REPLACE`, `RENAME`) are **not** supported.
 
 ## Relationships
 
