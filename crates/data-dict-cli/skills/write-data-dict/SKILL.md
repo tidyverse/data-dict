@@ -9,8 +9,7 @@ description: >-
 # Write a data dictionary
 
 Create or update a `data-dict.yaml` file for a dataset following the
-[spec](https://data-dict.tidyverse.org/spec.html). Read the spec before you
-start.
+data-dict spec. Read the spec before you start by running `data-dict spec`.
 
 The thing that matters most, and where data dictionaries most often go
 wrong, are **descriptions**. Spend your effort there: a column's `type` and 

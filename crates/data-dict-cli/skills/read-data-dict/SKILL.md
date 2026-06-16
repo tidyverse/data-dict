@@ -49,3 +49,6 @@ the dataset it describes.
     -   Use `relationships` to determine correct joins and carefully watch for
         `conflicts`.
     -   Use `source` to determine how to access the data.
+
+6.  **If needed, read the spec**. If you're confused about the spec, you can 
+    read it with `data-dict spec`.
