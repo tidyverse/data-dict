@@ -1,0 +1,14 @@
+---
+source: crates/data-dict/tests/validate.rs
+expression: "failing_diagnostic(\"invalid/bad-time-zone.yaml\")"
+---
+Error: [Q-1-14] YAML Validation Failed
+    ╭─[ invalid/bad-time-zone.yaml:14:20 ]
+    │
+ 14 │         time_zone: PST
+    │                    ─┬─  
+    │                     ╰─── String 'PST' does not match pattern '^(naive|UTC|(Africa|America|Antarctica|Arctic|Asia|Atlantic|Australia|Europe|Indian|Pacific|Etc)/[A-Za-z0-9_+/-]+)$'
+────╯
+✖ At document path: `tables.events.columns.[0].time_zone`
+ℹ Schema constraint: object > object > object > array > object > string
+ℹ Check that the string matches the expected format?

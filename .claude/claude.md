@@ -60,11 +60,11 @@ YAML file
   → quarto_yaml: parse to AST with source spans
   → structural validation against schema.yaml (embedded via include_str!)
   → lower.rs: AST → typed model (DataDict, Table, Column, Relationship, ...)
-  → lint.rs: semantic rules DD001–DD008
+  → lint.rs: semantic rules DD001–DD009
   → Result<(), Vec<Diagnostic>>
 ```
 
-### Lint rules (DD001–DD008)
+### Lint rules (DD001–DD009)
 
 | Rule | Description |
 |------|-------------|
@@ -76,6 +76,7 @@ YAML file
 | DD006 | Cardinality inconsistent with column constraints |
 | DD007 | Column missing required representation key (`values`, `range`, or `examples`) |
 | DD008 | Column has `units` but its type is not `number(quantity)` |
+| DD009 | Column has `time_zone` but its type is not `datetime` |
 
 Test fixtures for these rules are in `crates/data-dict/tests/fixtures/{valid,invalid,lint}/`. Each fixture has a `# expected: ...` header documenting the intended outcome.
 

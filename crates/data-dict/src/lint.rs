@@ -24,6 +24,8 @@
 //!   needs no data representation key).
 //! - `DD008`: a column carries `units` but its type is not `number(quantity)`.
 //!   Units are only meaningful for quantities.
+//! - `DD009`: a column carries `time_zone` but its type is not `datetime`.
+//!   Time zones are only meaningful for date-times.
 
 use quarto_error_reporting::DiagnosticMessageBuilder;
 use quarto_source_map::{SourceContext, SourceInfo};
@@ -77,6 +79,7 @@ pub fn lint(dict: &DataDict) -> Vec<Diagnostic> {
     check_cardinality_consistency(dict, &mut out); // DD006
     check_column_data_representation(dict, &mut out); // DD007
     check_units_only_on_quantity(dict, &mut out); // DD008
+    check_time_zone_only_on_datetime(dict, &mut out); // DD009
     out
 }
 
@@ -500,6 +503,35 @@ fn check_units_only_on_quantity(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                         table_name, col.name.value, type_desc
                     ),
                     span: units.span.clone(),
+                    related: Vec::new(),
+                });
+            }
+        }
+    }
+}
+
+// --- DD009 --------------------------------------------------------------
+
+fn check_time_zone_only_on_datetime(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+    for (table_name, table) in &dict.tables {
+        for col in &table.columns {
+            let Some(time_zone) = &col.time_zone else { continue };
+            let is_datetime = col
+                .col_type
+                .as_ref()
+                .map_or(false, |t| t.value == "datetime");
+            if !is_datetime {
+                let type_desc = col
+                    .col_type
+                    .as_ref()
+                    .map_or_else(|| "no type".to_string(), |t| format!("type `{}`", t.value));
+                out.push(Diagnostic {
+                    code: "DD009",
+                    message: format!(
+                        "column `{}.{}` has `time_zone` but {}; `time_zone` is only valid on `datetime` columns",
+                        table_name, col.name.value, type_desc
+                    ),
+                    span: time_zone.span.clone(),
                     related: Vec::new(),
                 });
             }

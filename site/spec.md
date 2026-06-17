@@ -85,9 +85,16 @@ Each entry in the `columns` list is a column descriptor with the following prope
 * `constraints`: a list of column-level constraints (see [Column constraints](#column-constraints)).
 * `description`: a human-readable description of the column. Can use markdown.
 * `details`: additional information about the column, e.g. how it was computed or edge cases to watch out for. Can be any length.
-* `units`: the unit of measurement, for `number(quantity)` columns only (see [Measures](#measures)).
 
-A column also carries one of `values`, `range`, or `examples`, which represents the data it contains. Which one is determined by its `type` (see [Types](#types)).
+Some properties only apply to certain types:
+
+* `units`: the unit of measurement, for `number(quantity)` columns only (see [Measures](#measures)).
+* `time_zone`: the time zone, for `datetime` columns only (see [Time zones](#time-zones)).
+* `values`: the allowed values, for `enum` columns (see [Types](#types)).
+* `range`: the inclusive `[min, max]` range, for ordered numeric and temporal types (see [Types](#types)).
+* `examples`: a handful of representative values, for all other types (see [Types](#types)).
+
+Each column must have exactly one of `values`, `range`, or `examples`.
 
 #### Description & details
 
@@ -103,7 +110,7 @@ The supported types are:
 * `string`: UTF-8 text strings.
 * `boolean`: true/false values.
 * `date`: calendar dates.
-* `datetime`: date-times with timezone.
+* `datetime`: date-times, optionally qualified with a `time_zone` (see [Time zones](#time-zones)).
 * `enum`: a column with repeated values from a known set. The allowed values are listed in the `values` property.
 
 Every type has some way of representing the data it contains: an exhaustive set of values, a range, or a handful of examples. Each column therefore carries exactly one of the following three properties, and which one is determined by the column's `type`:
@@ -130,6 +137,26 @@ A `number(quantity)` column can also declare its `units`: a free-text string nam
   units: g
   range: [0, 5000]
 ```
+
+#### Time zones
+
+A `datetime` column can declare its `time_zone`, which says how to interpret its values as moments in time. The value is either an [IANA time zone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) or the sentinel `naive`:
+
+* A named zone — `UTC`, `America/New_York`, `Europe/Paris`, and so on — means the column records instants in time, displayed in that zone. `UTC` is the usual choice for timestamps stored as instants.
+* `naive` means the column records wall-clock date-times with no associated zone, so the same value can refer to different instants in different places. Use it for local times whose offset is unknown or irrelevant.
+
+A named zone is either `UTC` or an IANA `Area/Location` name whose `Area` is one of `Africa`, `America`, `Antarctica`, `Arctic`, `Asia`, `Atlantic`, `Australia`, `Europe`, `Indian`, `Pacific`, or `Etc` (e.g. `America/New_York`, `Etc/GMT+5`). Validation checks this shape and the `Area` — enough to catch ambiguous abbreviations like `PST` or `EST` — but does not check the full location against a time zone database, so the accepted set doesn't go stale as zones are added or renamed.
+
+Time zones are only meaningful for date-times, so `time_zone` is an error on any other type. Omit `time_zone` when the zone is unknown or doesn't matter.
+
+```yaml
+- name: observed_at
+  type: datetime
+  time_zone: UTC
+  range: [2020-01-01T00:00:00, 2024-12-31T23:59:59]
+```
+NB: when `time_zone` is present, write the column's `range` as plain, zoneless date-times; they're interpreted in the declared zone.
+
 
 #### Column constraints
 

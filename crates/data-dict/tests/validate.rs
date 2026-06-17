@@ -211,6 +211,17 @@ fn non_string_glossary_value_errors() {
     );
 }
 
+#[test]
+#[cfg(unix)]
+fn bad_time_zone() {
+    insta::assert_snapshot!(failing_diagnostic("invalid/bad-time-zone.yaml"));
+}
+
+#[test]
+fn bad_time_zone_errors() {
+    assert_invalid(fixture("invalid/bad-time-zone.yaml"), &["time_zone"]);
+}
+
 // --- lint fixtures -------------------------------------------------------
 
 #[test]
@@ -313,4 +324,16 @@ fn lint_dd008_units_ok_on_quantity() {
 #[test]
 fn lint_dd008_units_on_non_quantity() {
     insta::assert_snapshot!(failing_diagnostic("lint/dd008-units-on-non-quantity.yaml"));
+}
+
+// `time_zone` is valid only on `datetime`. A datetime column with a time zone
+// lints clean; a time zone on any other type is DD009.
+#[test]
+fn lint_dd009_time_zone_ok_on_datetime() {
+    assert_valid(fixture("lint/dd009-time-zone-on-datetime-ok.yaml"));
+}
+
+#[test]
+fn lint_dd009_time_zone_on_non_datetime() {
+    insta::assert_snapshot!(failing_diagnostic("lint/dd009-time-zone-on-non-datetime.yaml"));
 }

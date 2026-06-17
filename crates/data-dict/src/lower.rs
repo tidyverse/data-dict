@@ -71,6 +71,7 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
     let mut has_range = false;
     let mut has_examples = false;
     let mut units: Option<Spanned<String>> = None;
+    let mut time_zone: Option<Spanned<String>> = None;
     for entry in entries {
         let Some(key) = entry.key.yaml.as_str() else { continue };
         match key {
@@ -90,6 +91,11 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
             "units" => {
                 if let Some(s) = entry.value.yaml.as_str() {
                     units = Some(Spanned::new(s.to_string(), entry.value_span.clone()));
+                }
+            }
+            "time_zone" => {
+                if let Some(s) = entry.value.yaml.as_str() {
+                    time_zone = Some(Spanned::new(s.to_string(), entry.value_span.clone()));
                 }
             }
             "constraints" => {
@@ -114,6 +120,7 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
         has_range,
         has_examples,
         units,
+        time_zone,
     })
 }
 

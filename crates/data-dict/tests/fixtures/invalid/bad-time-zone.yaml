@@ -1,0 +1,15 @@
+# expected: fails schema validation - `PST` is not an accepted `time_zone`.
+# Bare abbreviations are rejected; use `naive`, `UTC`, or an `Area/Location`
+# IANA name.
+
+version: "0.1.0"
+
+tables:
+  events:
+    source:
+      parquet: events.parquet
+    columns:
+      - name: observed_at
+        type: datetime
+        time_zone: PST
+        range: [2020-01-01T00:00:00, 2024-12-31T23:59:59]

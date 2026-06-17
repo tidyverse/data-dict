@@ -1,0 +1,11 @@
+---
+source: crates/data-dict/tests/validate.rs
+expression: "failing_diagnostic(\"lint/dd009-time-zone-on-non-datetime.yaml\")"
+---
+Error: [DD009] data-dict.yaml lint
+    ╭─[ lint/dd009-time-zone-on-non-datetime.yaml:13:20 ]
+    │
+ 13 │         time_zone: America/New_York
+    │                    ────────┬───────  
+    │                            ╰───────── column `events.event_day` has `time_zone` but type `date`; `time_zone` is only valid on `datetime` columns
+────╯

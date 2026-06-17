@@ -50,6 +50,7 @@ pub struct Column {
     pub has_range: bool,
     pub has_examples: bool,
     pub units: Option<Spanned<String>>,
+    pub time_zone: Option<Spanned<String>>,
 }
 
 impl Column {
