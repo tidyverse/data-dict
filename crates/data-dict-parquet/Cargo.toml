@@ -7,4 +7,6 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-parquet.workspace = true
+# `snap` adds Snappy decompression, needed by `null_report` to read data pages
+# (the most common parquet codec). Schema reading alone needs no codec.
+parquet = { workspace = true, features = ["snap"] }

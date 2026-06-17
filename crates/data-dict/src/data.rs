@@ -9,11 +9,17 @@
 //! column types via [`data_dict_parquet::column_types`], and compares the two
 //! column-by-column.
 
+use std::collections::HashMap;
 use std::path::Path;
 
-use data_dict_parquet::ParquetError;
+use data_dict_parquet::{NullReport, ParquetError};
 
+use crate::model::Column;
 use crate::Error;
+
+/// How many example values (e.g. offending rows) to record per validation
+/// issue. Issues count every offender but only list this many.
+const SAMPLE_LIMIT: usize = 5;
 
 /// A single way in which a dataset disagrees with its data dictionary.
 #[derive(Debug)]
@@ -29,6 +35,14 @@ pub enum ColumnIssue {
     MissingInData { column: String },
     /// A column in the data that the dictionary does not describe.
     ExtraInData { column: String, actual: String },
+    /// A column the dictionary marks `required` (or `primary_key`) that
+    /// nonetheless contains null values. `rows` lists the first few offending
+    /// row numbers (1-based); `count` is the true total.
+    NullsInRequired {
+        column: String,
+        count: usize,
+        rows: Vec<usize>,
+    },
 }
 
 /// Errors returned by [`validate_parquet`].
@@ -107,6 +121,12 @@ impl std::fmt::Display for DataError {
                             f,
                             "  column \"{column}\": present in data ({actual}) but not in dictionary"
                         )?,
+                        ColumnIssue::NullsInRequired { column, count, rows } => writeln!(
+                            f,
+                            "  column \"{column}\": required but has {count} null value{} ({})",
+                            if *count == 1 { "" } else { "s" },
+                            format_rows(rows, *count),
+                        )?,
                     }
                 }
                 Ok(())
@@ -131,8 +151,8 @@ impl std::error::Error for DataError {
 /// the table to compare against: `table` if given, otherwise the sole table
 /// when the dictionary describes exactly one. Finally reads the column types of
 /// the parquet file at `parquet_path` and checks every column — reporting type
-/// mismatches, columns described but absent from the data, and columns in the
-/// data the dictionary does not describe.
+/// mismatches, nulls in required columns, columns described but absent from the
+/// data, and columns in the data the dictionary does not describe.
 pub fn validate_parquet(
     dict_path: &Path,
     parquet_path: &Path,
@@ -159,32 +179,44 @@ pub fn validate_parquet(
 
     let actual = data_dict_parquet::column_types(parquet_path)?;
 
+    // Value-level checks read the data pages, so scan once up front for the
+    // columns those checks apply to (currently: required columns present in the
+    // data) and let the per-column checks look up what they need.
+    let scan_cols: Vec<String> = table
+        .columns
+        .iter()
+        .filter(|c| c.is_required_implied())
+        .map(|c| c.name.value.clone())
+        .filter(|n| actual.iter().any(|(an, _)| an == n))
+        .collect();
+    let nulls = if scan_cols.is_empty() {
+        HashMap::new()
+    } else {
+        data_dict_parquet::null_report(parquet_path, &scan_cols, SAMPLE_LIMIT)?
+    };
+
     let mut issues = Vec::new();
 
-    for (name, actual_type) in &actual {
-        match table.column(name) {
-            None => issues.push(ColumnIssue::ExtraInData {
-                column: name.clone(),
-                actual: actual_type.clone(),
-            }),
-            Some(col) => {
-                if let Some(declared) = &col.col_type
-                    && !types_compatible(&declared.value, actual_type)
-                {
-                    issues.push(ColumnIssue::TypeMismatch {
-                        column: name.clone(),
-                        declared: declared.value.clone(),
-                        actual: actual_type.clone(),
-                    });
-                }
-            }
-        }
-    }
-
+    // One pass per dictionary column: this is where per-column validations live.
+    // A column absent from the data can't be value-checked, so we report it and
+    // skip; otherwise it runs the full battery of checks.
     for col in &table.columns {
-        if !actual.iter().any(|(n, _)| n == &col.name.value) {
+        let Some((_, actual_type)) = actual.iter().find(|(n, _)| n == &col.name.value) else {
             issues.push(ColumnIssue::MissingInData {
                 column: col.name.value.clone(),
+            });
+            continue;
+        };
+        check_type(col, actual_type, &mut issues);
+        check_required_not_null(col, &nulls, &mut issues);
+    }
+
+    // Columns present in the data that the dictionary does not describe.
+    for (name, actual_type) in &actual {
+        if table.column(name).is_none() {
+            issues.push(ColumnIssue::ExtraInData {
+                column: name.clone(),
+                actual: actual_type.clone(),
             });
         }
     }
@@ -196,6 +228,53 @@ pub fn validate_parquet(
             table: table.name.value.clone(),
             issues,
         })
+    }
+}
+
+/// A column's declared type must be compatible with the type read from the data.
+fn check_type(col: &Column, actual_type: &str, issues: &mut Vec<ColumnIssue>) {
+    if let Some(declared) = &col.col_type
+        && !types_compatible(&declared.value, actual_type)
+    {
+        issues.push(ColumnIssue::TypeMismatch {
+            column: col.name.value.clone(),
+            declared: declared.value.clone(),
+            actual: actual_type.to_string(),
+        });
+    }
+}
+
+/// A `required` (or `primary_key`) column must contain no nulls. Relies on
+/// `nulls` having been populated for `col` by the up-front scan.
+fn check_required_not_null(
+    col: &Column,
+    nulls: &HashMap<String, NullReport>,
+    issues: &mut Vec<ColumnIssue>,
+) {
+    if col.is_required_implied()
+        && let Some(report) = nulls.get(&col.name.value)
+        && report.count > 0
+    {
+        issues.push(ColumnIssue::NullsInRequired {
+            column: col.name.value.clone(),
+            count: report.count,
+            rows: report.rows.clone(),
+        });
+    }
+}
+
+/// Format offending row numbers for display: `rows: 3, 7, 12`, with a trailing
+/// `, …` when there were more nulls than the recorded sample.
+fn format_rows(rows: &[usize], count: usize) -> String {
+    let listed = rows
+        .iter()
+        .map(|r| r.to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    if count > rows.len() {
+        format!("rows: {listed}, …")
+    } else {
+        format!("rows: {listed}")
     }
 }
 
@@ -236,6 +315,14 @@ mod tests {
         assert_eq!(normalize_dict_type("number(id)"), "number");
         assert_eq!(normalize_dict_type("number"), "number");
         assert_eq!(normalize_dict_type("string"), "string");
+    }
+
+    #[test]
+    fn row_formatting() {
+        assert_eq!(format_rows(&[2], 1), "rows: 2");
+        assert_eq!(format_rows(&[2, 5, 9], 3), "rows: 2, 5, 9");
+        // More nulls than the recorded sample gets an ellipsis.
+        assert_eq!(format_rows(&[1, 2, 3, 4, 5], 8), "rows: 1, 2, 3, 4, 5, …");
     }
 
     #[test]

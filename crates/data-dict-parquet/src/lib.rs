@@ -2,7 +2,9 @@
 
 use parquet::basic::{LogicalType, TimeUnit, Type as PhysicalType};
 use parquet::file::reader::{FileReader, SerializedFileReader};
+use parquet::record::Field;
 use parquet::schema::types::Type;
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 
@@ -60,6 +62,56 @@ pub fn column_type_info(
             }
         })
         .collect())
+}
+
+/// Where null values were found in a single column: the true total, plus the
+/// 1-based row numbers of the first few (capped by the caller's limit).
+pub struct NullReport {
+    pub count: usize,
+    pub rows: Vec<usize>,
+}
+
+/// Scans a parquet file and reports, for each of the named columns, which rows
+/// hold a null value.
+///
+/// Row numbers are 1-based and in file order. `rows` is capped at `limit`
+/// entries while `count` always reflects the true total. Names that don't
+/// match a column in the file are simply absent from the returned map.
+///
+/// Unlike [`column_types`], this reads the actual data pages (so the file's
+/// compression codec must be supported), since null *positions* aren't
+/// recoverable from metadata alone.
+pub fn null_report(
+    path: &Path,
+    columns: &[String],
+    limit: usize,
+) -> Result<HashMap<String, NullReport>, parquet::errors::ParquetError> {
+    let file = File::open(path).map_err(|e| {
+        parquet::errors::ParquetError::General(format!("Cannot open file: {e}"))
+    })?;
+    let reader = SerializedFileReader::new(file)?;
+
+    let mut reports: HashMap<String, NullReport> = columns
+        .iter()
+        .cloned()
+        .map(|c| (c, NullReport { count: 0, rows: Vec::new() }))
+        .collect();
+
+    for (idx, row) in reader.get_row_iter(None)?.enumerate() {
+        let row = row?;
+        for (name, field) in row.get_column_iter() {
+            if matches!(field, Field::Null)
+                && let Some(report) = reports.get_mut(name)
+            {
+                report.count += 1;
+                if report.rows.len() < limit {
+                    report.rows.push(idx + 1);
+                }
+            }
+        }
+    }
+
+    Ok(reports)
 }
 
 fn format_logical_type(lt: LogicalType) -> String {

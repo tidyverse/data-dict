@@ -258,6 +258,7 @@ version = "0.0.1"
 dependencies = [
  "data-dict-parquet",
  "indexmap",
+ "indoc",
  "insta",
  "parquet",
  "quarto-error-reporting",
@@ -622,6 +623,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "indoc"
+version = "2.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79cf5c93f93228cf8efb3ba362535fb11199ac548a09ce117c9b1adc3030d706"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "insta"
 version = "1.47.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -812,6 +822,7 @@ dependencies = [
  "num-bigint",
  "paste",
  "seq-macro",
+ "snap",
  "thrift",
  "twox-hash",
 ]
@@ -1115,6 +1126,12 @@ name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+
+[[package]]
+name = "snap"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b6b67fb9a61334225b5b790716f609cd58395f895b3fe8b328786812a40bc3b"
 
 [[package]]
 name = "stable_deref_trait"
