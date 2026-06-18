@@ -72,7 +72,10 @@ fn main() -> ExitCode {
                 }
             };
             match data_dict::validate(&path) {
-                Ok(()) => {
+                Ok(warnings) => {
+                    for warning in &warnings {
+                        eprintln!("{warning}");
+                    }
                     println!("{}: ok", path.display());
                     ExitCode::SUCCESS
                 }

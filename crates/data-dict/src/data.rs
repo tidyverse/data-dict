@@ -138,7 +138,8 @@ pub fn validate_parquet(
     parquet_path: &Path,
     table: Option<&str>,
 ) -> Result<(), DataError> {
-    let dict = crate::validate_and_lower(dict_path)?;
+    // Warnings (e.g. a missing `$learn_more`) don't affect data validation.
+    let (dict, _warnings) = crate::validate_and_lower(dict_path)?;
 
     let available = || dict.tables.keys().cloned().collect::<Vec<_>>();
     let table = match table {

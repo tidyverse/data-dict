@@ -1,7 +1,10 @@
 //! Cross-table semantic linting for data-dict.yaml documents.
 //!
-//! Each rule runs over a lowered [`DataDict`] and emits zero or more
-//! [`Diagnostic`]s. All diagnostics are errors — there is no warning level.
+//! Most rules run over a lowered [`DataDict`] and emit zero or more
+//! [`Diagnostic`]s. Diagnostics carry a [`Severity`]: rules DD001–DD008 are
+//! errors that fail validation, while DD009 is a warning that is reported but
+//! does not. DD009 inspects the raw document rather than the lowered model,
+//! since it is about a top-level metadata key.
 //!
 //! Rule codes:
 //!
@@ -24,31 +27,58 @@
 //!   needs no data representation key).
 //! - `DD008`: a column carries `units` but its type is not `number(quantity)`.
 //!   Units are only meaningful for quantities.
+//! - `DD009` (warning): the document omits the recommended `$learn_more`
+//!   top-level key.
 
 use quarto_error_reporting::DiagnosticMessageBuilder;
 use quarto_source_map::{SourceContext, SourceInfo};
+use quarto_yaml::YamlWithSourceInfo;
 
 use crate::join_expr::{JoinExpr, ParseError, QCol};
 use crate::model::{Cardinality, DataDict, Spanned};
+
+/// The canonical documentation URL suggested for `$learn_more`.
+pub const LEARN_MORE_URL: &str = "http://data-dict.tidyverse.org/";
+
+/// Whether a diagnostic blocks validation (`Error`) or is purely advisory
+/// (`Warning`). Errors fail validation; warnings are reported alongside a
+/// successful result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Severity {
+    Error,
+    Warning,
+}
 
 #[derive(Debug, Clone)]
 pub struct Diagnostic {
     pub code: &'static str,
     pub message: String,
+    pub severity: Severity,
     pub span: SourceInfo,
     /// Secondary spans with explanatory labels. Rendered as bulleted details
     /// below the primary location.
     pub related: Vec<(SourceInfo, String)>,
+    /// Advisory follow-up rendered as an info bullet, e.g. how to resolve a
+    /// warning.
+    pub hint: Option<String>,
 }
 
 impl Diagnostic {
     pub fn to_text(&self, ctx: &SourceContext) -> String {
-        let mut builder = DiagnosticMessageBuilder::error("data-dict.yaml lint")
+        let title = "data-dict.yaml lint";
+        let mut builder = match self.severity {
+            Severity::Error => DiagnosticMessageBuilder::error(title),
+            Severity::Warning => DiagnosticMessageBuilder::warning(title),
+        };
+        builder = builder
             .with_code(self.code)
             .problem(self.message.clone())
             .with_location(self.span.clone());
         for (span, label) in &self.related {
             builder = builder.add_detail_at(label.clone(), span.clone());
+        }
+        if let Some(hint) = &self.hint {
+            builder = builder.add_info(hint.clone());
         }
         builder.build().to_text(Some(ctx))
     }
@@ -60,6 +90,8 @@ impl Diagnostic {
             message: format!("`join` expression does not parse: {}", err.message),
             span: span.unwrap_or_else(|| join_text.span.clone()),
             related: Vec::new(),
+            severity: Severity::Error,
+            hint: None,
         }
     }
 }
@@ -87,8 +119,8 @@ fn check_relationship_table_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
         let Some(join) = &rel.join else { continue };
         for q in join.qcols() {
             if !dict.tables.contains_key(&q.table) {
-                let span =
-                    subspan(&rel.join_text.span, q.start, q.end).unwrap_or_else(|| rel.join_text.span.clone());
+                let span = subspan(&rel.join_text.span, q.start, q.end)
+                    .unwrap_or_else(|| rel.join_text.span.clone());
                 out.push(Diagnostic {
                     code: "DD002",
                     message: format!(
@@ -97,6 +129,8 @@ fn check_relationship_table_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                     ),
                     span,
                     related: Vec::new(),
+                    severity: Severity::Error,
+                    hint: None,
                 });
             }
         }
@@ -111,7 +145,9 @@ fn check_relationship_column_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
             for q in join.qcols() {
                 // Skip if the table doesn't exist — DD002 handles that case
                 // and a column report would be noise.
-                let Some(table) = dict.tables.get(&q.table) else { continue };
+                let Some(table) = dict.tables.get(&q.table) else {
+                    continue;
+                };
                 if table.column(&q.column).is_none() {
                     let span = subspan(&rel.join_text.span, q.start, q.end)
                         .unwrap_or_else(|| rel.join_text.span.clone());
@@ -123,6 +159,8 @@ fn check_relationship_column_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                         ),
                         span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             }
@@ -150,6 +188,8 @@ fn check_join_table_count(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                 ),
                 span: rel.join_text.span.clone(),
                 related: Vec::new(),
+                severity: Severity::Error,
+                hint: None,
             });
         }
     }
@@ -175,8 +215,12 @@ fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                         if fk_side.table != *table_name || fk_side.column != col.name.value {
                             return false;
                         }
-                        let Some(other_tbl) = dict.tables.get(&pk_side.table) else { return false };
-                        let Some(other_col) = other_tbl.column(&pk_side.column) else { return false };
+                        let Some(other_tbl) = dict.tables.get(&pk_side.table) else {
+                            return false;
+                        };
+                        let Some(other_col) = other_tbl.column(&pk_side.column) else {
+                            return false;
+                        };
                         other_col.has(PrimaryKey)
                     })
                 })
@@ -190,6 +234,8 @@ fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                     ),
                     span: col.name.span.clone(),
                     related: Vec::new(),
+                    severity: Severity::Error,
+                    hint: None,
                 });
             }
         }
@@ -229,6 +275,8 @@ fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut Vec<Diagnost
                     ),
                     span: c.span.clone(),
                     related: Vec::new(),
+                    severity: Severity::Error,
+                    hint: None,
                 });
             }
         }
@@ -270,7 +318,9 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
         // of the join. With multi-conjunct joins (date-range overlap), the
         // LHS and RHS tables are the same across all conjuncts, so we can
         // use the first conjunct as the canonical orientation.
-        let Some(first) = join.conjuncts.first() else { continue };
+        let Some(first) = join.conjuncts.first() else {
+            continue;
+        };
         let lhs_table = first.lhs.table.clone();
         let rhs_table = first.rhs.table.clone();
 
@@ -283,8 +333,10 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
         // is unique-implied; that matches the loose intuition behind range
         // joins without producing noise for legitimate overlap joins.
 
-        let lhs_cols_unique = side_has_unique_implied(dict, &lhs_table, join, /* use_lhs = */ true);
-        let rhs_cols_unique = side_has_unique_implied(dict, &rhs_table, join, /* use_lhs = */ false);
+        let lhs_cols_unique =
+            side_has_unique_implied(dict, &lhs_table, join, /* use_lhs = */ true);
+        let rhs_cols_unique =
+            side_has_unique_implied(dict, &rhs_table, join, /* use_lhs = */ false);
 
         let card_span = rel.cardinality.span.clone();
         match rel.cardinality.value {
@@ -298,6 +350,8 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                         ),
                         span: card_span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             }
@@ -313,6 +367,8 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                         ),
                         span: card_span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             }
@@ -326,6 +382,8 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                         ),
                         span: card_span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             }
@@ -360,7 +418,9 @@ const RANGE_TYPES: &[&str] = &["number(ordinal)", "number(quantity)", "date", "d
 fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) {
     for (table_name, table) in &dict.tables {
         for col in &table.columns {
-            let Some(col_type) = &col.col_type else { continue };
+            let Some(col_type) = &col.col_type else {
+                continue;
+            };
             let type_name = col_type.value.as_str();
             let span = col.name.span.clone();
 
@@ -374,6 +434,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
                 if col.has_range {
@@ -386,6 +448,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span: col.name.span.clone(),
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
                 if col.has_examples {
@@ -398,6 +462,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span: col.name.span.clone(),
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             } else if RANGE_TYPES.contains(&type_name) {
@@ -410,6 +476,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
                 if col.has_values {
@@ -422,6 +490,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span: col.name.span.clone(),
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
                 if col.has_examples {
@@ -434,6 +504,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span: col.name.span.clone(),
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             } else {
@@ -446,6 +518,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
                 if col.has_values {
@@ -458,6 +532,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span: col.name.span.clone(),
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
                 if col.has_range {
@@ -471,6 +547,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span: col.name.span.clone(),
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             }
@@ -501,10 +579,39 @@ fn check_units_only_on_quantity(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                     ),
                     span: units.span.clone(),
                     related: Vec::new(),
+                    severity: Severity::Error,
+                    hint: None,
                 });
             }
         }
     }
+}
+
+// --- DD009 --------------------------------------------------------------
+
+/// Warn when the document omits the recommended `$learn_more` key. Unlike the
+/// other rules this inspects the raw AST, because `$learn_more` is top-level
+/// metadata that the lowered [`DataDict`] does not carry. The warning is
+/// anchored at the `$version` key, which the schema guarantees is present.
+pub fn check_learn_more(root: &YamlWithSourceInfo) -> Option<Diagnostic> {
+    let entries = root.as_hash()?;
+    let has = |key: &str| entries.iter().find(|e| e.key.yaml.as_str() == Some(key));
+    if has("$learn_more").is_some() {
+        return None;
+    }
+    let span = has("$version")
+        .map(|e| e.key_span.clone())
+        .unwrap_or_else(|| root.source_info.clone());
+    Some(Diagnostic {
+        code: "DD009",
+        message: "document is missing the recommended `$learn_more` key".to_string(),
+        severity: Severity::Warning,
+        span,
+        related: Vec::new(),
+        hint: Some(format!(
+            "Add `$learn_more` so readers unfamiliar with the format can find it: {LEARN_MORE_URL}"
+        )),
+    })
 }
 
 // --- Helpers ------------------------------------------------------------

@@ -34,9 +34,12 @@ fn assert_valid(path: PathBuf) {
 }
 
 fn assert_invalid(path: PathBuf, expected: &[&str]) {
-    let err = data_dict::validate(&path)
-        .err()
-        .unwrap_or_else(|| panic!("expected {} to fail validation, but it passed", path.display()));
+    let err = data_dict::validate(&path).err().unwrap_or_else(|| {
+        panic!(
+            "expected {} to fail validation, but it passed",
+            path.display()
+        )
+    });
     let text = err.to_string();
     for s in expected {
         assert!(
@@ -59,9 +62,29 @@ fn assert_invalid(path: PathBuf, expected: &[&str]) {
 fn failing_diagnostic(rel: &str) -> String {
     let path = fixture(rel);
     let diagnostic = match data_dict::validate(&path) {
-        Ok(()) => panic!("expected {rel} to fail validation, but it passed"),
+        Ok(_) => panic!("expected {rel} to fail validation, but it passed"),
         Err(e) => e.to_string(),
     };
+    sanitize(&diagnostic)
+}
+
+/// Validate a fixture expected to pass *with* warnings, returning the rendered
+/// warnings (sanitized like [`failing_diagnostic`]) for snapshotting.
+fn warning_diagnostic(rel: &str) -> String {
+    let path = fixture(rel);
+    let warnings = match data_dict::validate(&path) {
+        Ok(warnings) if !warnings.is_empty() => warnings,
+        Ok(_) => panic!("expected {rel} to emit a warning, but it was clean"),
+        Err(e) => panic!("expected {rel} to validate, but it failed:\n{e}"),
+    };
+    sanitize(&warnings.join("\n"))
+}
+
+/// Strip the two unstable bits from a rendered diagnostic so it can be
+/// snapshotted: terminal styling (ANSI color escapes and OSC-8 hyperlinks, the
+/// latter embedding an absolute `file://` URL) and the absolute on-disk path of
+/// the fixture, which is rewritten to its `tests/fixtures/`-relative form.
+fn sanitize(diagnostic: &str) -> String {
     let fixtures_root = format!(
         "{}/",
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -70,7 +93,7 @@ fn failing_diagnostic(rel: &str) -> String {
             .display()
     )
     .replace('\\', "/");
-    strip_terminal_escapes(&diagnostic)
+    strip_terminal_escapes(diagnostic)
         .replace('\\', "/")
         .replace(&fixtures_root, "")
 }
@@ -121,7 +144,35 @@ fn strip_terminal_escapes(s: &str) -> String {
 
 #[test]
 fn minimal() {
-    assert_valid(fixture("valid/minimal.yaml"));
+    let warnings =
+        data_dict::validate(&fixture("valid/minimal.yaml")).expect("minimal must validate");
+    assert!(
+        warnings.is_empty(),
+        "minimal carries `$learn_more`, so it must validate without warnings, got: {warnings:?}"
+    );
+}
+
+// --- warnings ------------------------------------------------------------
+
+// A document missing the recommended `$learn_more` key validates (it is not an
+// error) but surfaces a DD009 warning.
+
+#[test]
+#[cfg(unix)]
+fn warn_missing_learn_more() {
+    insta::assert_snapshot!(warning_diagnostic("valid/no-learn-more.yaml"));
+}
+
+#[test]
+fn warn_missing_learn_more_text() {
+    let warnings =
+        data_dict::validate(&fixture("valid/no-learn-more.yaml")).expect("must validate");
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("DD009") && w.contains("$learn_more")),
+        "expected a DD009 `$learn_more` warning, got: {warnings:?}"
+    );
 }
 
 // --- bundled examples ----------------------------------------------------
@@ -165,7 +216,7 @@ fn missing_version() {
 fn missing_version_errors() {
     assert_invalid(
         fixture("invalid/missing-version.yaml"),
-        &["Missing required property 'version'"],
+        &["Missing required property '$version'"],
     );
 }
 
@@ -191,10 +242,7 @@ fn bad_cardinality() {
 
 #[test]
 fn bad_cardinality_errors() {
-    assert_invalid(
-        fixture("invalid/bad-cardinality.yaml"),
-        &["many-to-many"],
-    );
+    assert_invalid(fixture("invalid/bad-cardinality.yaml"), &["many-to-many"]);
 }
 
 #[test]
@@ -246,7 +294,9 @@ fn lint_dd004_bad_join() {
 
 #[test]
 fn lint_dd005_conflicts_not_on_both_sides() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd005-conflicts-not-on-both-sides.yaml"));
+    insta::assert_snapshot!(failing_diagnostic(
+        "lint/dd005-conflicts-not-on-both-sides.yaml"
+    ));
 }
 
 // The opposite of the above: `amount` is genuinely a column on both tables (a
@@ -277,12 +327,16 @@ fn lint_dd007_enum_without_values() {
 
 #[test]
 fn lint_dd007_range_type_missing_range() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd007-range-type-missing-range.yaml"));
+    insta::assert_snapshot!(failing_diagnostic(
+        "lint/dd007-range-type-missing-range.yaml"
+    ));
 }
 
 #[test]
 fn lint_dd007_other_type_missing_examples() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd007-other-type-missing-examples.yaml"));
+    insta::assert_snapshot!(failing_diagnostic(
+        "lint/dd007-other-type-missing-examples.yaml"
+    ));
 }
 
 // A `boolean` column carries no data representation key, so it must lint clean

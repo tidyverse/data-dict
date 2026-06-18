@@ -1,0 +1,3 @@
+# expected: validates with a warning - $learn_more is recommended but optional (DD009).
+
+$version: 0.1.0

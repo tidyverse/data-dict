@@ -3,7 +3,8 @@
 # to exercise that `tables.<name>.description` is optional.
 # `food.id` omits column-level description to exercise that it is optional.
 
-version: "0.1.0"
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
 
 tables:
   food:

@@ -64,7 +64,9 @@ YAML file
   → Result<(), Vec<Diagnostic>>
 ```
 
-### Lint rules (DD001–DD008)
+### Lint rules (DD001–DD009)
+
+DD001–DD008 are errors (they fail validation); DD009 is a warning (reported but does not fail validation).
 
 | Rule | Description |
 |------|-------------|
@@ -76,8 +78,18 @@ YAML file
 | DD006 | Cardinality inconsistent with column constraints |
 | DD007 | Column missing required representation key (`values`, `range`, or `examples`) |
 | DD008 | Column has `units` but its type is not `number(quantity)` |
+| DD009 | Document omits the recommended `$learn_more` key (warning) |
 
 Test fixtures for these rules are in `crates/data-dict/tests/fixtures/{valid,invalid,lint}/`. Each fixture has a `# expected: ...` header documenting the intended outcome.
+
+Diagnostic hints always start with a capital letter.
+
+If a schema change causes `site/examples/` to fail, don't fix them. Instead report them to me so I can fix upstream.
+
+
+## Data format
+
+- Keys in `data-dict.yaml` use snake_case (e.g. `primary_key`, `foreign_key`, `$learn_more`).
 
 ## Prose
 
