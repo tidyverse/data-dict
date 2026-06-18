@@ -20,7 +20,9 @@ pub fn lower(root: &YamlWithSourceInfo) -> (DataDict, Vec<Diagnostic>) {
     if let Some(t_node) = root.get_hash_value("tables") {
         if let Some(entries) = t_node.as_hash() {
             for entry in entries {
-                let Some(name) = entry.key.yaml.as_str() else { continue };
+                let Some(name) = entry.key.yaml.as_str() else {
+                    continue;
+                };
                 let table = lower_table(name, &entry.key_span, &entry.value);
                 tables.insert(name.to_string(), table);
             }
@@ -72,7 +74,9 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
     let mut has_examples = false;
     let mut units: Option<Spanned<String>> = None;
     for entry in entries {
-        let Some(key) = entry.key.yaml.as_str() else { continue };
+        let Some(key) = entry.key.yaml.as_str() else {
+            continue;
+        };
         match key {
             "name" => {
                 if let Some(s) = entry.value.yaml.as_str() {
@@ -127,7 +131,9 @@ fn lower_relationship(
     let mut conflicts: Vec<Spanned<String>> = Vec::new();
 
     for entry in entries {
-        let Some(key) = entry.key.yaml.as_str() else { continue };
+        let Some(key) = entry.key.yaml.as_str() else {
+            continue;
+        };
         match key {
             "cardinality" => {
                 if let Some(s) = entry.value.yaml.as_str() {

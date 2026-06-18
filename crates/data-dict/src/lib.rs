@@ -35,10 +35,9 @@ pub const SPEC_MD: &str = include_str!("../../../site/spec.md");
 fn schema() -> &'static Schema {
     static SCHEMA: OnceLock<Schema> = OnceLock::new();
     SCHEMA.get_or_init(|| {
-        let yaml = quarto_yaml::parse(SCHEMA_YAML)
-            .expect("embedded schema.yaml must be parseable YAML");
-        Schema::from_yaml(&yaml)
-            .expect("embedded schema.yaml must compile to a valid schema")
+        let yaml =
+            quarto_yaml::parse(SCHEMA_YAML).expect("embedded schema.yaml must be parseable YAML");
+        Schema::from_yaml(&yaml).expect("embedded schema.yaml must compile to a valid schema")
     })
 }
 
@@ -104,10 +103,7 @@ pub fn validate_and_lower(path: &Path) -> Result<DataDict, Error> {
     let (dict, mut diagnostics) = lower::lower(&doc);
     diagnostics.extend(lint::lint(&dict));
     if !diagnostics.is_empty() {
-        let rendered: Vec<String> = diagnostics
-            .iter()
-            .map(|d| d.to_text(&source_ctx))
-            .collect();
+        let rendered: Vec<String> = diagnostics.iter().map(|d| d.to_text(&source_ctx)).collect();
         return Err(Error::Invalid(rendered.join("\n")));
     }
 

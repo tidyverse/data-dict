@@ -6,10 +6,10 @@
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
-use data_dict::data::{validate_parquet, ColumnIssue, DataError};
+use data_dict::data::{ColumnIssue, DataError, validate_parquet};
 use parquet::data_type::{ByteArray, ByteArrayType, DoubleType};
 use parquet::file::properties::WriterProperties;
 use parquet::file::writer::SerializedFileWriter;
@@ -229,7 +229,10 @@ tables:
     );
 
     let err = validate_parquet(&yaml, &parquet, None).unwrap_err();
-    assert!(matches!(err, DataError::AmbiguousTable { .. }), "got {err:?}");
+    assert!(
+        matches!(err, DataError::AmbiguousTable { .. }),
+        "got {err:?}"
+    );
 }
 
 #[test]
@@ -256,5 +259,8 @@ tables:
     );
 
     let err = validate_parquet(&yaml, &parquet, Some("nope")).unwrap_err();
-    assert!(matches!(err, DataError::TableNotFound { .. }), "got {err:?}");
+    assert!(
+        matches!(err, DataError::TableNotFound { .. }),
+        "got {err:?}"
+    );
 }

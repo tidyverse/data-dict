@@ -217,7 +217,8 @@ mod tests {
     use super::*;
 
     fn parse(s: &str) -> JoinExpr {
-        JoinExpr::parse(s).unwrap_or_else(|e| panic!("parse({s:?}) failed: {} at {}", e.message, e.at))
+        JoinExpr::parse(s)
+            .unwrap_or_else(|e| panic!("parse({s:?}) failed: {} at {}", e.message, e.at))
     }
 
     #[test]
@@ -354,12 +355,11 @@ mod tests {
     #[test]
     fn qcols_yields_all_refs_in_source_order() {
         let j = parse("a.x = b.y AND c.z = d.w");
-        let cols: Vec<(&str, &str)> =
-            j.qcols().map(|q| (q.table.as_str(), q.column.as_str())).collect();
-        assert_eq!(
-            cols,
-            vec![("a", "x"), ("b", "y"), ("c", "z"), ("d", "w")]
-        );
+        let cols: Vec<(&str, &str)> = j
+            .qcols()
+            .map(|q| (q.table.as_str(), q.column.as_str()))
+            .collect();
+        assert_eq!(cols, vec![("a", "x"), ("b", "y"), ("c", "z"), ("d", "w")]);
     }
 
     #[test]

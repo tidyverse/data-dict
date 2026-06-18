@@ -291,7 +291,11 @@ fn validate_result_to_json(result: &Result<(), DataError>) -> serde_json::Value 
 
 fn issue_to_json(issue: &ColumnIssue) -> serde_json::Value {
     match issue {
-        ColumnIssue::TypeMismatch { column, declared, actual } => serde_json::json!({
+        ColumnIssue::TypeMismatch {
+            column,
+            declared,
+            actual,
+        } => serde_json::json!({
             "kind": "type_mismatch",
             "column": column,
             "declared": declared,
@@ -314,14 +318,26 @@ fn print_types_table(cols: &[data_dict_parquet::ColumnTypeInfo]) {
     let num_width = cols.len().to_string().len().max(headers[0].len());
     let widths = [
         num_width,
-        cols.iter().map(|c| c.name.len()).max().unwrap_or(0).max(headers[1].len()),
-        cols.iter().map(|c| c.dict_type.len()).max().unwrap_or(0).max(headers[2].len()),
+        cols.iter()
+            .map(|c| c.name.len())
+            .max()
+            .unwrap_or(0)
+            .max(headers[1].len()),
+        cols.iter()
+            .map(|c| c.dict_type.len())
+            .max()
+            .unwrap_or(0)
+            .max(headers[2].len()),
         cols.iter()
             .map(|c| c.logical_type.as_deref().unwrap_or("").len())
             .max()
             .unwrap_or(0)
             .max(headers[3].len()),
-        cols.iter().map(|c| c.physical_type.len()).max().unwrap_or(0).max(headers[4].len()),
+        cols.iter()
+            .map(|c| c.physical_type.len())
+            .max()
+            .unwrap_or(0)
+            .max(headers[4].len()),
     ];
 
     println!(

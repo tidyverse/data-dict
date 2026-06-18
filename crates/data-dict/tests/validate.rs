@@ -34,9 +34,12 @@ fn assert_valid(path: PathBuf) {
 }
 
 fn assert_invalid(path: PathBuf, expected: &[&str]) {
-    let err = data_dict::validate(&path)
-        .err()
-        .unwrap_or_else(|| panic!("expected {} to fail validation, but it passed", path.display()));
+    let err = data_dict::validate(&path).err().unwrap_or_else(|| {
+        panic!(
+            "expected {} to fail validation, but it passed",
+            path.display()
+        )
+    });
     let text = err.to_string();
     for s in expected {
         assert!(
@@ -191,10 +194,7 @@ fn bad_cardinality() {
 
 #[test]
 fn bad_cardinality_errors() {
-    assert_invalid(
-        fixture("invalid/bad-cardinality.yaml"),
-        &["many-to-many"],
-    );
+    assert_invalid(fixture("invalid/bad-cardinality.yaml"), &["many-to-many"]);
 }
 
 #[test]
@@ -246,7 +246,9 @@ fn lint_dd004_bad_join() {
 
 #[test]
 fn lint_dd005_conflicts_not_on_both_sides() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd005-conflicts-not-on-both-sides.yaml"));
+    insta::assert_snapshot!(failing_diagnostic(
+        "lint/dd005-conflicts-not-on-both-sides.yaml"
+    ));
 }
 
 // The opposite of the above: `amount` is genuinely a column on both tables (a
@@ -277,12 +279,16 @@ fn lint_dd007_enum_without_values() {
 
 #[test]
 fn lint_dd007_range_type_missing_range() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd007-range-type-missing-range.yaml"));
+    insta::assert_snapshot!(failing_diagnostic(
+        "lint/dd007-range-type-missing-range.yaml"
+    ));
 }
 
 #[test]
 fn lint_dd007_other_type_missing_examples() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd007-other-type-missing-examples.yaml"));
+    insta::assert_snapshot!(failing_diagnostic(
+        "lint/dd007-other-type-missing-examples.yaml"
+    ));
 }
 
 // A `boolean` column carries no data representation key, so it must lint clean

@@ -142,10 +142,13 @@ pub fn validate_parquet(
 
     let available = || dict.tables.keys().cloned().collect::<Vec<_>>();
     let table = match table {
-        Some(name) => dict.tables.get(name).ok_or_else(|| DataError::TableNotFound {
-            name: name.to_string(),
-            available: available(),
-        })?,
+        Some(name) => dict
+            .tables
+            .get(name)
+            .ok_or_else(|| DataError::TableNotFound {
+                name: name.to_string(),
+                available: available(),
+            })?,
         None => {
             if dict.tables.len() == 1 {
                 dict.tables.values().next().expect("len == 1")
