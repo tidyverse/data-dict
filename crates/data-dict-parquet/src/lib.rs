@@ -1,6 +1,7 @@
 //! Parquet reader for data-dict.yaml validation.
 
 use parquet::basic::{LogicalType, TimeUnit, Type as PhysicalType};
+use parquet::file::metadata::ParquetMetaData;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::record::Field;
 use parquet::schema::types::Type;
@@ -64,54 +65,140 @@ pub fn column_type_info(
         .collect())
 }
 
-/// Where null values were found in a single column: the true total, plus the
-/// 1-based row numbers of the first few (capped by the caller's limit).
-pub struct NullReport {
-    pub count: usize,
-    pub rows: Vec<usize>,
+/// What a column's data must be inspected for, decided per column by the caller
+/// before any data is read. The scanner ([`column_stats`]) computes only what's
+/// requested, so columns nothing asks about are never touched.
+///
+/// Holds the nulls request today; range/enum/examples requests (bounds to test,
+/// an allowed set, an expected set) will become further fields as those checks
+/// are added.
+#[derive(Default, Clone)]
+pub struct ColumnNeeds {
+    /// Count nulls and sample the row numbers where they occur.
+    pub nulls: bool,
 }
 
-/// Scans a parquet file and reports, for each of the named columns, which rows
-/// hold a null value.
+impl ColumnNeeds {
+    /// True if anything at all is requested. Columns for which this is false are
+    /// skipped entirely.
+    pub fn any(&self) -> bool {
+        self.nulls
+    }
+
+    /// Combine two requests, taking the union (used to merge what several checks
+    /// independently ask of the same column).
+    pub fn merge(self, other: Self) -> Self {
+        ColumnNeeds {
+            nulls: self.nulls || other.nulls,
+        }
+    }
+}
+
+/// The statistics gathered for a column, populated only for the fields its
+/// [`ColumnNeeds`] requested (others keep their default). Grows alongside
+/// `ColumnNeeds` as checks are added.
+#[derive(Default)]
+pub struct ColumnStats {
+    /// Total number of null values (when `nulls` was requested).
+    pub null_count: usize,
+    /// 1-based row numbers of the first few nulls, capped by the caller's limit.
+    pub null_rows: Vec<usize>,
+}
+
+/// Gathers the requested statistics for each column, in one pass over the file.
 ///
-/// Row numbers are 1-based and in file order. `rows` is capped at `limit`
-/// entries while `count` always reflects the true total. Names that don't
-/// match a column in the file are simply absent from the returned map.
+/// Returns a [`ColumnStats`] for each requested column that exists in the file
+/// and asks for something ([`ColumnNeeds::any`]); others are absent from the
+/// map. Null row numbers are 1-based and in file order, capped at `limit` while
+/// `null_count` is always the true total.
 ///
-/// Unlike [`column_types`], this reads the actual data pages (so the file's
-/// compression codec must be supported), since null *positions* aren't
-/// recoverable from metadata alone.
-pub fn null_report(
+/// The work is kept to the minimum the requests imply:
+///
+/// - Per-row-group `null_count` statistics resolve a nulls request with no nulls
+///   for free — the common case for a `required` column — so it's never scanned.
+/// - When a scan is unavoidable, the row iterator is projected to just the
+///   columns that need it, leaving the rest of a wide table undecoded.
+///
+/// Either way memory is bounded: rows stream one at a time and only the capped
+/// sample is retained.
+pub fn column_stats(
     path: &Path,
-    columns: &[String],
+    needs: &HashMap<String, ColumnNeeds>,
     limit: usize,
-) -> Result<HashMap<String, NullReport>, parquet::errors::ParquetError> {
+) -> Result<HashMap<String, ColumnStats>, parquet::errors::ParquetError> {
     let file = File::open(path).map_err(|e| {
         parquet::errors::ParquetError::General(format!("Cannot open file: {e}"))
     })?;
     let reader = SerializedFileReader::new(file)?;
+    let meta = reader.metadata();
+    let schema = meta.file_metadata().schema();
 
-    let mut reports: HashMap<String, NullReport> = columns
+    // Resolve the columns that ask for something to their position in the (flat)
+    // schema; drop ones absent from the file. Position doubles as the
+    // column-chunk index per row group.
+    let requested: Vec<(String, usize, &ColumnNeeds)> = needs
         .iter()
-        .cloned()
-        .map(|c| (c, NullReport { count: 0, rows: Vec::new() }))
+        .filter(|(_, n)| n.any())
+        .filter_map(|(name, n)| {
+            schema
+                .get_fields()
+                .iter()
+                .position(|f| f.name() == name)
+                .map(|i| (name.clone(), i, n))
+        })
         .collect();
 
-    for (idx, row) in reader.get_row_iter(None)?.enumerate() {
+    let mut stats: HashMap<String, ColumnStats> = requested
+        .iter()
+        .map(|(name, _, _)| (name.clone(), ColumnStats::default()))
+        .collect();
+
+    // A column must read data pages only when a request can't be satisfied from
+    // metadata. Today that's a nulls request whose count statistics don't
+    // already prove there are none.
+    let to_scan: Vec<usize> = requested
+        .iter()
+        .filter(|(_, idx, n)| n.nulls && !nulls_provably_absent(meta, *idx))
+        .map(|(_, idx, _)| *idx)
+        .collect();
+
+    if to_scan.is_empty() {
+        return Ok(stats);
+    }
+
+    let projection = Type::group_type_builder("schema")
+        .with_fields(to_scan.iter().map(|&i| schema.get_fields()[i].clone()).collect())
+        .build()?;
+
+    for (idx, row) in reader.get_row_iter(Some(projection))?.enumerate() {
         let row = row?;
         for (name, field) in row.get_column_iter() {
-            if matches!(field, Field::Null)
-                && let Some(report) = reports.get_mut(name)
-            {
-                report.count += 1;
-                if report.rows.len() < limit {
-                    report.rows.push(idx + 1);
+            let (Some(stat), Some(need)) = (stats.get_mut(name), needs.get(name)) else {
+                continue;
+            };
+            if need.nulls && matches!(field, Field::Null) {
+                stat.null_count += 1;
+                if stat.null_rows.len() < limit {
+                    stat.null_rows.push(idx + 1);
                 }
             }
         }
     }
 
-    Ok(reports)
+    Ok(stats)
+}
+
+/// Whether column `col`'s `null_count` statistics prove it holds no nulls. False
+/// when any row group lacks the statistic, since absence isn't proof.
+fn nulls_provably_absent(meta: &ParquetMetaData, col: usize) -> bool {
+    let mut total = 0;
+    for rg in meta.row_groups() {
+        match rg.column(col).statistics().and_then(|s| s.null_count_opt()) {
+            Some(n) => total += n,
+            None => return false,
+        }
+    }
+    total == 0
 }
 
 fn format_logical_type(lt: LogicalType) -> String {

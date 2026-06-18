@@ -12,7 +12,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use data_dict_parquet::{NullReport, ParquetError};
+use data_dict_parquet::{ColumnNeeds, ColumnStats, ParquetError};
 
 use crate::model::Column;
 use crate::Error;
@@ -179,27 +179,30 @@ pub fn validate_parquet(
 
     let actual = data_dict_parquet::column_types(parquet_path)?;
 
-    // Value-level checks read the data pages, so scan once up front for the
-    // columns those checks apply to (currently: required columns present in the
-    // data) and let the per-column checks look up what they need.
-    let scan_cols: Vec<String> = table
-        .columns
-        .iter()
-        .filter(|c| c.is_required_implied())
-        .map(|c| c.name.value.clone())
-        .filter(|n| actual.iter().any(|(an, _)| an == n))
-        .collect();
-    let nulls = if scan_cols.is_empty() {
-        HashMap::new()
-    } else {
-        data_dict_parquet::null_report(parquet_path, &scan_cols, SAMPLE_LIMIT)?
-    };
+    let present = |name: &str| actual.iter().any(|(an, _)| an == name);
 
+    // Phase 1 — plan. Ask every value-level check what it needs of each present
+    // column, and union those needs. This is the only place check-specific data
+    // requirements are expressed.
+    let mut needs: HashMap<String, ColumnNeeds> = HashMap::new();
+    for col in &table.columns {
+        if present(&col.name.value) {
+            let merged = VALUE_CHECKS
+                .iter()
+                .fold(ColumnNeeds::default(), |acc, check| acc.merge(check.needs(col)));
+            if merged.any() {
+                needs.insert(col.name.value.clone(), merged);
+            }
+        }
+    }
+
+    // Phase 2 — scan. Gather exactly those statistics, in one pass, reading only
+    // the columns and pages the plan implies.
+    let stats = data_dict_parquet::column_stats(parquet_path, &needs, SAMPLE_LIMIT)?;
+
+    // Phase 3 — check. Per column: report absence/type structurally, then run the
+    // value-level checks against the gathered stats.
     let mut issues = Vec::new();
-
-    // One pass per dictionary column: this is where per-column validations live.
-    // A column absent from the data can't be value-checked, so we report it and
-    // skip; otherwise it runs the full battery of checks.
     for col in &table.columns {
         let Some((_, actual_type)) = actual.iter().find(|(n, _)| n == &col.name.value) else {
             issues.push(ColumnIssue::MissingInData {
@@ -208,7 +211,11 @@ pub fn validate_parquet(
             continue;
         };
         check_type(col, actual_type, &mut issues);
-        check_required_not_null(col, &nulls, &mut issues);
+        if let Some(stat) = stats.get(&col.name.value) {
+            for check in VALUE_CHECKS {
+                check.check(col, stat, &mut issues);
+            }
+        }
     }
 
     // Columns present in the data that the dictionary does not describe.
@@ -244,22 +251,44 @@ fn check_type(col: &Column, actual_type: &str, issues: &mut Vec<ColumnIssue>) {
     }
 }
 
-/// A `required` (or `primary_key`) column must contain no nulls. Relies on
-/// `nulls` having been populated for `col` by the up-front scan.
-fn check_required_not_null(
-    col: &Column,
-    nulls: &HashMap<String, NullReport>,
-    issues: &mut Vec<ColumnIssue>,
-) {
-    if col.is_required_implied()
-        && let Some(report) = nulls.get(&col.name.value)
-        && report.count > 0
-    {
-        issues.push(ColumnIssue::NullsInRequired {
-            column: col.name.value.clone(),
-            count: report.count,
-            rows: report.rows.clone(),
-        });
+/// A value-level column check, split into the data it needs and the verdict it
+/// draws from that data. Keeping the two together (rather than in the
+/// orchestrator) lets the scanner compute the union of all checks' needs in a
+/// single pass, and lets a new check be added without touching the pipeline.
+trait ColumnCheck {
+    /// What this check needs read from the column's data. Returning the default
+    /// (nothing requested) opts the column out of this check.
+    fn needs(&self, col: &Column) -> ColumnNeeds;
+
+    /// Draw a verdict from the gathered stats. Only ever called with stats whose
+    /// requested fields this check (or another) asked for.
+    fn check(&self, col: &Column, stats: &ColumnStats, issues: &mut Vec<ColumnIssue>);
+}
+
+/// Every value-level check, run against each present column. Add a check here
+/// and the plan/scan/check pipeline picks it up automatically.
+const VALUE_CHECKS: &[&dyn ColumnCheck] = &[&RequiredNotNull];
+
+/// A `required` (or `primary_key`) column must contain no nulls.
+struct RequiredNotNull;
+
+impl ColumnCheck for RequiredNotNull {
+    fn needs(&self, col: &Column) -> ColumnNeeds {
+        ColumnNeeds {
+            nulls: col.is_required_implied(),
+        }
+    }
+
+    fn check(&self, col: &Column, stats: &ColumnStats, issues: &mut Vec<ColumnIssue>) {
+        // Nulls are only counted when this check requested them (i.e. the column
+        // is required), so a positive count is exactly a violation.
+        if stats.null_count > 0 {
+            issues.push(ColumnIssue::NullsInRequired {
+                column: col.name.value.clone(),
+                count: stats.null_count,
+                rows: stats.null_rows.clone(),
+            });
+        }
     }
 }
 

@@ -349,6 +349,28 @@ fn nulls_in_required_column_reported() {
 }
 
 #[test]
+fn required_column_without_nulls_ok() {
+    // No nulls present, so the statistics fast-path should resolve this without
+    // scanning the data pages.
+    let result = check_column(
+        "REQUIRED DOUBLE weight",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0_f64, 2.0, 3.0], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: weight
+              type: number(quantity)
+              constraints: [required]
+              range: [0, 100]
+        "},
+    );
+
+    assert!(result.is_ok(), "got {result:?}");
+}
+
+#[test]
 fn nulls_in_optional_column_ok() {
     // `weight` has a null but is not declared required, so it's fine.
     let result = check_column(
