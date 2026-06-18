@@ -40,10 +40,9 @@ pub const SPEC_MD: &str = include_str!("../../../site/spec.md");
 fn schema() -> &'static Schema {
     static SCHEMA: OnceLock<Schema> = OnceLock::new();
     SCHEMA.get_or_init(|| {
-        let yaml = quarto_yaml::parse(SCHEMA_YAML)
-            .expect("embedded schema.yaml must be parseable YAML");
-        Schema::from_yaml(&yaml)
-            .expect("embedded schema.yaml must compile to a valid schema")
+        let yaml =
+            quarto_yaml::parse(SCHEMA_YAML).expect("embedded schema.yaml must be parseable YAML");
+        Schema::from_yaml(&yaml).expect("embedded schema.yaml must compile to a valid schema")
     })
 }
 
