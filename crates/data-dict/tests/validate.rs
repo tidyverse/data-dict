@@ -18,15 +18,6 @@ fn fixture(rel: &str) -> PathBuf {
         .join(rel)
 }
 
-fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .to_path_buf()
-}
-
 fn assert_valid(path: PathBuf) {
     if let Err(e) = data_dict::validate(&path) {
         panic!("expected {} to validate, but:\n{e}", path.display());
@@ -173,23 +164,6 @@ fn warn_missing_learn_more_text() {
             .any(|w| w.contains("DD009") && w.contains("$learn_more")),
         "expected a DD009 `$learn_more` warning, got: {warnings:?}"
     );
-}
-
-// --- bundled examples ----------------------------------------------------
-//
-// The bundled examples under `site/examples/` are downloaded and refreshed by
-// the `update-examples` workflow, which only commits files that pass
-// validation. They must therefore validate cleanly here too.
-
-#[test]
-fn examples_validate() {
-    let dir = workspace_root().join("site/examples");
-    for entry in std::fs::read_dir(&dir).expect("read site/examples") {
-        let path = entry.expect("dir entry").path();
-        if path.extension().and_then(|e| e.to_str()) == Some("yaml") {
-            assert_valid(path);
-        }
-    }
 }
 
 // --- invalid fixtures ----------------------------------------------------
