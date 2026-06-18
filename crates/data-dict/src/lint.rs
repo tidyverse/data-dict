@@ -266,7 +266,7 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
         let all_cols_resolve = join.qcols().all(|q| {
             dict.tables
                 .get(&q.table)
-                .map_or(false, |t| t.column(&q.column).is_some())
+                .is_some_and(|t| t.column(&q.column).is_some())
         });
         if !all_cols_resolve {
             continue;
@@ -359,7 +359,7 @@ fn side_has_unique_implied(
         }
         table
             .column(&q.column)
-            .map_or(false, |c| c.is_unique_implied())
+            .is_some_and(|c| c.is_unique_implied())
     })
 }
 
@@ -499,7 +499,7 @@ fn check_units_only_on_quantity(dict: &DataDict, out: &mut Vec<Diagnostic>) {
             let is_quantity = col
                 .col_type
                 .as_ref()
-                .map_or(false, |t| t.value == "number(quantity)");
+                .is_some_and(|t| t.value == "number(quantity)");
             if !is_quantity {
                 let type_desc = col
                     .col_type

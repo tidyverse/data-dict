@@ -202,10 +202,10 @@ impl<'a> Parser<'a> {
         }
         // Keyword must be followed by a non-identifier character (so we don't
         // match `andante` as `AND` + `ante`).
-        if let Some(&b) = self.src.get(end) {
-            if b.is_ascii_alphanumeric() || b == b'_' {
-                return Err(self.err(format!("expected `{}`", kw.to_uppercase())));
-            }
+        if let Some(&b) = self.src.get(end)
+            && (b.is_ascii_alphanumeric() || b == b'_')
+        {
+            return Err(self.err(format!("expected `{}`", kw.to_uppercase())));
         }
         self.pos = end;
         Ok(())

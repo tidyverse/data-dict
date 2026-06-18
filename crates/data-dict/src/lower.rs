@@ -17,24 +17,24 @@ use crate::model::{Cardinality, Column, Constraint, DataDict, Relationship, Span
 pub fn lower(root: &YamlWithSourceInfo) -> (DataDict, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
     let mut tables = indexmap::IndexMap::new();
-    if let Some(t_node) = root.get_hash_value("tables") {
-        if let Some(entries) = t_node.as_hash() {
-            for entry in entries {
-                let Some(name) = entry.key.yaml.as_str() else {
-                    continue;
-                };
-                let table = lower_table(name, &entry.key_span, &entry.value);
-                tables.insert(name.to_string(), table);
-            }
+    if let Some(t_node) = root.get_hash_value("tables")
+        && let Some(entries) = t_node.as_hash()
+    {
+        for entry in entries {
+            let Some(name) = entry.key.yaml.as_str() else {
+                continue;
+            };
+            let table = lower_table(name, &entry.key_span, &entry.value);
+            tables.insert(name.to_string(), table);
         }
     }
 
     let mut relationships = Vec::new();
-    if let Some(r_node) = root.get_hash_value("relationships") {
-        if let Some(items) = r_node.as_array() {
-            for item in items {
-                relationships.push(lower_relationship(item, &mut diagnostics));
-            }
+    if let Some(r_node) = root.get_hash_value("relationships")
+        && let Some(items) = r_node.as_array()
+    {
+        for item in items {
+            relationships.push(lower_relationship(item, &mut diagnostics));
         }
     }
 
@@ -49,12 +49,12 @@ pub fn lower(root: &YamlWithSourceInfo) -> (DataDict, Vec<Diagnostic>) {
 
 fn lower_table(name: &str, name_span: &SourceInfo, value: &YamlWithSourceInfo) -> Table {
     let mut columns = Vec::new();
-    if let Some(c_node) = value.get_hash_value("columns") {
-        if let Some(items) = c_node.as_array() {
-            for col in items {
-                if let Some(c) = lower_column(col) {
-                    columns.push(c);
-                }
+    if let Some(c_node) = value.get_hash_value("columns")
+        && let Some(items) = c_node.as_array()
+    {
+        for col in items {
+            if let Some(c) = lower_column(col) {
+                columns.push(c);
             }
         }
     }
@@ -99,10 +99,10 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
             "constraints" => {
                 if let Some(items) = entry.value.as_array() {
                     for c in items {
-                        if let Some(s) = c.yaml.as_str() {
-                            if let Some(parsed) = Constraint::parse(s) {
-                                constraints.push(Spanned::new(parsed, c.source_info.clone()));
-                            }
+                        if let Some(s) = c.yaml.as_str()
+                            && let Some(parsed) = Constraint::parse(s)
+                        {
+                            constraints.push(Spanned::new(parsed, c.source_info.clone()));
                         }
                     }
                 }
@@ -136,10 +136,10 @@ fn lower_relationship(
         };
         match key {
             "cardinality" => {
-                if let Some(s) = entry.value.yaml.as_str() {
-                    if let Some(c) = Cardinality::parse(s) {
-                        cardinality = Some(Spanned::new(c, entry.value_span.clone()));
-                    }
+                if let Some(s) = entry.value.yaml.as_str()
+                    && let Some(c) = Cardinality::parse(s)
+                {
+                    cardinality = Some(Spanned::new(c, entry.value_span.clone()));
                 }
             }
             "join" => {

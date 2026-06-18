@@ -39,8 +39,9 @@ cargo test --workspace
 cargo test -p data-dict                 # single crate
 cargo test -p data-dict lint            # tests matching "lint" in data-dict crate
 
-# Format (run before committing Rust changes)
+# Format and lint (run before committing Rust changes)
 cargo fmt --all
+cargo clippy --workspace --all-targets
 
 # Validate a file
 cargo run -p data-dict-cli -- validate-schema site/examples/otters.yaml

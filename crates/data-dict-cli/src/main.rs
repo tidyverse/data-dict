@@ -202,60 +202,6 @@ fn resolve_dict_path(path: Option<PathBuf>) -> Result<PathBuf, String> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-
-    fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "data-dict-cli-test-{}-{}",
-            name,
-            std::process::id()
-        ));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    #[test]
-    fn explicit_file_is_returned_as_is() {
-        let dir = temp_dir("file");
-        let file = dir.join("custom.yaml");
-        fs::write(&file, "tables: {}\n").unwrap();
-        assert_eq!(resolve_dict_path(Some(file.clone())).unwrap(), file);
-    }
-
-    #[test]
-    fn directory_resolves_to_data_dict_yaml() {
-        let dir = temp_dir("dir");
-        let dict = dir.join("data-dict.yaml");
-        fs::write(&dict, "tables: {}\n").unwrap();
-        assert_eq!(resolve_dict_path(Some(dir)).unwrap(), dict);
-    }
-
-    #[test]
-    fn directory_without_data_dict_yaml_errors() {
-        let dir = temp_dir("empty");
-        let err = resolve_dict_path(Some(dir.clone())).unwrap_err();
-        assert!(err.contains("no data-dict.yaml found"));
-        assert!(err.contains(&dir.display().to_string()));
-    }
-
-    #[test]
-    fn none_defaults_to_current_directory() {
-        assert_eq!(resolve_dict_path(None), resolve_dict_path(Some(".".into())));
-    }
-
-    #[test]
-    fn nonexistent_file_is_returned_as_is() {
-        // A path that is neither a dir nor an existing file is passed through
-        // so the caller surfaces the real read error.
-        let path = PathBuf::from("does-not-exist.yaml");
-        assert_eq!(resolve_dict_path(Some(path.clone())).unwrap(), path);
-    }
-}
-
 fn validate_result_to_json(result: &Result<(), DataError>) -> serde_json::Value {
     match result {
         Ok(()) => serde_json::json!({"status": "ok"}),
@@ -369,5 +315,59 @@ fn print_types_table(cols: &[data_dict_parquet::ColumnTypeInfo]) {
             w3 = widths[3],
             w4 = widths[4],
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "data-dict-cli-test-{}-{}",
+            name,
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn explicit_file_is_returned_as_is() {
+        let dir = temp_dir("file");
+        let file = dir.join("custom.yaml");
+        fs::write(&file, "tables: {}\n").unwrap();
+        assert_eq!(resolve_dict_path(Some(file.clone())).unwrap(), file);
+    }
+
+    #[test]
+    fn directory_resolves_to_data_dict_yaml() {
+        let dir = temp_dir("dir");
+        let dict = dir.join("data-dict.yaml");
+        fs::write(&dict, "tables: {}\n").unwrap();
+        assert_eq!(resolve_dict_path(Some(dir)).unwrap(), dict);
+    }
+
+    #[test]
+    fn directory_without_data_dict_yaml_errors() {
+        let dir = temp_dir("empty");
+        let err = resolve_dict_path(Some(dir.clone())).unwrap_err();
+        assert!(err.contains("no data-dict.yaml found"));
+        assert!(err.contains(&dir.display().to_string()));
+    }
+
+    #[test]
+    fn none_defaults_to_current_directory() {
+        assert_eq!(resolve_dict_path(None), resolve_dict_path(Some(".".into())));
+    }
+
+    #[test]
+    fn nonexistent_file_is_returned_as_is() {
+        // A path that is neither a dir nor an existing file is passed through
+        // so the caller surfaces the real read error.
+        let path = PathBuf::from("does-not-exist.yaml");
+        assert_eq!(resolve_dict_path(Some(path.clone())).unwrap(), path);
     }
 }
