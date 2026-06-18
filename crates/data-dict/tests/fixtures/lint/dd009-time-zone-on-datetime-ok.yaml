@@ -1,0 +1,13 @@
+# expected: lints clean. `time_zone` is allowed on a `datetime` column.
+
+version: "0.1.0"
+
+tables:
+  events:
+    source:
+      parquet: events.parquet
+    columns:
+      - name: observed_at
+        type: datetime
+        time_zone: UTC
+        range: [2020-01-01T00:00:00, 2024-12-31T23:59:59]

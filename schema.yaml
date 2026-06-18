@@ -64,6 +64,14 @@ object:
                       description: string
                       details: string
                       units: string
+                      # `naive`, `UTC`, or an IANA `Area/Location` name whose
+                      # area is one of the fixed continent/ocean prefixes (plus
+                      # `Etc`). Checking the shape and area catches typos and
+                      # bare abbreviations (`PST`) without pinning to a tzdb
+                      # version. The "only on datetime" rule is DD009.
+                      time_zone:
+                        string:
+                          pattern: "^(naive|UTC|(Africa|America|Antarctica|Arctic|Asia|Atlantic|Australia|Europe|Indian|Pacific|Etc)/[A-Za-z0-9_+/-]+)$"
                       type:
                         enum: ["enum", "number(ordinal)", "number(quantity)", "date",
                                "datetime", "number", "number(id)", "string", "boolean"]
