@@ -2,15 +2,7 @@
 source: crates/data-dict/tests/validate.rs
 expression: "failing_diagnostic(\"lint/dd005-conflicts-not-on-both-sides.yaml\")"
 ---
-Error: [DD005] data-dict.yaml lint
-    ╭─[ lint/dd005-conflicts-not-on-both-sides.yaml:39:17 ]
-    │
- 39 │     conflicts: [amount]
-    │                 ───┬──  
-    │                    ╰──── `conflicts` entry `amount` is not a column of `food`
-────╯
-
-Error: [DD007] data-dict.yaml lint
+Error: [DD007]
     ╭─[ lint/dd005-conflicts-not-on-both-sides.yaml:13:15 ]
     │
  13 │       - name: id
@@ -18,7 +10,7 @@ Error: [DD007] data-dict.yaml lint
     │                ╰── column `food.id` has type `number(id)` but is missing the expected `examples` property
 ────╯
 
-Error: [DD007] data-dict.yaml lint
+Error: [DD007]
     ╭─[ lint/dd005-conflicts-not-on-both-sides.yaml:23:15 ]
     │
  23 │       - name: id
@@ -26,7 +18,7 @@ Error: [DD007] data-dict.yaml lint
     │                ╰── column `food_nutrient.id` has type `number(id)` but is missing the expected `examples` property
 ────╯
 
-Error: [DD007] data-dict.yaml lint
+Error: [DD007]
     ╭─[ lint/dd005-conflicts-not-on-both-sides.yaml:27:15 ]
     │
  27 │       - name: food_id
@@ -34,10 +26,18 @@ Error: [DD007] data-dict.yaml lint
     │                  ╰───── column `food_nutrient.food_id` has type `number(id)` but is missing the expected `examples` property
 ────╯
 
-Error: [DD007] data-dict.yaml lint
+Error: [DD007]
     ╭─[ lint/dd005-conflicts-not-on-both-sides.yaml:31:15 ]
     │
  31 │       - name: amount
     │               ───┬──  
     │                  ╰──── column `food_nutrient.amount` has type `number(quantity)` but is missing the expected `range` property
+────╯
+
+Error: [DD005]
+    ╭─[ lint/dd005-conflicts-not-on-both-sides.yaml:39:17 ]
+    │
+ 39 │     conflicts: [amount]
+    │                 ───┬──  
+    │                    ╰──── `conflicts` entry `amount` is not a column of `food`
 ────╯

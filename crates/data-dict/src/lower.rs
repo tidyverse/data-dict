@@ -9,13 +9,12 @@ use quarto_source_map::SourceInfo;
 use quarto_yaml::YamlWithSourceInfo;
 
 use crate::join_expr::JoinExpr;
-use crate::lint::Diagnostic;
+use crate::lint::{Diagnostic, Diagnostics};
 use crate::model::{Cardinality, Column, Constraint, DataDict, Relationship, Spanned, Table};
 
 /// Lower an AST, collecting any lowering diagnostics (currently only DD004
 /// for unparseable join expressions).
-pub fn lower(root: &YamlWithSourceInfo) -> (DataDict, Vec<Diagnostic>) {
-    let mut diagnostics = Vec::new();
+pub fn lower(root: &YamlWithSourceInfo, diagnostics: &mut Diagnostics) -> DataDict {
     let mut tables = indexmap::IndexMap::new();
     if let Some(t_node) = root.get_hash_value("tables")
         && let Some(entries) = t_node.as_hash()
@@ -34,17 +33,14 @@ pub fn lower(root: &YamlWithSourceInfo) -> (DataDict, Vec<Diagnostic>) {
         && let Some(items) = r_node.as_array()
     {
         for item in items {
-            relationships.push(lower_relationship(item, &mut diagnostics));
+            relationships.push(lower_relationship(item, diagnostics));
         }
     }
 
-    (
-        DataDict {
-            tables,
-            relationships,
-        },
-        diagnostics,
-    )
+    DataDict {
+        tables,
+        relationships,
+    }
 }
 
 fn lower_table(name: &str, name_span: &SourceInfo, value: &YamlWithSourceInfo) -> Table {
@@ -121,10 +117,7 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
     })
 }
 
-fn lower_relationship(
-    node: &YamlWithSourceInfo,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Relationship {
+fn lower_relationship(node: &YamlWithSourceInfo, diagnostics: &mut Diagnostics) -> Relationship {
     let entries = node.as_hash().expect("schema guarantees mapping");
     let mut cardinality: Option<Spanned<Cardinality>> = None;
     let mut join_text: Option<Spanned<String>> = None;

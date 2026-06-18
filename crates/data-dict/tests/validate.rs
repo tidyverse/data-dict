@@ -9,7 +9,9 @@
 //! When adding a new rule, prefer adding a fixture file (with a one-line
 //! `# expected: ...` header) and a one-line test here over inline YAML.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use data_dict::Severity;
 
 fn fixture(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -18,20 +20,40 @@ fn fixture(rel: &str) -> PathBuf {
         .join(rel)
 }
 
-fn assert_valid(path: PathBuf) {
-    if let Err(e) = data_dict::validate(&path) {
-        panic!("expected {} to validate, but:\n{e}", path.display());
+/// Render the diagnostics of the given `severity` for a fixture, in emission
+/// order. A structural/parse failure ([`data_dict::Error`]) is treated as a
+/// single error-severity diagnostic and ignored when collecting warnings.
+fn diagnostics(path: &Path, severity: Severity) -> Vec<String> {
+    match data_dict::validate(path) {
+        Ok(diags) => diags
+            .items
+            .iter()
+            .filter(|d| d.severity == severity)
+            .map(|d| d.to_text(&diags.source))
+            .collect(),
+        Err(e) if severity == Severity::Error => vec![e.to_string()],
+        Err(_) => Vec::new(),
     }
 }
 
+fn assert_valid(path: PathBuf) {
+    let errors = diagnostics(&path, Severity::Error);
+    assert!(
+        errors.is_empty(),
+        "expected {} to validate, but:\n{}",
+        path.display(),
+        errors.join("\n"),
+    );
+}
+
 fn assert_invalid(path: PathBuf, expected: &[&str]) {
-    let err = data_dict::validate(&path).err().unwrap_or_else(|| {
-        panic!(
-            "expected {} to fail validation, but it passed",
-            path.display()
-        )
-    });
-    let text = err.to_string();
+    let errors = diagnostics(&path, Severity::Error);
+    assert!(
+        !errors.is_empty(),
+        "expected {} to fail validation, but it passed",
+        path.display()
+    );
+    let text = errors.join("\n");
     for s in expected {
         assert!(
             text.contains(s),
@@ -51,23 +73,25 @@ fn assert_invalid(path: PathBuf, expected: &[&str]) {
 /// URL) and the absolute on-disk path of the fixture. We strip the escapes and
 /// rewrite the path to its `tests/fixtures/`-relative form.
 fn failing_diagnostic(rel: &str) -> String {
-    let path = fixture(rel);
-    let diagnostic = match data_dict::validate(&path) {
-        Ok(_) => panic!("expected {rel} to fail validation, but it passed"),
-        Err(e) => e.to_string(),
-    };
-    sanitize(&diagnostic)
+    let errors = diagnostics(&fixture(rel), Severity::Error);
+    if errors.is_empty() {
+        panic!("expected {rel} to fail validation, but it passed");
+    }
+    sanitize(&errors.join("\n"))
 }
 
 /// Validate a fixture expected to pass *with* warnings, returning the rendered
 /// warnings (sanitized like [`failing_diagnostic`]) for snapshotting.
 fn warning_diagnostic(rel: &str) -> String {
     let path = fixture(rel);
-    let warnings = match data_dict::validate(&path) {
-        Ok(warnings) if !warnings.is_empty() => warnings,
-        Ok(_) => panic!("expected {rel} to emit a warning, but it was clean"),
-        Err(e) => panic!("expected {rel} to validate, but it failed:\n{e}"),
-    };
+    assert!(
+        diagnostics(&path, Severity::Error).is_empty(),
+        "expected {rel} to validate, but it failed",
+    );
+    let warnings = diagnostics(&path, Severity::Warning);
+    if warnings.is_empty() {
+        panic!("expected {rel} to emit a warning, but it was clean");
+    }
     sanitize(&warnings.join("\n"))
 }
 
@@ -135,8 +159,12 @@ fn strip_terminal_escapes(s: &str) -> String {
 
 #[test]
 fn minimal() {
-    let warnings =
-        data_dict::validate(&fixture("valid/minimal.yaml")).expect("minimal must validate");
+    let path = fixture("valid/minimal.yaml");
+    assert!(
+        diagnostics(&path, Severity::Error).is_empty(),
+        "minimal must validate"
+    );
+    let warnings = diagnostics(&path, Severity::Warning);
     assert!(
         warnings.is_empty(),
         "minimal carries `$learn_more`, so it must validate without warnings, got: {warnings:?}"
@@ -156,8 +184,7 @@ fn warn_missing_learn_more() {
 
 #[test]
 fn warn_missing_learn_more_text() {
-    let warnings =
-        data_dict::validate(&fixture("valid/no-learn-more.yaml")).expect("must validate");
+    let warnings = diagnostics(&fixture("valid/no-learn-more.yaml"), Severity::Warning);
     assert!(
         warnings
             .iter()

@@ -1,0 +1,13 @@
+# expected: two errors (DD007, DD008) and a warning (DD009), in emission order.
+$version: 0.1.0
+tables:
+  measurements:
+    source:
+      parquet: measurements.parquet
+    columns:
+      - name: id
+        type: number(id)
+      - name: name
+        type: string
+        examples: [a, b]
+        units: kg

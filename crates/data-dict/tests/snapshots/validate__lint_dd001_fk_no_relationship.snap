@@ -2,15 +2,7 @@
 source: crates/data-dict/tests/validate.rs
 expression: "failing_diagnostic(\"lint/dd001-fk-no-relationship.yaml\")"
 ---
-Error: [DD001] data-dict.yaml lint
-    ╭─[ lint/dd001-fk-no-relationship.yaml:18:15 ]
-    │
- 18 │       - name: food_category_id
-    │               ────────┬───────  
-    │                       ╰───────── column `food.food_category_id` is marked `foreign_key` but no `relationships` entry points it at a `primary_key` column
-────╯
-
-Error: [DD007] data-dict.yaml lint
+Error: [DD007]
     ╭─[ lint/dd001-fk-no-relationship.yaml:14:15 ]
     │
  14 │       - name: id
@@ -18,7 +10,15 @@ Error: [DD007] data-dict.yaml lint
     │                ╰── column `food.id` has type `number(id)` but is missing the expected `examples` property
 ────╯
 
-Error: [DD007] data-dict.yaml lint
+Error: [DD001]
+    ╭─[ lint/dd001-fk-no-relationship.yaml:18:15 ]
+    │
+ 18 │       - name: food_category_id
+    │               ────────┬───────  
+    │                       ╰───────── column `food.food_category_id` is marked `foreign_key` but no `relationships` entry points it at a `primary_key` column
+────╯
+
+Error: [DD007]
     ╭─[ lint/dd001-fk-no-relationship.yaml:18:15 ]
     │
  18 │       - name: food_category_id
@@ -26,7 +26,7 @@ Error: [DD007] data-dict.yaml lint
     │                       ╰───────── column `food.food_category_id` has type `number(id)` but is missing the expected `examples` property
 ────╯
 
-Error: [DD007] data-dict.yaml lint
+Error: [DD007]
     ╭─[ lint/dd001-fk-no-relationship.yaml:28:15 ]
     │
  28 │       - name: id

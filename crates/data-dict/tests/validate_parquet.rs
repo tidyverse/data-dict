@@ -94,7 +94,7 @@ tables:
 ",
     );
 
-    assert!(validate_parquet(&yaml, &parquet, None).is_ok());
+    assert!(validate_parquet(&yaml, &parquet, None).1.is_ok());
 }
 
 #[test]
@@ -121,7 +121,7 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, None).unwrap_err();
+    let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
     let DataError::Mismatch { issues, .. } = err else {
         panic!("expected Mismatch, got {err:?}");
     };
@@ -153,7 +153,7 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, None).unwrap_err();
+    let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
     let DataError::Mismatch { issues, .. } = err else {
         panic!("expected Mismatch, got {err:?}");
     };
@@ -191,7 +191,7 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, None).unwrap_err();
+    let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
     let DataError::Mismatch { issues, .. } = err else {
         panic!("expected Mismatch, got {err:?}");
     };
@@ -228,7 +228,7 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, None).unwrap_err();
+    let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
     assert!(
         matches!(err, DataError::AmbiguousTable { .. }),
         "got {err:?}"
@@ -258,7 +258,9 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, Some("nope")).unwrap_err();
+    let err = validate_parquet(&yaml, &parquet, Some("nope"))
+        .1
+        .unwrap_err();
     assert!(
         matches!(err, DataError::TableNotFound { .. }),
         "got {err:?}"

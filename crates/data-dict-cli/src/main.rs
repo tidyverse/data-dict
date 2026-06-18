@@ -3,6 +3,7 @@ use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
 use data_dict::data::{ColumnIssue, DataError};
+use data_dict::{Diagnostic, Diagnostics, Severity};
 
 #[derive(Parser)]
 #[command(name = "data-dict", version, about)]
@@ -72,12 +73,16 @@ fn main() -> ExitCode {
                 }
             };
             match data_dict::validate(&path) {
-                Ok(warnings) => {
-                    for warning in &warnings {
-                        eprintln!("{warning}");
+                Ok(diagnostics) => {
+                    for line in diagnostics.render() {
+                        eprintln!("{line}");
                     }
-                    println!("{}: ok", path.display());
-                    ExitCode::SUCCESS
+                    if diagnostics.has_errors() {
+                        ExitCode::FAILURE
+                    } else {
+                        println!("{}: ok", path.display());
+                        ExitCode::SUCCESS
+                    }
                 }
                 Err(err) => {
                     eprintln!("{err}");
@@ -117,23 +122,24 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             };
-            let result = data_dict::data::validate_parquet(&dict, &parquet, table.as_deref());
+            let (diagnostics, result) =
+                data_dict::data::validate_parquet(&dict, &parquet, table.as_deref());
             if json {
-                println!("{}", validate_result_to_json(&result));
+                println!("{}", validate_result_to_json(&diagnostics, &result));
+            } else {
+                for line in diagnostics.render() {
+                    eprintln!("{line}");
+                }
+                match &result {
+                    Ok(()) if diagnostics.is_ok() => println!("{}: ok", parquet.display()),
+                    Ok(()) => {}
+                    Err(err) => eprintln!("{err}"),
+                }
             }
-            match result {
-                Ok(()) => {
-                    if !json {
-                        println!("{}: ok", parquet.display());
-                    }
-                    ExitCode::SUCCESS
-                }
-                Err(err) => {
-                    if !json {
-                        eprintln!("{err}");
-                    }
-                    ExitCode::FAILURE
-                }
+            if diagnostics.has_errors() || result.is_err() {
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
             }
         }
         Command::Skill { command } => {
@@ -205,9 +211,13 @@ fn resolve_dict_path(path: Option<PathBuf>) -> Result<PathBuf, String> {
     }
 }
 
-fn validate_result_to_json(result: &Result<(), DataError>) -> serde_json::Value {
-    match result {
-        Ok(()) => serde_json::json!({"status": "ok"}),
+fn validate_result_to_json(
+    diagnostics: &Diagnostics,
+    result: &Result<(), DataError>,
+) -> serde_json::Value {
+    let mut value = match result {
+        Ok(()) if diagnostics.is_ok() => serde_json::json!({"status": "ok"}),
+        Ok(()) => serde_json::json!({"status": "error", "kind": "dictionary"}),
         Err(DataError::Schema(e)) => serde_json::json!({
             "status": "error",
             "kind": "schema",
@@ -235,7 +245,27 @@ fn validate_result_to_json(result: &Result<(), DataError>) -> serde_json::Value 
             "table": table,
             "issues": issues.iter().map(issue_to_json).collect::<Vec<_>>(),
         }),
-    }
+    };
+    value["diagnostics"] = serde_json::json!(
+        diagnostics
+            .items
+            .iter()
+            .map(diagnostic_to_json)
+            .collect::<Vec<_>>()
+    );
+    value
+}
+
+fn diagnostic_to_json(diagnostic: &Diagnostic) -> serde_json::Value {
+    let severity = match diagnostic.severity {
+        Severity::Error => "error",
+        Severity::Warning => "warning",
+    };
+    serde_json::json!({
+        "severity": severity,
+        "code": diagnostic.code,
+        "message": diagnostic.message,
+    })
 }
 
 fn issue_to_json(issue: &ColumnIssue) -> serde_json::Value {
@@ -372,5 +402,34 @@ mod tests {
         // so the caller surfaces the real read error.
         let path = PathBuf::from("does-not-exist.yaml");
         assert_eq!(resolve_dict_path(Some(path.clone())).unwrap(), path);
+    }
+
+    /// Validate a dictionary that is clean apart from a DD009 ($learn_more)
+    /// warning, returning its diagnostics.
+    fn warning_diagnostics(name: &str) -> Diagnostics {
+        let dir = temp_dir(name);
+        let dict = dir.join("data-dict.yaml");
+        fs::write(&dict, "$version: 0.1.0\n").unwrap();
+        data_dict::validate(&dict).expect("must validate")
+    }
+
+    #[test]
+    fn json_includes_diagnostics_on_success() {
+        let diagnostics = warning_diagnostics("json-ok");
+        let json = validate_result_to_json(&diagnostics, &Ok(()));
+        assert_eq!(json["status"], "ok");
+        assert_eq!(json["diagnostics"][0]["code"], "DD009");
+        assert_eq!(json["diagnostics"][0]["severity"], "warning");
+    }
+
+    #[test]
+    fn json_includes_diagnostics_on_error() {
+        let diagnostics = warning_diagnostics("json-err");
+        let err = DataError::AmbiguousTable {
+            available: vec!["a".to_string(), "b".to_string()],
+        };
+        let json = validate_result_to_json(&diagnostics, &Err(err));
+        assert_eq!(json["status"], "error");
+        assert_eq!(json["diagnostics"][0]["code"], "DD009");
     }
 }

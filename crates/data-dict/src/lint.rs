@@ -49,6 +49,70 @@ pub enum Severity {
     Warning,
 }
 
+/// A document's lint diagnostics together with the [`SourceContext`] needed to
+/// render them. Checks push into a `Diagnostics` as they run; calling [`sort`]
+/// then orders them by their position in the document.
+///
+/// [`sort`]: Diagnostics::sort
+#[derive(Debug)]
+pub struct Diagnostics {
+    pub items: Vec<Diagnostic>,
+    pub source: SourceContext,
+}
+
+impl Diagnostics {
+    /// An empty set of diagnostics tied to a source context, ready for checks
+    /// to push into.
+    pub fn new(source: SourceContext) -> Self {
+        Diagnostics {
+            items: Vec::new(),
+            source,
+        }
+    }
+
+    /// An empty set of diagnostics with no source. Used when validation could
+    /// not even begin (e.g. the document failed to parse).
+    pub fn empty() -> Self {
+        Diagnostics::new(SourceContext::new())
+    }
+
+    /// Record a diagnostic found by a check.
+    pub fn push(&mut self, diagnostic: Diagnostic) {
+        self.items.push(diagnostic);
+    }
+
+    /// Order diagnostics by their position in the document. Rules emit in their
+    /// own order (e.g. `$learn_more` is checked last), but readers expect
+    /// diagnostics in source order. The sort is stable, so diagnostics sharing
+    /// a position keep their emission order; spans that don't resolve to a byte
+    /// range sort last.
+    pub fn sort(&mut self) {
+        self.items.sort_by_key(|d| {
+            d.span
+                .resolve_byte_range()
+                .map(|(file, start, _)| (file, start))
+                .unwrap_or((usize::MAX, usize::MAX))
+        });
+    }
+
+    /// Whether any diagnostic is an error. Errors fail validation; warnings do
+    /// not.
+    pub fn has_errors(&self) -> bool {
+        self.items.iter().any(|d| d.severity == Severity::Error)
+    }
+
+    /// Whether the document is valid: no error-severity diagnostics. It may
+    /// still carry warnings.
+    pub fn is_ok(&self) -> bool {
+        !self.has_errors()
+    }
+
+    /// Render every diagnostic to display text, in their current order.
+    pub fn render(&self) -> Vec<String> {
+        self.items.iter().map(|d| d.to_text(&self.source)).collect()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Diagnostic {
     pub code: &'static str,
@@ -65,13 +129,16 @@ pub struct Diagnostic {
 
 impl Diagnostic {
     pub fn to_text(&self, ctx: &SourceContext) -> String {
-        let title = "data-dict.yaml lint";
+        // The header is just the rule code (e.g. "Error: [DD007]"); the message
+        // is shown once, against the source span. We drop the generic title that
+        // added nothing. The code goes in the title rather than via `with_code`,
+        // which would append it after an empty title and leave a trailing space.
+        let header = format!("[{}]", self.code);
         let mut builder = match self.severity {
-            Severity::Error => DiagnosticMessageBuilder::error(title),
-            Severity::Warning => DiagnosticMessageBuilder::warning(title),
+            Severity::Error => DiagnosticMessageBuilder::error(header),
+            Severity::Warning => DiagnosticMessageBuilder::warning(header),
         };
         builder = builder
-            .with_code(self.code)
             .problem(self.message.clone())
             .with_location(self.span.clone());
         for (span, label) in &self.related {
@@ -96,25 +163,22 @@ impl Diagnostic {
     }
 }
 
-/// Run every rule and return all diagnostics. Diagnostics retain emission
-/// order: rules earlier in the list run first, and within a rule the order
-/// follows source order.
-pub fn lint(dict: &DataDict) -> Vec<Diagnostic> {
-    let mut out = Vec::new();
-    check_relationship_table_refs(dict, &mut out); // DD002
-    check_relationship_column_refs(dict, &mut out); // DD003
-    check_join_table_count(dict, &mut out); // DD004
-    check_foreign_keys_resolve(dict, &mut out); // DD001
-    check_conflicts_present_on_both_sides(dict, &mut out); // DD005
-    check_cardinality_consistency(dict, &mut out); // DD006
-    check_column_data_representation(dict, &mut out); // DD007
-    check_units_only_on_quantity(dict, &mut out); // DD008
-    out
+/// Run every rule, pushing any findings into `out`. Rules run in code order;
+/// call [`Diagnostics::sort`] afterwards to put the findings in source order.
+pub fn lint(dict: &DataDict, out: &mut Diagnostics) {
+    check_relationship_table_refs(dict, out); // DD002
+    check_relationship_column_refs(dict, out); // DD003
+    check_join_table_count(dict, out); // DD004
+    check_foreign_keys_resolve(dict, out); // DD001
+    check_conflicts_present_on_both_sides(dict, out); // DD005
+    check_cardinality_consistency(dict, out); // DD006
+    check_column_data_representation(dict, out); // DD007
+    check_units_only_on_quantity(dict, out); // DD008
 }
 
 // --- DD002 --------------------------------------------------------------
 
-fn check_relationship_table_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_relationship_table_refs(dict: &DataDict, out: &mut Diagnostics) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
         for q in join.qcols() {
@@ -139,7 +203,7 @@ fn check_relationship_table_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
 
 // --- DD003 --------------------------------------------------------------
 
-fn check_relationship_column_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_relationship_column_refs(dict: &DataDict, out: &mut Diagnostics) {
     for rel in &dict.relationships {
         if let Some(join) = &rel.join {
             for q in join.qcols() {
@@ -173,7 +237,7 @@ fn check_relationship_column_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
 
 // --- DD004 --------------------------------------------------------------
 
-fn check_join_table_count(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_join_table_count(dict: &DataDict, out: &mut Diagnostics) {
     // Parse failures are emitted during lowering. Here we only check the
     // table-count invariant on successfully parsed joins.
     for rel in &dict.relationships {
@@ -197,7 +261,7 @@ fn check_join_table_count(dict: &DataDict, out: &mut Vec<Diagnostic>) {
 
 // --- DD001 --------------------------------------------------------------
 
-fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Diagnostics) {
     use crate::model::Constraint::*;
 
     for (table_name, table) in &dict.tables {
@@ -244,7 +308,7 @@ fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Vec<Diagnostic>) {
 
 // --- DD005 --------------------------------------------------------------
 
-fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut Diagnostics) {
     for rel in &dict.relationships {
         if rel.conflicts.is_empty() {
             continue;
@@ -297,7 +361,7 @@ fn join_with_commas(items: &[&str]) -> String {
 
 // --- DD006 --------------------------------------------------------------
 
-fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_cardinality_consistency(dict: &DataDict, out: &mut Diagnostics) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
 
@@ -415,7 +479,7 @@ fn side_has_unique_implied(
 
 const RANGE_TYPES: &[&str] = &["number(ordinal)", "number(quantity)", "date", "datetime"];
 
-fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
     for (table_name, table) in &dict.tables {
         for col in &table.columns {
             let Some(col_type) = &col.col_type else {
@@ -558,7 +622,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
 
 // --- DD008 --------------------------------------------------------------
 
-fn check_units_only_on_quantity(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_units_only_on_quantity(dict: &DataDict, out: &mut Diagnostics) {
     for (table_name, table) in &dict.tables {
         for col in &table.columns {
             let Some(units) = &col.units else { continue };
@@ -593,23 +657,25 @@ fn check_units_only_on_quantity(dict: &DataDict, out: &mut Vec<Diagnostic>) {
 /// other rules this inspects the raw AST, because `$learn_more` is top-level
 /// metadata that the lowered [`DataDict`] does not carry. The warning is
 /// anchored at the `$version` key, which the schema guarantees is present.
-pub fn check_learn_more(root: &YamlWithSourceInfo) -> Option<Diagnostic> {
-    let entries = root.as_hash()?;
+pub fn check_learn_more(root: &YamlWithSourceInfo, out: &mut Diagnostics) {
+    let Some(entries) = root.as_hash() else {
+        return;
+    };
     let has = |key: &str| entries.iter().find(|e| e.key.yaml.as_str() == Some(key));
     if has("$learn_more").is_some() {
-        return None;
+        return;
     }
     let span = has("$version")
         .map(|e| e.key_span.clone())
         .unwrap_or_else(|| root.source_info.clone());
-    Some(Diagnostic {
+    out.push(Diagnostic {
         code: "DD009",
         message: "document is missing the recommended `$learn_more` key".to_string(),
         severity: Severity::Warning,
         span,
         related: Vec::new(),
         hint: Some(format!(
-            "Add `$learn_more` so readers unfamiliar with the format can find it: {LEARN_MORE_URL}"
+            "Add `$learn_more: {LEARN_MORE_URL}` so readers unfamiliar with the format can find it"
         )),
     })
 }
