@@ -2,7 +2,7 @@
 source: crates/data-dict/tests/validate.rs
 expression: "failing_diagnostic(\"lint/dd007-enum-without-values.yaml\")"
 ---
-Error: [DD007] data-dict.yaml lint
+Error: [DD007]
     ╭─[ lint/dd007-enum-without-values.yaml:11:15 ]
     │
  11 │       - name: c

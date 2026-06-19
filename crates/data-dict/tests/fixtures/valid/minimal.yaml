@@ -1,3 +1,5 @@
-# expected: validates (smallest legal document - just the required version key).
+# expected: validates cleanly (smallest recommended document - the required
+# $version key plus the recommended $learn_more).
 
-version: 0.1.0
+$version: 0.1.0
+$learn_more: http://data-dict.tidyverse.org/

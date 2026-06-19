@@ -2,7 +2,7 @@
 # The relationship references `food_category.identifier`, but the column on
 # `food_category` is called `id`.
 
-version: "0.1.0"
+$version: "0.1.0"
 
 tables:
   food:

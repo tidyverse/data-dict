@@ -2,7 +2,7 @@
 # `conflicts: [amount]` claims `amount` appears in both `food` and
 # `food_nutrient`, but `food` has no `amount` column.
 
-version: "0.1.0"
+$version: "0.1.0"
 
 tables:
   food:

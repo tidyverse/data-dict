@@ -1,6 +1,6 @@
 # expected: fails DD007 - `number(quantity)` and `date` columns must have a `range` property.
 
-version: 0.1.0
+$version: 0.1.0
 
 tables:
   t:

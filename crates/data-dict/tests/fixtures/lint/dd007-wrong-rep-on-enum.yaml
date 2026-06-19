@@ -1,6 +1,6 @@
 # expected: fails DD007 - an `enum` column must use `values`, not `range` or `examples`.
 
-version: 0.1.0
+$version: 0.1.0
 
 tables:
   t:

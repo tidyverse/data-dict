@@ -79,7 +79,7 @@ fn matching_dict_and_parquet() {
     let yaml = write_yaml(
         &dir,
         "
-version: 0.1.0
+$version: 0.1.0
 tables:
   animals:
     source:
@@ -94,7 +94,7 @@ tables:
 ",
     );
 
-    assert!(validate_parquet(&yaml, &parquet, None).is_ok());
+    assert!(validate_parquet(&yaml, &parquet, None).1.is_ok());
 }
 
 #[test]
@@ -106,7 +106,7 @@ fn type_mismatch_reported() {
     let yaml = write_yaml(
         &dir,
         "
-version: 0.1.0
+$version: 0.1.0
 tables:
   animals:
     source:
@@ -121,7 +121,7 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, None).unwrap_err();
+    let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
     let DataError::Mismatch { issues, .. } = err else {
         panic!("expected Mismatch, got {err:?}");
     };
@@ -141,7 +141,7 @@ fn extra_column_in_data_reported() {
     let yaml = write_yaml(
         &dir,
         "
-version: 0.1.0
+$version: 0.1.0
 tables:
   animals:
     source:
@@ -153,7 +153,7 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, None).unwrap_err();
+    let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
     let DataError::Mismatch { issues, .. } = err else {
         panic!("expected Mismatch, got {err:?}");
     };
@@ -173,7 +173,7 @@ fn missing_column_in_data_reported() {
     let yaml = write_yaml(
         &dir,
         "
-version: 0.1.0
+$version: 0.1.0
 tables:
   animals:
     source:
@@ -191,7 +191,7 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, None).unwrap_err();
+    let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
     let DataError::Mismatch { issues, .. } = err else {
         panic!("expected Mismatch, got {err:?}");
     };
@@ -209,7 +209,7 @@ fn ambiguous_table_without_name() {
     let yaml = write_yaml(
         &dir,
         "
-version: 0.1.0
+$version: 0.1.0
 tables:
   animals:
     source:
@@ -228,7 +228,7 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, None).unwrap_err();
+    let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
     assert!(
         matches!(err, DataError::AmbiguousTable { .. }),
         "got {err:?}"
@@ -243,7 +243,7 @@ fn unknown_table_name() {
     let yaml = write_yaml(
         &dir,
         "
-version: 0.1.0
+$version: 0.1.0
 tables:
   animals:
     source:
@@ -258,7 +258,9 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, Some("nope")).unwrap_err();
+    let err = validate_parquet(&yaml, &parquet, Some("nope"))
+        .1
+        .unwrap_err();
     assert!(
         matches!(err, DataError::TableNotFound { .. }),
         "got {err:?}"

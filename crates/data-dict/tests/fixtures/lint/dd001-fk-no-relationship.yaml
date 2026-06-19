@@ -3,7 +3,7 @@
 # entry points it at a `primary_key`. Removing the `relationships` block
 # entirely is enough to trigger the rule.
 
-version: "0.1.0"
+$version: "0.1.0"
 
 tables:
   food:
