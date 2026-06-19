@@ -261,11 +261,15 @@ fn diagnostic_to_json(diagnostic: &Diagnostic) -> serde_json::Value {
         Severity::Error => "error",
         Severity::Warning => "warning",
     };
-    serde_json::json!({
+    let mut value = serde_json::json!({
         "severity": severity,
         "code": diagnostic.code,
         "message": diagnostic.message,
-    })
+    });
+    if let Some(hint) = &diagnostic.hint {
+        value["hint"] = serde_json::json!(hint);
+    }
+    value
 }
 
 fn issue_to_json(issue: &ColumnIssue) -> serde_json::Value {
@@ -420,6 +424,12 @@ mod tests {
         assert_eq!(json["status"], "ok");
         assert_eq!(json["diagnostics"][0]["code"], "DD009");
         assert_eq!(json["diagnostics"][0]["severity"], "warning");
+        assert!(
+            json["diagnostics"][0]["hint"]
+                .as_str()
+                .is_some_and(|h| h.contains("$learn_more")),
+            "DD009 hint should be carried in the JSON output"
+        );
     }
 
     #[test]

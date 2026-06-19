@@ -7,7 +7,7 @@ Error: [Q-1-10] YAML Validation Failed
    │
  3 │ tables: {}
    │ ─────┬─────  
-   │      ╰─────── Missing required property '$version'
+   │      ╰─────── Missing required property '$version' (must be one of: "0.1.0")
 ───╯
 ✖ At document root
 ℹ Schema constraint: object

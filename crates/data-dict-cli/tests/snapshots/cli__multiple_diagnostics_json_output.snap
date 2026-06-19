@@ -6,6 +6,7 @@ expression: "serde_json::to_string_pretty(&value).unwrap()"
   "diagnostics": [
     {
       "code": "DD009",
+      "hint": "Add `$learn_more: http://data-dict.tidyverse.org/` so readers unfamiliar with the format can find it",
       "message": "document is missing the recommended `$learn_more` key",
       "severity": "warning"
     },

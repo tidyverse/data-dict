@@ -54,8 +54,9 @@ fn schema() -> &'static Schema {
 pub enum Error {
     /// I/O failure reading the document.
     Io(std::io::Error),
-    /// The document is not parseable as YAML.
-    Parse(quarto_yaml::Error),
+    /// The document is not parseable as YAML. Boxed because `quarto_yaml::Error`
+    /// is large and would otherwise bloat every `Result` in this module.
+    Parse(Box<quarto_yaml::Error>),
     /// The document failed structural and/or semantic validation. The string
     /// is a rendered, human-readable report covering every diagnostic, with
     /// source-location highlighting.
@@ -103,7 +104,8 @@ pub fn validate_and_lower(path: &Path) -> Result<(DataDict, Diagnostics), Error>
     let content = std::fs::read_to_string(path).map_err(Error::Io)?;
     let filename = path.display().to_string();
 
-    let doc = quarto_yaml::parse_file(&content, &filename).map_err(Error::Parse)?;
+    let doc =
+        quarto_yaml::parse_file(&content, &filename).map_err(|e| Error::Parse(Box::new(e)))?;
 
     let mut source = SourceContext::new();
     let file_id = quarto_yaml::file_id_for_filename(&filename);
