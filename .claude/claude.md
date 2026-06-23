@@ -17,7 +17,7 @@ The repo contains:
 
 ## Spec and implementation must stay in sync
 
-The spec (`site/spec.md`) and the implementation (the crates + `schema.yaml`) are two views of the same thing and must never drift apart.
+The spec (`site/spec.md` + validation details in `site/validation.md`) and the implementation (the crates + `schema.yaml`) are two views of the same thing and must never drift apart.
 
 - **New features start in the spec, and REQUIRE human sign-off.** This is the single most important rule in this file. Any new feature is a two-phase process with a hard stop between the phases:
     1. **Write the spec.** Draft and iterate the change in `site/spec.md` *only*. Do not touch `schema.yaml`, the crates, the tests, or any other file in this phase.
