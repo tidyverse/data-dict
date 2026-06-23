@@ -38,8 +38,6 @@ tables:
       Includes both branded and foundation foods.
     source:
       parquet: inst/parquet/food.parquet
-      R: foodbank::food
-      SQL: foodbank.food
     columns:
       - name: fdc_id
         type: number(id)
@@ -64,23 +62,16 @@ tables:
 
 ### Source
 
-`source` is a map whose keys name the access method and whose values give the location. For example:
+`source` describes how to access the table's data. It's a map whose keys describe the access method and whose values give the location. Currently the only supported key is `parquet`:
 
 ```yaml
 source:
   parquet: inst/parquet/food.parquet
-  R: foodbank::food
-  SQL: foodbank.food
 ```
 
-The currently supported keys are:
-
 * `parquet`: path to a Parquet file (may include globs).
-* `SQL`: a (possibly schema-qualified) table name (e.g. `food` or `foodbank.food`) or a full `SELECT` query.
-* `R` and `Python`: R or Python code that returns the data (e.g. `foodbank::food`, or `read.csv("food.csv", comment.char = "#")`).
-* `pin`: the name of a Posit Connect pin.
 
-This variety of source types reflects the variety of ways which you might retrieve a dataset. It's good practice to upstream as much of this processing as possible so that over time you exclusively use `parquet` or `SQL` with a table.
+Parquet is the only source `data-dict` can currently validate against, so it's the only one the spec defines. We expect to add more access methods in the future — most importantly `SQL` (a schema-qualified table name such as `foodbank.food`, or a full `SELECT` query), and likely others such as R, Python, and Posit Connect pins.
 
 ### Columns
 

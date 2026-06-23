@@ -53,10 +53,6 @@ object:
                   minProperties: 1
                   properties:
                     parquet: string
-                    SQL: string
-                    R: string
-                    Python: string
-                    pin: string
 
               columns:
                 arrayOf:
