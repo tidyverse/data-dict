@@ -6,7 +6,11 @@ Validation happens at two levels:
 
 * Validating the **dictionary** checks that the file is well-formed and internally consistent — that types are valid, foreign keys have matching relationships, joins parse, and so on. These checks have an unambiguous right answer, so most are errors. This is performed by `data-dict validate-spec`.
 
-* Validating the dictionary against the **data** (or equivalently validating the data against the dictionary) checks that the data and dictionary are consistent. If there's an inconsistency, we can't tell which needs to change. If you're creating the dictionary as you learn about the data, then you might need to change the dictionary. If you're using the dictionary to validate a dataset, there might be an upstream issue that you need toresolve. This is performed by `data-dict parquet validate`.
+* Validating the dictionary against the **data** (or equivalently validating the data against the dictionary) checks that the data and dictionary are consistent. If there's an inconsistency, we can't tell which needs to change. If you're creating the dictionary as you learn about the data, then you might need to change the dictionary. If you're using the dictionary to validate a dataset, there might be an upstream issue that you need to resolve. This is performed by `data-dict parquet validate`.
+
+Validating the dictionary is cheap, because it does not need to look at the data. This means it can be done continually while you edit the `data-dict.yaml`. Validating the data can be expensive, depending on the data source. 
+
+Validating the data always implies validating the spec first. 
 
 ## Errors vs warnings
 
