@@ -84,9 +84,11 @@ This variety of source types reflects the variety of ways which you might retrie
 
 ### Columns
 
-Each entry in the `columns` list is a column descriptor with the following properties:
+Each entry in the `columns` list is a column descriptor. Columns are matched to the underlying data by `name`, so the order in which you list them does not need to match the column order in the data.
 
-* `name` (required): column name. Must match the column name in the underlying data.
+Each descriptor has the following properties:
+
+* `name` (required, unique): column name. Used to match the descriptor to a column in the underlying data.
 * `type`: the column's data type. Must match (approximately) the underlying data type (see [Types](#types)).
 * `constraints`: a list of column-level constraints (see [Column constraints](#column-constraints)).
 * `description`: a human-readable description of the column. Can use markdown.
