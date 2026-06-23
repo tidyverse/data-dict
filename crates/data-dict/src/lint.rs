@@ -1,7 +1,10 @@
 //! Cross-table semantic linting for data-dict.yaml documents.
 //!
-//! Each rule runs over a lowered [`DataDict`] and emits zero or more
-//! [`Diagnostic`]s. All diagnostics are errors — there is no warning level.
+//! Most rules run over a lowered [`DataDict`] and emit zero or more
+//! [`Diagnostic`]s. Diagnostics carry a [`Severity`]: rules DD001–DD008 are
+//! errors that fail validation, while DD009 is a warning that is reported but
+//! does not. DD009 inspects the raw document rather than the lowered model,
+//! since it is about a top-level metadata key.
 //!
 //! Rule codes:
 //!
@@ -24,31 +27,125 @@
 //!   needs no data representation key).
 //! - `DD008`: a column carries `units` but its type is not `number(quantity)`.
 //!   Units are only meaningful for quantities.
+//! - `DD009` (warning): the document omits the recommended `$learn_more`
+//!   top-level key.
 
 use quarto_error_reporting::DiagnosticMessageBuilder;
 use quarto_source_map::{SourceContext, SourceInfo};
+use quarto_yaml::YamlWithSourceInfo;
 
 use crate::join_expr::{JoinExpr, ParseError, QCol};
 use crate::model::{Cardinality, DataDict, Spanned};
+
+/// The canonical documentation URL suggested for `$learn_more`.
+pub const LEARN_MORE_URL: &str = "http://data-dict.tidyverse.org/";
+
+/// Whether a diagnostic blocks validation (`Error`) or is purely advisory
+/// (`Warning`). Errors fail validation; warnings are reported alongside a
+/// successful result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Severity {
+    Error,
+    Warning,
+}
+
+/// A document's lint diagnostics together with the [`SourceContext`] needed to
+/// render them. Checks push into a `Diagnostics` as they run; calling [`sort`]
+/// then orders them by their position in the document.
+///
+/// [`sort`]: Diagnostics::sort
+#[derive(Debug)]
+pub struct Diagnostics {
+    pub items: Vec<Diagnostic>,
+    pub source: SourceContext,
+}
+
+impl Diagnostics {
+    /// An empty set of diagnostics tied to a source context, ready for checks
+    /// to push into.
+    pub fn new(source: SourceContext) -> Self {
+        Diagnostics {
+            items: Vec::new(),
+            source,
+        }
+    }
+
+    /// An empty set of diagnostics with no source. Used when validation could
+    /// not even begin (e.g. the document failed to parse).
+    pub fn empty() -> Self {
+        Diagnostics::new(SourceContext::new())
+    }
+
+    /// Record a diagnostic found by a check.
+    pub fn push(&mut self, diagnostic: Diagnostic) {
+        self.items.push(diagnostic);
+    }
+
+    /// Order diagnostics by their position in the document. Rules emit in their
+    /// own order (e.g. `$learn_more` is checked last), but readers expect
+    /// diagnostics in source order. The sort is stable, so diagnostics sharing
+    /// a position keep their emission order; spans that don't resolve to a byte
+    /// range sort last.
+    pub fn sort(&mut self) {
+        self.items.sort_by_key(|d| {
+            d.span
+                .resolve_byte_range()
+                .map(|(file, start, _)| (file, start))
+                .unwrap_or((usize::MAX, usize::MAX))
+        });
+    }
+
+    /// Whether any diagnostic is an error. Errors fail validation; warnings do
+    /// not.
+    pub fn has_errors(&self) -> bool {
+        self.items.iter().any(|d| d.severity == Severity::Error)
+    }
+
+    /// Whether the document is valid: no error-severity diagnostics. It may
+    /// still carry warnings.
+    pub fn is_ok(&self) -> bool {
+        !self.has_errors()
+    }
+
+    /// Render every diagnostic to display text, in their current order.
+    pub fn render(&self) -> Vec<String> {
+        self.items.iter().map(|d| d.to_text(&self.source)).collect()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Diagnostic {
     pub code: &'static str,
     pub message: String,
+    pub severity: Severity,
     pub span: SourceInfo,
     /// Secondary spans with explanatory labels. Rendered as bulleted details
     /// below the primary location.
     pub related: Vec<(SourceInfo, String)>,
+    /// Advisory follow-up rendered as an info bullet, e.g. how to resolve a
+    /// warning.
+    pub hint: Option<String>,
 }
 
 impl Diagnostic {
     pub fn to_text(&self, ctx: &SourceContext) -> String {
-        let mut builder = DiagnosticMessageBuilder::error("data-dict.yaml lint")
-            .with_code(self.code)
+        // The header is just the rule code (e.g. "Error: [DD007]"); the message
+        // is shown once, against the source span. We drop the generic title that
+        // added nothing. The code goes in the title rather than via `with_code`,
+        // which would append it after an empty title and leave a trailing space.
+        let header = format!("[{}]", self.code);
+        let mut builder = match self.severity {
+            Severity::Error => DiagnosticMessageBuilder::error(header),
+            Severity::Warning => DiagnosticMessageBuilder::warning(header),
+        };
+        builder = builder
             .problem(self.message.clone())
             .with_location(self.span.clone());
         for (span, label) in &self.related {
             builder = builder.add_detail_at(label.clone(), span.clone());
+        }
+        if let Some(hint) = &self.hint {
+            builder = builder.add_info(hint.clone());
         }
         builder.build().to_text(Some(ctx))
     }
@@ -60,35 +157,34 @@ impl Diagnostic {
             message: format!("`join` expression does not parse: {}", err.message),
             span: span.unwrap_or_else(|| join_text.span.clone()),
             related: Vec::new(),
+            severity: Severity::Error,
+            hint: None,
         }
     }
 }
 
-/// Run every rule and return all diagnostics. Diagnostics retain emission
-/// order: rules earlier in the list run first, and within a rule the order
-/// follows source order.
-pub fn lint(dict: &DataDict) -> Vec<Diagnostic> {
-    let mut out = Vec::new();
-    check_relationship_table_refs(dict, &mut out); // DD002
-    check_relationship_column_refs(dict, &mut out); // DD003
-    check_join_table_count(dict, &mut out); // DD004
-    check_foreign_keys_resolve(dict, &mut out); // DD001
-    check_conflicts_present_on_both_sides(dict, &mut out); // DD005
-    check_cardinality_consistency(dict, &mut out); // DD006
-    check_column_data_representation(dict, &mut out); // DD007
-    check_units_only_on_quantity(dict, &mut out); // DD008
-    out
+/// Run every rule, pushing any findings into `out`. Rules run in code order;
+/// call [`Diagnostics::sort`] afterwards to put the findings in source order.
+pub fn lint(dict: &DataDict, out: &mut Diagnostics) {
+    check_relationship_table_refs(dict, out); // DD002
+    check_relationship_column_refs(dict, out); // DD003
+    check_join_table_count(dict, out); // DD004
+    check_foreign_keys_resolve(dict, out); // DD001
+    check_conflicts_present_on_both_sides(dict, out); // DD005
+    check_cardinality_consistency(dict, out); // DD006
+    check_column_data_representation(dict, out); // DD007
+    check_units_only_on_quantity(dict, out); // DD008
 }
 
 // --- DD002 --------------------------------------------------------------
 
-fn check_relationship_table_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_relationship_table_refs(dict: &DataDict, out: &mut Diagnostics) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
         for q in join.qcols() {
             if !dict.tables.contains_key(&q.table) {
-                let span =
-                    subspan(&rel.join_text.span, q.start, q.end).unwrap_or_else(|| rel.join_text.span.clone());
+                let span = subspan(&rel.join_text.span, q.start, q.end)
+                    .unwrap_or_else(|| rel.join_text.span.clone());
                 out.push(Diagnostic {
                     code: "DD002",
                     message: format!(
@@ -97,6 +193,8 @@ fn check_relationship_table_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                     ),
                     span,
                     related: Vec::new(),
+                    severity: Severity::Error,
+                    hint: None,
                 });
             }
         }
@@ -105,13 +203,15 @@ fn check_relationship_table_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
 
 // --- DD003 --------------------------------------------------------------
 
-fn check_relationship_column_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_relationship_column_refs(dict: &DataDict, out: &mut Diagnostics) {
     for rel in &dict.relationships {
         if let Some(join) = &rel.join {
             for q in join.qcols() {
                 // Skip if the table doesn't exist — DD002 handles that case
                 // and a column report would be noise.
-                let Some(table) = dict.tables.get(&q.table) else { continue };
+                let Some(table) = dict.tables.get(&q.table) else {
+                    continue;
+                };
                 if table.column(&q.column).is_none() {
                     let span = subspan(&rel.join_text.span, q.start, q.end)
                         .unwrap_or_else(|| rel.join_text.span.clone());
@@ -123,6 +223,8 @@ fn check_relationship_column_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                         ),
                         span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             }
@@ -135,7 +237,7 @@ fn check_relationship_column_refs(dict: &DataDict, out: &mut Vec<Diagnostic>) {
 
 // --- DD004 --------------------------------------------------------------
 
-fn check_join_table_count(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_join_table_count(dict: &DataDict, out: &mut Diagnostics) {
     // Parse failures are emitted during lowering. Here we only check the
     // table-count invariant on successfully parsed joins.
     for rel in &dict.relationships {
@@ -150,6 +252,8 @@ fn check_join_table_count(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                 ),
                 span: rel.join_text.span.clone(),
                 related: Vec::new(),
+                severity: Severity::Error,
+                hint: None,
             });
         }
     }
@@ -157,7 +261,7 @@ fn check_join_table_count(dict: &DataDict, out: &mut Vec<Diagnostic>) {
 
 // --- DD001 --------------------------------------------------------------
 
-fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Diagnostics) {
     use crate::model::Constraint::*;
 
     for (table_name, table) in &dict.tables {
@@ -175,8 +279,12 @@ fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                         if fk_side.table != *table_name || fk_side.column != col.name.value {
                             return false;
                         }
-                        let Some(other_tbl) = dict.tables.get(&pk_side.table) else { return false };
-                        let Some(other_col) = other_tbl.column(&pk_side.column) else { return false };
+                        let Some(other_tbl) = dict.tables.get(&pk_side.table) else {
+                            return false;
+                        };
+                        let Some(other_col) = other_tbl.column(&pk_side.column) else {
+                            return false;
+                        };
                         other_col.has(PrimaryKey)
                     })
                 })
@@ -190,6 +298,8 @@ fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                     ),
                     span: col.name.span.clone(),
                     related: Vec::new(),
+                    severity: Severity::Error,
+                    hint: None,
                 });
             }
         }
@@ -198,7 +308,7 @@ fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Vec<Diagnostic>) {
 
 // --- DD005 --------------------------------------------------------------
 
-fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut Diagnostics) {
     for rel in &dict.relationships {
         if rel.conflicts.is_empty() {
             continue;
@@ -229,6 +339,8 @@ fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut Vec<Diagnost
                     ),
                     span: c.span.clone(),
                     related: Vec::new(),
+                    severity: Severity::Error,
+                    hint: None,
                 });
             }
         }
@@ -249,7 +361,7 @@ fn join_with_commas(items: &[&str]) -> String {
 
 // --- DD006 --------------------------------------------------------------
 
-fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_cardinality_consistency(dict: &DataDict, out: &mut Diagnostics) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
 
@@ -260,7 +372,7 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
         let all_cols_resolve = join.qcols().all(|q| {
             dict.tables
                 .get(&q.table)
-                .map_or(false, |t| t.column(&q.column).is_some())
+                .is_some_and(|t| t.column(&q.column).is_some())
         });
         if !all_cols_resolve {
             continue;
@@ -270,7 +382,9 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
         // of the join. With multi-conjunct joins (date-range overlap), the
         // LHS and RHS tables are the same across all conjuncts, so we can
         // use the first conjunct as the canonical orientation.
-        let Some(first) = join.conjuncts.first() else { continue };
+        let Some(first) = join.conjuncts.first() else {
+            continue;
+        };
         let lhs_table = first.lhs.table.clone();
         let rhs_table = first.rhs.table.clone();
 
@@ -283,8 +397,10 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
         // is unique-implied; that matches the loose intuition behind range
         // joins without producing noise for legitimate overlap joins.
 
-        let lhs_cols_unique = side_has_unique_implied(dict, &lhs_table, join, /* use_lhs = */ true);
-        let rhs_cols_unique = side_has_unique_implied(dict, &rhs_table, join, /* use_lhs = */ false);
+        let lhs_cols_unique =
+            side_has_unique_implied(dict, &lhs_table, join, /* use_lhs = */ true);
+        let rhs_cols_unique =
+            side_has_unique_implied(dict, &rhs_table, join, /* use_lhs = */ false);
 
         let card_span = rel.cardinality.span.clone();
         match rel.cardinality.value {
@@ -298,6 +414,8 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                         ),
                         span: card_span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             }
@@ -313,6 +431,8 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                         ),
                         span: card_span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             }
@@ -326,6 +446,8 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                         ),
                         span: card_span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             }
@@ -349,7 +471,7 @@ fn side_has_unique_implied(
         }
         table
             .column(&q.column)
-            .map_or(false, |c| c.is_unique_implied())
+            .is_some_and(|c| c.is_unique_implied())
     })
 }
 
@@ -357,10 +479,12 @@ fn side_has_unique_implied(
 
 const RANGE_TYPES: &[&str] = &["number(ordinal)", "number(quantity)", "date", "datetime"];
 
-fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
     for (table_name, table) in &dict.tables {
         for col in &table.columns {
-            let Some(col_type) = &col.col_type else { continue };
+            let Some(col_type) = &col.col_type else {
+                continue;
+            };
             let type_name = col_type.value.as_str();
             let span = col.name.span.clone();
 
@@ -374,6 +498,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
                 if col.has_range {
@@ -386,6 +512,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span: col.name.span.clone(),
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
                 if col.has_examples {
@@ -398,6 +526,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span: col.name.span.clone(),
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             } else if RANGE_TYPES.contains(&type_name) {
@@ -410,6 +540,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
                 if col.has_values {
@@ -422,6 +554,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span: col.name.span.clone(),
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
                 if col.has_examples {
@@ -434,6 +568,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span: col.name.span.clone(),
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             } else {
@@ -446,6 +582,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span,
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
                 if col.has_values {
@@ -458,6 +596,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span: col.name.span.clone(),
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
                 if col.has_range {
@@ -471,6 +611,8 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
                         ),
                         span: col.name.span.clone(),
                         related: Vec::new(),
+                        severity: Severity::Error,
+                        hint: None,
                     });
                 }
             }
@@ -480,14 +622,14 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Vec<Diagnostic>) 
 
 // --- DD008 --------------------------------------------------------------
 
-fn check_units_only_on_quantity(dict: &DataDict, out: &mut Vec<Diagnostic>) {
+fn check_units_only_on_quantity(dict: &DataDict, out: &mut Diagnostics) {
     for (table_name, table) in &dict.tables {
         for col in &table.columns {
             let Some(units) = &col.units else { continue };
             let is_quantity = col
                 .col_type
                 .as_ref()
-                .map_or(false, |t| t.value == "number(quantity)");
+                .is_some_and(|t| t.value == "number(quantity)");
             if !is_quantity {
                 let type_desc = col
                     .col_type
@@ -501,10 +643,41 @@ fn check_units_only_on_quantity(dict: &DataDict, out: &mut Vec<Diagnostic>) {
                     ),
                     span: units.span.clone(),
                     related: Vec::new(),
+                    severity: Severity::Error,
+                    hint: None,
                 });
             }
         }
     }
+}
+
+// --- DD009 --------------------------------------------------------------
+
+/// Warn when the document omits the recommended `$learn_more` key. Unlike the
+/// other rules this inspects the raw AST, because `$learn_more` is top-level
+/// metadata that the lowered [`DataDict`] does not carry. The warning is
+/// anchored at the `$version` key, which the schema guarantees is present.
+pub fn check_learn_more(root: &YamlWithSourceInfo, out: &mut Diagnostics) {
+    let Some(entries) = root.as_hash() else {
+        return;
+    };
+    let has = |key: &str| entries.iter().find(|e| e.key.yaml.as_str() == Some(key));
+    if has("$learn_more").is_some() {
+        return;
+    }
+    let span = has("$version")
+        .map(|e| e.key_span.clone())
+        .unwrap_or_else(|| root.source_info.clone());
+    out.push(Diagnostic {
+        code: "DD009",
+        message: "document is missing the recommended `$learn_more` key".to_string(),
+        severity: Severity::Warning,
+        span,
+        related: Vec::new(),
+        hint: Some(format!(
+            "Add `$learn_more: {LEARN_MORE_URL}` so readers unfamiliar with the format can find it"
+        )),
+    })
 }
 
 // --- Helpers ------------------------------------------------------------

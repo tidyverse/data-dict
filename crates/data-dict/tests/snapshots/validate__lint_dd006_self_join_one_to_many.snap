@@ -2,18 +2,18 @@
 source: crates/data-dict/tests/validate.rs
 expression: "failing_diagnostic(\"lint/dd006-self-join-one-to-many.yaml\")"
 ---
-Error: [DD006] data-dict.yaml lint
-    ╭─[ lint/dd006-self-join-one-to-many.yaml:30:18 ]
-    │
- 30 │     cardinality: one-to-many
-    │                  ─────┬─────  
-    │                       ╰─────── cardinality is `one-to-many` but the left-side join column on `otters` is not marked `primary_key` or `unique`
-────╯
-
-Error: [DD007] data-dict.yaml lint
+Error: [DD007]
     ╭─[ lint/dd006-self-join-one-to-many.yaml:24:15 ]
     │
  24 │       - name: comments
     │               ────┬───  
     │                   ╰───── column `otters.comments` has type `string` but is missing the expected `examples` property
+────╯
+
+Error: [DD006]
+    ╭─[ lint/dd006-self-join-one-to-many.yaml:30:18 ]
+    │
+ 30 │     cardinality: one-to-many
+    │                  ─────┬─────  
+    │                       ╰─────── cardinality is `one-to-many` but the left-side join column on `otters` is not marked `primary_key` or `unique`
 ────╯

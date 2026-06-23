@@ -25,12 +25,9 @@ pub struct ColumnTypeInfo {
 ///
 /// The data-dict types returned are: `"boolean"`, `"string"`, `"enum"`, `"date"`,
 /// `"datetime"`, and `"number"`.
-pub fn column_types(
-    path: &Path,
-) -> Result<Vec<(String, String)>, parquet::errors::ParquetError> {
-    let file = File::open(path).map_err(|e| {
-        parquet::errors::ParquetError::General(format!("Cannot open file: {e}"))
-    })?;
+pub fn column_types(path: &Path) -> Result<Vec<(String, String)>, parquet::errors::ParquetError> {
+    let file = File::open(path)
+        .map_err(|e| parquet::errors::ParquetError::General(format!("Cannot open file: {e}")))?;
     let reader = SerializedFileReader::new(file)?;
     let schema = reader.metadata().file_metadata().schema();
     let fields = schema.get_fields();
@@ -42,12 +39,9 @@ pub fn column_types(
 
 /// Returns type information for all columns in a parquet file, including dict type,
 /// parquet logical type, and parquet physical type.
-pub fn column_type_info(
-    path: &Path,
-) -> Result<Vec<ColumnTypeInfo>, parquet::errors::ParquetError> {
-    let file = File::open(path).map_err(|e| {
-        parquet::errors::ParquetError::General(format!("Cannot open file: {e}"))
-    })?;
+pub fn column_type_info(path: &Path) -> Result<Vec<ColumnTypeInfo>, parquet::errors::ParquetError> {
+    let file = File::open(path)
+        .map_err(|e| parquet::errors::ParquetError::General(format!("Cannot open file: {e}")))?;
     let reader = SerializedFileReader::new(file)?;
     let schema = reader.metadata().file_metadata().schema();
     let fields = schema.get_fields();
@@ -126,9 +120,8 @@ pub fn column_stats(
     needs: &HashMap<String, ColumnNeeds>,
     limit: usize,
 ) -> Result<HashMap<String, ColumnStats>, parquet::errors::ParquetError> {
-    let file = File::open(path).map_err(|e| {
-        parquet::errors::ParquetError::General(format!("Cannot open file: {e}"))
-    })?;
+    let file = File::open(path)
+        .map_err(|e| parquet::errors::ParquetError::General(format!("Cannot open file: {e}")))?;
     let reader = SerializedFileReader::new(file)?;
     let meta = reader.metadata();
     let schema = meta.file_metadata().schema();
@@ -167,7 +160,12 @@ pub fn column_stats(
     }
 
     let projection = Type::group_type_builder("schema")
-        .with_fields(to_scan.iter().map(|&i| schema.get_fields()[i].clone()).collect())
+        .with_fields(
+            to_scan
+                .iter()
+                .map(|&i| schema.get_fields()[i].clone())
+                .collect(),
+        )
         .build()?;
 
     for (idx, row) in reader.get_row_iter(Some(projection))?.enumerate() {
@@ -262,7 +260,7 @@ fn parquet_type_to_dict_type(field: &Type) -> String {
             LogicalType::Date => return "date".into(),
             LogicalType::Timestamp { .. } => return "datetime".into(),
             LogicalType::Integer { .. } | LogicalType::Float16 | LogicalType::Decimal { .. } => {
-                return "number".into()
+                return "number".into();
             }
             _ => {}
         }

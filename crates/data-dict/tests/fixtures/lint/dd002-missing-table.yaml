@@ -3,7 +3,7 @@
 # defined table is `food_category`. DD003 would also fire on `category.id`
 # but DD002 should be present.
 
-version: "0.1.0"
+$version: "0.1.0"
 
 tables:
   food:

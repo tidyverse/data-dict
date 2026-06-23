@@ -2,14 +2,20 @@
 
 This document describes version **0.1.0** of the `data-dict.yaml` specification.
 
-A data dictionary has one required top-level key, `version`, plus three optional keys that hold the actual content:
+A data dictionary has two kinds of top-level keys. `$`-prefixed metadata keys that describe the dictionary itself and the data keys that describe the data. The `$` prefix marks a key as meta, distinguishes it from content, and keeps these keys grouped at the top of the file. 
 
-* `version` (required): the version of the `data-dict.yaml` spec this document conforms to. Currently `0.1.0`.
+The metadata keys are:
+
+* `$version` (required): the version of the `data-dict.yaml` spec the document conforms to. Currently `0.1.0`. While the spec is pre-1.0, breaking changes are expected, but once the spec stabilises at 1.0, breaking changes will always increment at least the minor version.
+* `$learn_more` (optional, but recommended): a URL where readers can learn about the `data-dict.yaml` format, so that people and tools meeting the file for the first time can find out what it is. Use <http://data-dict.tidyverse.org/>. Omitting it is valid, but a validator will emit a warning rather than an error (see [Validation](validation.md)).
+
+The content keys all hold the actual information about the data:
+
 * [`tables`](#tables) is where the bulk of most data-dict.yaml files will be. It describes the tables and their columns.
 * [`relationships`](#relationships) describes the relationships between tables. It gives the details you need to safely create joins.
 * [`glossary`](#glossary) provides a place to define important domain-specific terms. This is a good place to write down those special words that your company loves to use.
 
-While the spec is pre-1.0, breaking changes between versions should be expected. Once the spec stabilises at 1.0, the major version will only change on breaking changes.
+
 
 ## Tables
 
@@ -78,9 +84,11 @@ This variety of source types reflects the variety of ways which you might retrie
 
 ### Columns
 
-Each entry in the `columns` list is a column descriptor with the following properties:
+Each entry in the `columns` list is a column descriptor. Columns are matched to the underlying data by `name`, so the order in which you list them does not need to match the column order in the data.
 
-* `name` (required): column name. Must match the column name in the underlying data.
+Each descriptor has the following properties:
+
+* `name` (required, unique): column name. Used to match the descriptor to a column in the underlying data.
 * `type`: the column's data type. Must match (approximately) the underlying data type (see [Types](#types)).
 * `constraints`: a list of column-level constraints (see [Column constraints](#column-constraints)).
 * `description`: a human-readable description of the column. Can use markdown.
@@ -109,7 +117,7 @@ The supported types are:
 Every type has some way of representing the data it contains: an exhaustive set of values, a range, or a handful of examples. Each column therefore carries exactly one of the following three properties, and which one is determined by the column's `type`:
 
 * `values`: the allowed values for an `enum` column. Can be a list (`[M, F, U]`) when values are self-explanatory, or a map (`{M: Male, F: Female, U: Unknown}`) when values need labels. (`boolean` columns implicitly have `values: [true, false]`, no need to explicitly include it.)
-* `range`: a two-element list `[min, max]` giving the inclusive range. Used for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`.
+* `range`: a two-element list `[min, max]` giving the inclusive minimum and maximum *observed* in the column. Like `examples`, it describes the data rather than constraining it — a value outside the range will generate a warning, not a validation error. Used for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`.
 * `examples`: a list of ~5 representative values from the column. Used for all other types: `string`, `number`, and `number(id)`. A handful of concrete examples helps LLMs understand the column far better than a description alone. For instance, knowing that an id column holds `[1, 2, 3, 4, 5]` versus `[10000, 1235452, 234234]`. A good baseline is to select 5 evenly spaced values along the sorted unique values, and then add any particularly surprising values as you encounter them.
 
 #### Measures

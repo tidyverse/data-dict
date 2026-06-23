@@ -6,10 +6,10 @@
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
-use data_dict::data::{validate_parquet, ColumnIssue, DataError};
+use data_dict::data::{ColumnIssue, DataError, validate_parquet};
 use indoc::{formatdoc, indoc};
 use parquet::data_type::{ByteArray, ByteArrayType, DoubleType};
 use parquet::file::properties::WriterProperties;
@@ -80,7 +80,7 @@ fn matching_dict_and_parquet() {
     let yaml = write_yaml(
         &dir,
         "
-version: 0.1.0
+$version: 0.1.0
 tables:
   animals:
     source:
@@ -95,7 +95,7 @@ tables:
 ",
     );
 
-    assert!(validate_parquet(&yaml, &parquet, None).is_ok());
+    assert!(validate_parquet(&yaml, &parquet, None).1.is_ok());
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn type_mismatch_reported() {
     let yaml = write_yaml(
         &dir,
         "
-version: 0.1.0
+$version: 0.1.0
 tables:
   animals:
     source:
@@ -122,7 +122,7 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, None).unwrap_err();
+    let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
     let DataError::Mismatch { issues, .. } = err else {
         panic!("expected Mismatch, got {err:?}");
     };
@@ -142,7 +142,7 @@ fn extra_column_in_data_reported() {
     let yaml = write_yaml(
         &dir,
         "
-version: 0.1.0
+$version: 0.1.0
 tables:
   animals:
     source:
@@ -154,7 +154,7 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, None).unwrap_err();
+    let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
     let DataError::Mismatch { issues, .. } = err else {
         panic!("expected Mismatch, got {err:?}");
     };
@@ -174,7 +174,7 @@ fn missing_column_in_data_reported() {
     let yaml = write_yaml(
         &dir,
         "
-version: 0.1.0
+$version: 0.1.0
 tables:
   animals:
     source:
@@ -192,7 +192,7 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, None).unwrap_err();
+    let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
     let DataError::Mismatch { issues, .. } = err else {
         panic!("expected Mismatch, got {err:?}");
     };
@@ -210,7 +210,7 @@ fn ambiguous_table_without_name() {
     let yaml = write_yaml(
         &dir,
         "
-version: 0.1.0
+$version: 0.1.0
 tables:
   animals:
     source:
@@ -229,8 +229,11 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, None).unwrap_err();
-    assert!(matches!(err, DataError::AmbiguousTable { .. }), "got {err:?}");
+    let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
+    assert!(
+        matches!(err, DataError::AmbiguousTable { .. }),
+        "got {err:?}"
+    );
 }
 
 #[test]
@@ -241,7 +244,7 @@ fn unknown_table_name() {
     let yaml = write_yaml(
         &dir,
         "
-version: 0.1.0
+$version: 0.1.0
 tables:
   animals:
     source:
@@ -256,8 +259,13 @@ tables:
 ",
     );
 
-    let err = validate_parquet(&yaml, &parquet, Some("nope")).unwrap_err();
-    assert!(matches!(err, DataError::TableNotFound { .. }), "got {err:?}");
+    let err = validate_parquet(&yaml, &parquet, Some("nope"))
+        .1
+        .unwrap_err();
+    assert!(
+        matches!(err, DataError::TableNotFound { .. }),
+        "got {err:?}"
+    );
 }
 
 /// Validate a single column in isolation. Writes a one-column parquet file
@@ -298,7 +306,7 @@ fn check_column(
     let yaml = write_yaml(
         &dir,
         &formatdoc! {"
-            version: 0.1.0
+            $version: 0.1.0
             tables:
               t:
                 source:
@@ -308,7 +316,7 @@ fn check_column(
         "},
     );
 
-    validate_parquet(&yaml, &parquet, None)
+    validate_parquet(&yaml, &parquet, None).1
 }
 
 /// Write an optional double column whose second row (1-based) is null. Used by

@@ -17,7 +17,7 @@ The repo contains:
 
 ## Spec and implementation must stay in sync
 
-The spec (`site/spec.md`) and the implementation (the crates + `schema.yaml`) are two views of the same thing and must never drift apart.
+The spec (`site/spec.md` + validation details in `site/validation.md`) and the implementation (the crates + `schema.yaml`) are two views of the same thing and must never drift apart.
 
 - **New features start in the spec, and REQUIRE human sign-off.** This is the single most important rule in this file. Any new feature is a two-phase process with a hard stop between the phases:
     1. **Write the spec.** Draft and iterate the change in `site/spec.md` *only*. Do not touch `schema.yaml`, the crates, the tests, or any other file in this phase.
@@ -38,6 +38,10 @@ cargo build --workspace --all-targets   # includes tests, examples, benches
 cargo test --workspace
 cargo test -p data-dict                 # single crate
 cargo test -p data-dict lint            # tests matching "lint" in data-dict crate
+
+# Format and lint (run before committing Rust changes)
+cargo fmt --all
+cargo clippy --workspace --all-targets
 
 # Validate a file
 cargo run -p data-dict-cli -- validate-schema site/examples/otters.yaml
@@ -64,7 +68,9 @@ YAML file
   → Result<(), Vec<Diagnostic>>
 ```
 
-### Lint rules (DD001–DD008)
+### Lint rules (DD001–DD009)
+
+DD001–DD008 are errors (they fail validation); DD009 is a warning (reported but does not fail validation).
 
 | Rule | Description |
 |------|-------------|
@@ -76,8 +82,18 @@ YAML file
 | DD006 | Cardinality inconsistent with column constraints |
 | DD007 | Column missing required representation key (`values`, `range`, or `examples`) |
 | DD008 | Column has `units` but its type is not `number(quantity)` |
+| DD009 | Document omits the recommended `$learn_more` key (warning) |
 
 Test fixtures for these rules are in `crates/data-dict/tests/fixtures/{valid,invalid,lint}/`. Each fixture has a `# expected: ...` header documenting the intended outcome.
+
+Diagnostic hints always start with a capital letter.
+
+If a schema change causes `site/examples/` to fail, don't fix them. Instead report them to me so I can fix upstream.
+
+
+## Data format
+
+- Keys in `data-dict.yaml` use snake_case (e.g. `primary_key`, `foreign_key`, `$learn_more`).
 
 ## Prose
 

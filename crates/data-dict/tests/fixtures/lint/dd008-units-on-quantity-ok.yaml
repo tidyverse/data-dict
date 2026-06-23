@@ -1,6 +1,6 @@
 # expected: lints clean. `units` is allowed on a `number(quantity)` column.
 
-version: "0.1.0"
+$version: "0.1.0"
 
 tables:
   measurements:

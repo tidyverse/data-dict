@@ -4,7 +4,7 @@
 # it must be `primary_key` or `unique`; it is neither, so DD006 fires. The
 # `comments` column (type: string) also lacks `examples`, so DD007 fires.
 
-version: "0.1.0"
+$version: "0.1.0"
 
 tables:
   otters:

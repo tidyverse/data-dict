@@ -15,7 +15,7 @@ use std::path::Path;
 use data_dict_parquet::{ColumnNeeds, ColumnStats, ParquetError};
 
 use crate::model::Column;
-use crate::Error;
+use crate::{DataDict, Diagnostics, Error};
 
 /// How many example values (e.g. offending rows) to record per validation
 /// issue. Issues count every offender but only list this many.
@@ -121,7 +121,11 @@ impl std::fmt::Display for DataError {
                             f,
                             "  column \"{column}\": present in data ({actual}) but not in dictionary"
                         )?,
-                        ColumnIssue::NullsInRequired { column, count, rows } => writeln!(
+                        ColumnIssue::NullsInRequired {
+                            column,
+                            count,
+                            rows,
+                        } => writeln!(
                             f,
                             "  column \"{column}\": required but has {count} null value{} ({})",
                             if *count == 1 { "" } else { "s" },
@@ -153,19 +157,45 @@ impl std::error::Error for DataError {
 /// the parquet file at `parquet_path` and checks every column — reporting type
 /// mismatches, nulls in required columns, columns described but absent from the
 /// data, and columns in the data the dictionary does not describe.
+///
+/// Returns the dictionary's [`Diagnostics`] (errors and warnings, in emission
+/// order, with the source context to render them) and the data-validation
+/// result. The data comparison only runs when the dictionary itself is free of
+/// errors; either an error diagnostic or an `Err` result means validation
+/// failed.
 pub fn validate_parquet(
     dict_path: &Path,
     parquet_path: &Path,
     table: Option<&str>,
-) -> Result<(), DataError> {
-    let dict = crate::validate_and_lower(dict_path)?;
+) -> (Diagnostics, Result<(), DataError>) {
+    let (dict, diagnostics) = match crate::validate_and_lower(dict_path) {
+        Ok(parsed) => parsed,
+        Err(err) => return (Diagnostics::empty(), Err(err.into())),
+    };
+    // Comparing data against a dictionary that fails its own validation isn't
+    // meaningful, so skip it; the error diagnostics already signal the failure.
+    let result = if diagnostics.has_errors() {
+        Ok(())
+    } else {
+        compare_parquet_to_dict(&dict, parquet_path, table)
+    };
+    (diagnostics, result)
+}
 
+fn compare_parquet_to_dict(
+    dict: &DataDict,
+    parquet_path: &Path,
+    table: Option<&str>,
+) -> Result<(), DataError> {
     let available = || dict.tables.keys().cloned().collect::<Vec<_>>();
     let table = match table {
-        Some(name) => dict.tables.get(name).ok_or_else(|| DataError::TableNotFound {
-            name: name.to_string(),
-            available: available(),
-        })?,
+        Some(name) => dict
+            .tables
+            .get(name)
+            .ok_or_else(|| DataError::TableNotFound {
+                name: name.to_string(),
+                available: available(),
+            })?,
         None => {
             if dict.tables.len() == 1 {
                 dict.tables.values().next().expect("len == 1")
@@ -189,7 +219,9 @@ pub fn validate_parquet(
         if present(&col.name.value) {
             let merged = VALUE_CHECKS
                 .iter()
-                .fold(ColumnNeeds::default(), |acc, check| acc.merge(check.needs(col)));
+                .fold(ColumnNeeds::default(), |acc, check| {
+                    acc.merge(check.needs(col))
+                });
             if merged.any() {
                 needs.insert(col.name.value.clone(), merged);
             }

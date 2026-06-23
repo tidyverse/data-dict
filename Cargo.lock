@@ -875,8 +875,8 @@ dependencies = [
 
 [[package]]
 name = "quarto-error-reporting"
-version = "0.1.0"
-source = "git+https://github.com/quarto-dev/q2?branch=main#966f2b82e8e39e20489c67e03fdbeff9995b5227"
+version = "0.4.0"
+source = "git+https://github.com/quarto-dev/q2?branch=main#0940c9446568ab998a6fad40c22e80ecfd245bed"
 dependencies = [
  "ariadne",
  "once_cell",
@@ -890,16 +890,18 @@ dependencies = [
 
 [[package]]
 name = "quarto-source-map"
-version = "0.1.0"
-source = "git+https://github.com/quarto-dev/q2?branch=main#966f2b82e8e39e20489c67e03fdbeff9995b5227"
+version = "0.4.0"
+source = "git+https://github.com/quarto-dev/q2?branch=main#0940c9446568ab998a6fad40c22e80ecfd245bed"
 dependencies = [
  "serde",
+ "serde_json",
+ "smallvec",
 ]
 
 [[package]]
 name = "quarto-yaml"
-version = "0.1.0"
-source = "git+https://github.com/quarto-dev/q2?branch=main#966f2b82e8e39e20489c67e03fdbeff9995b5227"
+version = "0.4.0"
+source = "git+https://github.com/quarto-dev/q2?branch=main#0940c9446568ab998a6fad40c22e80ecfd245bed"
 dependencies = [
  "quarto-source-map",
  "serde",
@@ -909,8 +911,8 @@ dependencies = [
 
 [[package]]
 name = "quarto-yaml-validation"
-version = "0.1.0"
-source = "git+https://github.com/quarto-dev/q2?branch=main#966f2b82e8e39e20489c67e03fdbeff9995b5227"
+version = "0.4.0"
+source = "git+https://github.com/quarto-dev/q2?branch=main#0940c9446568ab998a6fad40c22e80ecfd245bed"
 dependencies = [
  "anyhow",
  "quarto-error-reporting",
@@ -1126,6 +1128,9 @@ name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "snap"

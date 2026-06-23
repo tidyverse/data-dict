@@ -4,7 +4,7 @@
 # neither unique nor PK. No `foreign_key` constraints are set so DD001 does
 # not fire alongside this one.
 
-version: "0.1.0"
+$version: "0.1.0"
 
 tables:
   transaction:

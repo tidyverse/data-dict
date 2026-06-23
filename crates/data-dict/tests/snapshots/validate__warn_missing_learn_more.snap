@@ -1,0 +1,12 @@
+---
+source: crates/data-dict/tests/validate.rs
+expression: "warning_diagnostic(\"valid/no-learn-more.yaml\")"
+---
+Warning: [DD009]
+   ╭─[ valid/no-learn-more.yaml:3:1 ]
+   │
+ 3 │ $version: 0.1.0
+   │ ────┬───  
+   │     ╰───── document is missing the recommended `$learn_more` key
+───╯
+ℹ Add `$learn_more: http://data-dict.tidyverse.org/` so readers unfamiliar with the format can find it

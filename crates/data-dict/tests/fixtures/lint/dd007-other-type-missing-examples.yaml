@@ -1,6 +1,6 @@
 # expected: fails DD007 - `string` and `number(id)` columns must have an `examples` property.
 
-version: 0.1.0
+$version: 0.1.0
 
 tables:
   t:

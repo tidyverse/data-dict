@@ -3,6 +3,7 @@ use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
 use data_dict::data::{ColumnIssue, DataError};
+use data_dict::{Diagnostic, Diagnostics, Severity};
 
 #[derive(Parser)]
 #[command(name = "data-dict", version, about)]
@@ -72,9 +73,16 @@ fn main() -> ExitCode {
                 }
             };
             match data_dict::validate(&path) {
-                Ok(()) => {
-                    println!("{}: ok", path.display());
-                    ExitCode::SUCCESS
+                Ok(diagnostics) => {
+                    for line in diagnostics.render() {
+                        eprintln!("{line}");
+                    }
+                    if diagnostics.has_errors() {
+                        ExitCode::FAILURE
+                    } else {
+                        println!("{}: ok", path.display());
+                        ExitCode::SUCCESS
+                    }
                 }
                 Err(err) => {
                     eprintln!("{err}");
@@ -114,23 +122,24 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             };
-            let result = data_dict::data::validate_parquet(&dict, &parquet, table.as_deref());
+            let (diagnostics, result) =
+                data_dict::data::validate_parquet(&dict, &parquet, table.as_deref());
             if json {
-                println!("{}", validate_result_to_json(&result));
+                println!("{}", validate_result_to_json(&diagnostics, &result));
+            } else {
+                for line in diagnostics.render() {
+                    eprintln!("{line}");
+                }
+                match &result {
+                    Ok(()) if diagnostics.is_ok() => println!("{}: ok", parquet.display()),
+                    Ok(()) => {}
+                    Err(err) => eprintln!("{err}"),
+                }
             }
-            match result {
-                Ok(()) => {
-                    if !json {
-                        println!("{}: ok", parquet.display());
-                    }
-                    ExitCode::SUCCESS
-                }
-                Err(err) => {
-                    if !json {
-                        eprintln!("{err}");
-                    }
-                    ExitCode::FAILURE
-                }
+            if diagnostics.has_errors() || result.is_err() {
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
             }
         }
         Command::Skill { command } => {
@@ -202,6 +211,160 @@ fn resolve_dict_path(path: Option<PathBuf>) -> Result<PathBuf, String> {
     }
 }
 
+fn validate_result_to_json(
+    diagnostics: &Diagnostics,
+    result: &Result<(), DataError>,
+) -> serde_json::Value {
+    let mut value = match result {
+        Ok(()) if diagnostics.is_ok() => serde_json::json!({"status": "ok"}),
+        Ok(()) => serde_json::json!({"status": "error", "kind": "dictionary"}),
+        Err(DataError::Schema(e)) => serde_json::json!({
+            "status": "error",
+            "kind": "schema",
+            "message": e.to_string(),
+        }),
+        Err(DataError::Parquet(e)) => serde_json::json!({
+            "status": "error",
+            "kind": "parquet",
+            "message": e.to_string(),
+        }),
+        Err(DataError::TableNotFound { name, available }) => serde_json::json!({
+            "status": "error",
+            "kind": "table_not_found",
+            "name": name,
+            "available": available,
+        }),
+        Err(DataError::AmbiguousTable { available }) => serde_json::json!({
+            "status": "error",
+            "kind": "ambiguous_table",
+            "available": available,
+        }),
+        Err(DataError::Mismatch { table, issues }) => serde_json::json!({
+            "status": "error",
+            "kind": "mismatch",
+            "table": table,
+            "issues": issues.iter().map(issue_to_json).collect::<Vec<_>>(),
+        }),
+    };
+    value["diagnostics"] = serde_json::json!(
+        diagnostics
+            .items
+            .iter()
+            .map(diagnostic_to_json)
+            .collect::<Vec<_>>()
+    );
+    value
+}
+
+fn diagnostic_to_json(diagnostic: &Diagnostic) -> serde_json::Value {
+    let severity = match diagnostic.severity {
+        Severity::Error => "error",
+        Severity::Warning => "warning",
+    };
+    let mut value = serde_json::json!({
+        "severity": severity,
+        "code": diagnostic.code,
+        "message": diagnostic.message,
+    });
+    if let Some(hint) = &diagnostic.hint {
+        value["hint"] = serde_json::json!(hint);
+    }
+    value
+}
+
+fn issue_to_json(issue: &ColumnIssue) -> serde_json::Value {
+    match issue {
+        ColumnIssue::TypeMismatch {
+            column,
+            declared,
+            actual,
+        } => serde_json::json!({
+            "kind": "type_mismatch",
+            "column": column,
+            "declared": declared,
+            "actual": actual,
+        }),
+        ColumnIssue::MissingInData { column } => serde_json::json!({
+            "kind": "missing_in_data",
+            "column": column,
+        }),
+        ColumnIssue::ExtraInData { column, actual } => serde_json::json!({
+            "kind": "extra_in_data",
+            "column": column,
+            "actual": actual,
+        }),
+        ColumnIssue::NullsInRequired {
+            column,
+            count,
+            rows,
+        } => serde_json::json!({
+            "kind": "nulls_in_required",
+            "column": column,
+            "count": count,
+            "rows": rows,
+        }),
+    }
+}
+
+fn print_types_table(cols: &[data_dict_parquet::ColumnTypeInfo]) {
+    let headers = ["#", "column", "dict type", "logical type", "physical type"];
+    let num_width = cols.len().to_string().len().max(headers[0].len());
+    let widths = [
+        num_width,
+        cols.iter()
+            .map(|c| c.name.len())
+            .max()
+            .unwrap_or(0)
+            .max(headers[1].len()),
+        cols.iter()
+            .map(|c| c.dict_type.len())
+            .max()
+            .unwrap_or(0)
+            .max(headers[2].len()),
+        cols.iter()
+            .map(|c| c.logical_type.as_deref().unwrap_or("").len())
+            .max()
+            .unwrap_or(0)
+            .max(headers[3].len()),
+        cols.iter()
+            .map(|c| c.physical_type.len())
+            .max()
+            .unwrap_or(0)
+            .max(headers[4].len()),
+    ];
+
+    println!(
+        "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}",
+        headers[0],
+        headers[1],
+        headers[2],
+        headers[3],
+        headers[4],
+        w0 = widths[0],
+        w1 = widths[1],
+        w2 = widths[2],
+        w3 = widths[3],
+        w4 = widths[4],
+    );
+    println!("{}", "─".repeat(widths.iter().sum::<usize>() + 8));
+
+    for (i, col) in cols.iter().enumerate() {
+        println!(
+            "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}",
+            i + 1,
+            col.name,
+            col.dict_type,
+            col.logical_type.as_deref().unwrap_or(""),
+            col.physical_type,
+            w0 = widths[0],
+            w1 = widths[1],
+            w2 = widths[2],
+            w3 = widths[3],
+            w4 = widths[4],
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -254,110 +417,39 @@ mod tests {
         let path = PathBuf::from("does-not-exist.yaml");
         assert_eq!(resolve_dict_path(Some(path.clone())).unwrap(), path);
     }
-}
 
-fn validate_result_to_json(result: &Result<(), DataError>) -> serde_json::Value {
-    match result {
-        Ok(()) => serde_json::json!({"status": "ok"}),
-        Err(DataError::Schema(e)) => serde_json::json!({
-            "status": "error",
-            "kind": "schema",
-            "message": e.to_string(),
-        }),
-        Err(DataError::Parquet(e)) => serde_json::json!({
-            "status": "error",
-            "kind": "parquet",
-            "message": e.to_string(),
-        }),
-        Err(DataError::TableNotFound { name, available }) => serde_json::json!({
-            "status": "error",
-            "kind": "table_not_found",
-            "name": name,
-            "available": available,
-        }),
-        Err(DataError::AmbiguousTable { available }) => serde_json::json!({
-            "status": "error",
-            "kind": "ambiguous_table",
-            "available": available,
-        }),
-        Err(DataError::Mismatch { table, issues }) => serde_json::json!({
-            "status": "error",
-            "kind": "mismatch",
-            "table": table,
-            "issues": issues.iter().map(issue_to_json).collect::<Vec<_>>(),
-        }),
+    /// Validate a dictionary that is clean apart from a DD009 ($learn_more)
+    /// warning, returning its diagnostics.
+    fn warning_diagnostics(name: &str) -> Diagnostics {
+        let dir = temp_dir(name);
+        let dict = dir.join("data-dict.yaml");
+        fs::write(&dict, "$version: 0.1.0\n").unwrap();
+        data_dict::validate(&dict).expect("must validate")
     }
-}
 
-fn issue_to_json(issue: &ColumnIssue) -> serde_json::Value {
-    match issue {
-        ColumnIssue::TypeMismatch { column, declared, actual } => serde_json::json!({
-            "kind": "type_mismatch",
-            "column": column,
-            "declared": declared,
-            "actual": actual,
-        }),
-        ColumnIssue::MissingInData { column } => serde_json::json!({
-            "kind": "missing_in_data",
-            "column": column,
-        }),
-        ColumnIssue::ExtraInData { column, actual } => serde_json::json!({
-            "kind": "extra_in_data",
-            "column": column,
-            "actual": actual,
-        }),
-        ColumnIssue::NullsInRequired { column, count, rows } => serde_json::json!({
-            "kind": "nulls_in_required",
-            "column": column,
-            "count": count,
-            "rows": rows,
-        }),
-    }
-}
-
-fn print_types_table(cols: &[data_dict_parquet::ColumnTypeInfo]) {
-    let headers = ["#", "column", "dict type", "logical type", "physical type"];
-    let num_width = cols.len().to_string().len().max(headers[0].len());
-    let widths = [
-        num_width,
-        cols.iter().map(|c| c.name.len()).max().unwrap_or(0).max(headers[1].len()),
-        cols.iter().map(|c| c.dict_type.len()).max().unwrap_or(0).max(headers[2].len()),
-        cols.iter()
-            .map(|c| c.logical_type.as_deref().unwrap_or("").len())
-            .max()
-            .unwrap_or(0)
-            .max(headers[3].len()),
-        cols.iter().map(|c| c.physical_type.len()).max().unwrap_or(0).max(headers[4].len()),
-    ];
-
-    println!(
-        "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}",
-        headers[0],
-        headers[1],
-        headers[2],
-        headers[3],
-        headers[4],
-        w0 = widths[0],
-        w1 = widths[1],
-        w2 = widths[2],
-        w3 = widths[3],
-        w4 = widths[4],
-    );
-    println!("{}", "─".repeat(widths.iter().sum::<usize>() + 8));
-
-    for (i, col) in cols.iter().enumerate() {
-        println!(
-            "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}",
-            i + 1,
-            col.name,
-            col.dict_type,
-            col.logical_type.as_deref().unwrap_or(""),
-            col.physical_type,
-            w0 = widths[0],
-            w1 = widths[1],
-            w2 = widths[2],
-            w3 = widths[3],
-            w4 = widths[4],
+    #[test]
+    fn json_includes_diagnostics_on_success() {
+        let diagnostics = warning_diagnostics("json-ok");
+        let json = validate_result_to_json(&diagnostics, &Ok(()));
+        assert_eq!(json["status"], "ok");
+        assert_eq!(json["diagnostics"][0]["code"], "DD009");
+        assert_eq!(json["diagnostics"][0]["severity"], "warning");
+        assert!(
+            json["diagnostics"][0]["hint"]
+                .as_str()
+                .is_some_and(|h| h.contains("$learn_more")),
+            "DD009 hint should be carried in the JSON output"
         );
+    }
+
+    #[test]
+    fn json_includes_diagnostics_on_error() {
+        let diagnostics = warning_diagnostics("json-err");
+        let err = DataError::AmbiguousTable {
+            available: vec!["a".to_string(), "b".to_string()],
+        };
+        let json = validate_result_to_json(&diagnostics, &Err(err));
+        assert_eq!(json["status"], "error");
+        assert_eq!(json["diagnostics"][0]["code"], "DD009");
     }
 }

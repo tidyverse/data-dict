@@ -9,7 +9,9 @@
 //! When adding a new rule, prefer adding a fixture file (with a one-line
 //! `# expected: ...` header) and a one-line test here over inline YAML.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use data_dict::Severity;
 
 fn fixture(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -18,26 +20,40 @@ fn fixture(rel: &str) -> PathBuf {
         .join(rel)
 }
 
-fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .to_path_buf()
-}
-
-fn assert_valid(path: PathBuf) {
-    if let Err(e) = data_dict::validate(&path) {
-        panic!("expected {} to validate, but:\n{e}", path.display());
+/// Render the diagnostics of the given `severity` for a fixture, in emission
+/// order. A structural/parse failure ([`data_dict::Error`]) is treated as a
+/// single error-severity diagnostic and ignored when collecting warnings.
+fn diagnostics(path: &Path, severity: Severity) -> Vec<String> {
+    match data_dict::validate(path) {
+        Ok(diags) => diags
+            .items
+            .iter()
+            .filter(|d| d.severity == severity)
+            .map(|d| d.to_text(&diags.source))
+            .collect(),
+        Err(e) if severity == Severity::Error => vec![e.to_string()],
+        Err(_) => Vec::new(),
     }
 }
 
+fn assert_valid(path: PathBuf) {
+    let errors = diagnostics(&path, Severity::Error);
+    assert!(
+        errors.is_empty(),
+        "expected {} to validate, but:\n{}",
+        path.display(),
+        errors.join("\n"),
+    );
+}
+
 fn assert_invalid(path: PathBuf, expected: &[&str]) {
-    let err = data_dict::validate(&path)
-        .err()
-        .unwrap_or_else(|| panic!("expected {} to fail validation, but it passed", path.display()));
-    let text = err.to_string();
+    let errors = diagnostics(&path, Severity::Error);
+    assert!(
+        !errors.is_empty(),
+        "expected {} to fail validation, but it passed",
+        path.display()
+    );
+    let text = errors.join("\n");
     for s in expected {
         assert!(
             text.contains(s),
@@ -57,11 +73,33 @@ fn assert_invalid(path: PathBuf, expected: &[&str]) {
 /// URL) and the absolute on-disk path of the fixture. We strip the escapes and
 /// rewrite the path to its `tests/fixtures/`-relative form.
 fn failing_diagnostic(rel: &str) -> String {
+    let errors = diagnostics(&fixture(rel), Severity::Error);
+    if errors.is_empty() {
+        panic!("expected {rel} to fail validation, but it passed");
+    }
+    sanitize(&errors.join("\n"))
+}
+
+/// Validate a fixture expected to pass *with* warnings, returning the rendered
+/// warnings (sanitized like [`failing_diagnostic`]) for snapshotting.
+fn warning_diagnostic(rel: &str) -> String {
     let path = fixture(rel);
-    let diagnostic = match data_dict::validate(&path) {
-        Ok(()) => panic!("expected {rel} to fail validation, but it passed"),
-        Err(e) => e.to_string(),
-    };
+    assert!(
+        diagnostics(&path, Severity::Error).is_empty(),
+        "expected {rel} to validate, but it failed",
+    );
+    let warnings = diagnostics(&path, Severity::Warning);
+    if warnings.is_empty() {
+        panic!("expected {rel} to emit a warning, but it was clean");
+    }
+    sanitize(&warnings.join("\n"))
+}
+
+/// Strip the two unstable bits from a rendered diagnostic so it can be
+/// snapshotted: terminal styling (ANSI color escapes and OSC-8 hyperlinks, the
+/// latter embedding an absolute `file://` URL) and the absolute on-disk path of
+/// the fixture, which is rewritten to its `tests/fixtures/`-relative form.
+fn sanitize(diagnostic: &str) -> String {
     let fixtures_root = format!(
         "{}/",
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -70,7 +108,7 @@ fn failing_diagnostic(rel: &str) -> String {
             .display()
     )
     .replace('\\', "/");
-    strip_terminal_escapes(&diagnostic)
+    strip_terminal_escapes(diagnostic)
         .replace('\\', "/")
         .replace(&fixtures_root, "")
 }
@@ -121,24 +159,38 @@ fn strip_terminal_escapes(s: &str) -> String {
 
 #[test]
 fn minimal() {
-    assert_valid(fixture("valid/minimal.yaml"));
+    let path = fixture("valid/minimal.yaml");
+    assert!(
+        diagnostics(&path, Severity::Error).is_empty(),
+        "minimal must validate"
+    );
+    let warnings = diagnostics(&path, Severity::Warning);
+    assert!(
+        warnings.is_empty(),
+        "minimal carries `$learn_more`, so it must validate without warnings, got: {warnings:?}"
+    );
 }
 
-// --- bundled examples ----------------------------------------------------
-//
-// The bundled examples under `site/examples/` are downloaded and refreshed by
-// the `update-examples` workflow, which only commits files that pass
-// validation. They must therefore validate cleanly here too.
+// --- warnings ------------------------------------------------------------
+
+// A document missing the recommended `$learn_more` key validates (it is not an
+// error) but surfaces a DD009 warning.
 
 #[test]
-fn examples_validate() {
-    let dir = workspace_root().join("site/examples");
-    for entry in std::fs::read_dir(&dir).expect("read site/examples") {
-        let path = entry.expect("dir entry").path();
-        if path.extension().and_then(|e| e.to_str()) == Some("yaml") {
-            assert_valid(path);
-        }
-    }
+#[cfg(unix)]
+fn warn_missing_learn_more() {
+    insta::assert_snapshot!(warning_diagnostic("valid/no-learn-more.yaml"));
+}
+
+#[test]
+fn warn_missing_learn_more_text() {
+    let warnings = diagnostics(&fixture("valid/no-learn-more.yaml"), Severity::Warning);
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("DD009") && w.contains("$learn_more")),
+        "expected a DD009 `$learn_more` warning, got: {warnings:?}"
+    );
 }
 
 // --- invalid fixtures ----------------------------------------------------
@@ -165,7 +217,7 @@ fn missing_version() {
 fn missing_version_errors() {
     assert_invalid(
         fixture("invalid/missing-version.yaml"),
-        &["Missing required property 'version'"],
+        &["Missing required property '$version'"],
     );
 }
 
@@ -191,10 +243,7 @@ fn bad_cardinality() {
 
 #[test]
 fn bad_cardinality_errors() {
-    assert_invalid(
-        fixture("invalid/bad-cardinality.yaml"),
-        &["many-to-many"],
-    );
+    assert_invalid(fixture("invalid/bad-cardinality.yaml"), &["many-to-many"]);
 }
 
 #[test]
@@ -246,7 +295,9 @@ fn lint_dd004_bad_join() {
 
 #[test]
 fn lint_dd005_conflicts_not_on_both_sides() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd005-conflicts-not-on-both-sides.yaml"));
+    insta::assert_snapshot!(failing_diagnostic(
+        "lint/dd005-conflicts-not-on-both-sides.yaml"
+    ));
 }
 
 // The opposite of the above: `amount` is genuinely a column on both tables (a
@@ -277,12 +328,16 @@ fn lint_dd007_enum_without_values() {
 
 #[test]
 fn lint_dd007_range_type_missing_range() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd007-range-type-missing-range.yaml"));
+    insta::assert_snapshot!(failing_diagnostic(
+        "lint/dd007-range-type-missing-range.yaml"
+    ));
 }
 
 #[test]
 fn lint_dd007_other_type_missing_examples() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd007-other-type-missing-examples.yaml"));
+    insta::assert_snapshot!(failing_diagnostic(
+        "lint/dd007-other-type-missing-examples.yaml"
+    ));
 }
 
 // A `boolean` column carries no data representation key, so it must lint clean

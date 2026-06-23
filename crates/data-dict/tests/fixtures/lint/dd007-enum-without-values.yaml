@@ -1,6 +1,6 @@
 # expected: fails DD007 - when `type: enum`, the column must also have a `values` key.
 
-version: 0.1.0
+$version: 0.1.0
 
 tables:
   t:

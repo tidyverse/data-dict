@@ -1,7 +1,7 @@
 # expected: fails DD008 - `units` is only valid on `number(quantity)` columns,
 # not on `number(ordinal)`.
 
-version: "0.1.0"
+$version: "0.1.0"
 
 tables:
   races:
