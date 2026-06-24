@@ -2,19 +2,29 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import {
+  ExecuteCommandRequest,
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
 } from "vscode-languageclient/node";
 
 let client: LanguageClient | undefined;
+let dataDiagnostics: vscode.DiagnosticCollection | undefined;
 
 export async function activate(
   context: vscode.ExtensionContext,
 ): Promise<void> {
+  dataDiagnostics = vscode.languages.createDiagnosticCollection("data-dict (data)");
   context.subscriptions.push(
+    dataDiagnostics,
+    vscode.commands.registerCommand("dataDict.validateData", () => validateData()),
     vscode.commands.registerCommand("dataDict.restartServer", () =>
       restart(context),
+    ),
+    // Data diagnostics are a point-in-time snapshot; drop them once the
+    // dictionary is edited so stale results don't linger.
+    vscode.workspace.onDidChangeTextDocument((e) =>
+      dataDiagnostics?.delete(e.document.uri),
     ),
   );
   await start(context);
@@ -23,6 +33,69 @@ export async function activate(
 export async function deactivate(): Promise<void> {
   await client?.stop();
   client = undefined;
+}
+
+interface DataDiagnostic {
+  range: {
+    start: { line: number; character: number };
+    end: { line: number; character: number };
+  };
+  severity: number;
+  code?: string;
+  message: string;
+}
+
+async function validateData(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    void vscode.window.showWarningMessage(
+      "data-dict: open a data dictionary to validate.",
+    );
+    return;
+  }
+  if (!client) {
+    void vscode.window.showWarningMessage(
+      "data-dict: the language server is not running.",
+    );
+    return;
+  }
+
+  const uri = editor.document.uri;
+  try {
+    const result = (await client.sendRequest(ExecuteCommandRequest.type, {
+      command: "data-dict.validateData",
+      arguments: [uri.toString()],
+    })) as { summary?: string; diagnostics?: DataDiagnostic[] } | null;
+
+    const diagnostics = (result?.diagnostics ?? []).map(toDiagnostic);
+    dataDiagnostics?.set(uri, diagnostics);
+    if (result?.summary) {
+      void vscode.window.showInformationMessage(`data-dict: ${result.summary}`);
+    }
+  } catch (err) {
+    void vscode.window.showErrorMessage(
+      `data-dict: data validation failed. ${String(err)}`,
+    );
+  }
+}
+
+function toDiagnostic(d: DataDiagnostic): vscode.Diagnostic {
+  const range = new vscode.Range(
+    d.range.start.line,
+    d.range.start.character,
+    d.range.end.line,
+    d.range.end.character,
+  );
+  const severity =
+    d.severity === 2
+      ? vscode.DiagnosticSeverity.Warning
+      : vscode.DiagnosticSeverity.Error;
+  const diagnostic = new vscode.Diagnostic(range, d.message, severity);
+  diagnostic.source = "data-dict (data)";
+  if (d.code !== undefined) {
+    diagnostic.code = d.code;
+  }
+  return diagnostic;
 }
 
 async function start(context: vscode.ExtensionContext): Promise<void> {

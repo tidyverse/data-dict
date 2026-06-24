@@ -10,3 +10,4 @@ repository.workspace = true
 data-dict.workspace = true
 tower-lsp = "0.20"
 tokio = { version = "1", features = ["rt-multi-thread", "io-std", "net", "time"] }
+serde_json.workspace = true

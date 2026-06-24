@@ -23,6 +23,10 @@
   "contributes": {
     "commands": [
       {
+        "command": "dataDict.validateData",
+        "title": "data-dict: Validate data against dictionary"
+      },
+      {
         "command": "dataDict.restartServer",
         "title": "data-dict: Restart language server"
       }

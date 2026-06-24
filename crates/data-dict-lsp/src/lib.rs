@@ -12,8 +12,12 @@
 //! converted to LSP ranges here; the core stays free of LSP types.
 
 use std::collections::HashMap;
+use std::path::Path;
 
+use data_dict::data::{ColumnIssue, TableDataResult, validate_table_source};
+use data_dict::model::Table;
 use data_dict::{Error, SchemaError, Severity, SourceContext, SourceInfo};
+use serde_json::{Value, json};
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -21,6 +25,10 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 /// The source label attached to every diagnostic this server emits.
 const SOURCE: &str = "data-dict";
+
+/// The `workspace/executeCommand` that validates a dictionary against the data
+/// at each table's `source`.
+const VALIDATE_DATA: &str = "data-dict.validateData";
 
 struct Backend {
     client: Client,
@@ -41,6 +49,10 @@ impl LanguageServer for Backend {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
                 )),
+                execute_command_provider: Some(ExecuteCommandOptions {
+                    commands: vec![VALIDATE_DATA.to_string()],
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
         })
@@ -48,6 +60,25 @@ impl LanguageServer for Backend {
 
     async fn shutdown(&self) -> Result<()> {
         Ok(())
+    }
+
+    async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
+        if params.command != VALIDATE_DATA {
+            return Ok(None);
+        }
+        let Some(uri) = params
+            .arguments
+            .first()
+            .and_then(Value::as_str)
+            .and_then(|s| Url::parse(s).ok())
+        else {
+            return Ok(None);
+        };
+        let buffer = self.documents.lock().await.get(&uri).cloned();
+        let result = tokio::task::spawn_blocking(move || validate_data_command(&uri, buffer))
+            .await
+            .unwrap_or_else(|_| json!({ "summary": "internal error", "diagnostics": [] }));
+        Ok(Some(result))
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -227,6 +258,141 @@ fn message_with_hint(message: &str, hint: Option<&str>) -> String {
     }
 }
 
+/// Validate the dictionary at `uri` against the data at each table's `source`,
+/// returning `{ summary, diagnostics }` for the client to display. `buffer` is
+/// the editor's current (possibly unsaved) text; when absent the file is read
+/// from disk. Diagnostics are anchored to spans in the dictionary file.
+pub fn validate_data_command(uri: &Url, buffer: Option<String>) -> Value {
+    let Ok(dict_path) = uri.to_file_path() else {
+        return json!({ "summary": "Data validation needs a file on disk.", "diagnostics": [] });
+    };
+    let base_dir = dict_path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_default();
+
+    let content = match buffer {
+        Some(text) => text,
+        None => match std::fs::read_to_string(&dict_path) {
+            Ok(text) => text,
+            Err(err) => {
+                return json!({ "summary": format!("Cannot read the dictionary: {err}"), "diagnostics": [] });
+            }
+        },
+    };
+
+    let (dict, diagnostics) = match data_dict::validate_and_lower_str(&content, uri.as_str()) {
+        Ok(parsed) if parsed.1.is_ok() => parsed,
+        _ => {
+            return json!({
+                "summary": "Fix the dictionary's errors before validating data.",
+                "diagnostics": [],
+            });
+        }
+    };
+    let source = &diagnostics.source;
+
+    let mut out = Vec::new();
+    let mut tables_checked = 0;
+    let mut tables_with_issues = 0;
+    for table in dict.tables.values() {
+        match validate_table_source(table, &base_dir) {
+            TableDataResult::NoParquetSource => {}
+            TableDataResult::Unreadable { path, error } => {
+                tables_checked += 1;
+                tables_with_issues += 1;
+                let span = table
+                    .source
+                    .as_ref()
+                    .and_then(|s| s.parquet.as_ref())
+                    .map(|p| &p.span)
+                    .unwrap_or(&table.name.span);
+                out.push(data_diagnostic(
+                    span_to_range(span, source),
+                    &format!("cannot read source `{path}`: {error}"),
+                    "source-unreadable",
+                ));
+            }
+            TableDataResult::Compared(issues) => {
+                tables_checked += 1;
+                if !issues.is_empty() {
+                    tables_with_issues += 1;
+                }
+                for issue in &issues {
+                    out.push(issue_diagnostic(table, issue, source));
+                }
+            }
+        }
+    }
+
+    let summary = if out.is_empty() {
+        format!("Data matches the dictionary ({tables_checked} table(s) checked).")
+    } else {
+        format!(
+            "{} issue(s) in {tables_with_issues} of {tables_checked} table(s).",
+            out.len()
+        )
+    };
+    json!({ "summary": summary, "diagnostics": out })
+}
+
+fn issue_diagnostic(table: &Table, issue: &ColumnIssue, source: &SourceContext) -> Value {
+    match issue {
+        ColumnIssue::TypeMismatch {
+            column,
+            declared,
+            actual,
+        } => {
+            let span = table
+                .column(column)
+                .and_then(|c| c.col_type.as_ref().map(|t| &t.span))
+                .or_else(|| table.column(column).map(|c| &c.name.span))
+                .unwrap_or(&table.name.span);
+            data_diagnostic(
+                span_to_range(span, source),
+                &format!(
+                    "column `{column}`: dictionary declares `{declared}`, data has `{actual}`"
+                ),
+                "type-mismatch",
+            )
+        }
+        ColumnIssue::MissingInData { column } => {
+            let span = table
+                .column(column)
+                .map(|c| &c.name.span)
+                .unwrap_or(&table.name.span);
+            data_diagnostic(
+                span_to_range(span, source),
+                &format!(
+                    "column `{column}` is described in the dictionary but missing from the data"
+                ),
+                "missing-in-data",
+            )
+        }
+        ColumnIssue::ExtraInData { column, actual } => data_diagnostic(
+            span_to_range(&table.name.span, source),
+            &format!(
+                "column `{column}` (`{actual}`) is in the data but not described in the dictionary"
+            ),
+            "extra-in-data",
+        ),
+    }
+}
+
+/// Build a diagnostic payload for the client. All data mismatches are errors
+/// (LSP severity `1`).
+fn data_diagnostic(range: Range, message: &str, code: &str) -> Value {
+    json!({
+        "range": {
+            "start": { "line": range.start.line, "character": range.start.character },
+            "end": { "line": range.end.line, "character": range.end.character },
+        },
+        "severity": 1,
+        "code": code,
+        "message": message,
+    })
+}
+
 /// Run the language server over stdio until the client disconnects. Builds its
 /// own Tokio runtime so callers (e.g. the CLI) can stay synchronous.
 pub fn run_stdio() -> std::io::Result<()> {
@@ -303,5 +469,64 @@ tables:
         let diagnostics = diagnose("foo:\n\t- bar\n");
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].severity, Some(DiagnosticSeverity::ERROR));
+    }
+
+    fn temp_dir() -> std::path::PathBuf {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static COUNTER: AtomicU32 = AtomicU32::new(0);
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "data-dict-lsp-test-{}-{}",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn validate_data_reports_unreadable_source() {
+        let dir = temp_dir();
+        let dict = dir.join("data-dict.yaml");
+        std::fs::write(
+            &dict,
+            "\
+$version: 0.1.0
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  t:
+    description: A table.
+    source:
+      parquet: missing.parquet
+    columns:
+      - name: c
+        type: string
+        examples: [a, b]
+        description: A column.
+",
+        )
+        .unwrap();
+
+        let uri = Url::from_file_path(&dict).unwrap();
+        let result = validate_data_command(&uri, None);
+        let diags = result["diagnostics"].as_array().unwrap();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0]["code"], "source-unreadable");
+        assert_eq!(diags[0]["severity"], 1);
+    }
+
+    #[test]
+    fn validate_data_refuses_invalid_dictionary() {
+        // Missing `$version`: the dictionary itself is invalid, so data
+        // validation should decline rather than report data diagnostics.
+        let uri = Url::from_file_path("/tmp/data-dict.yaml").unwrap();
+        let result = validate_data_command(&uri, Some("tables: {}\n".to_string()));
+        assert!(result["diagnostics"].as_array().unwrap().is_empty());
+        assert!(
+            result["summary"]
+                .as_str()
+                .unwrap()
+                .contains("Fix the dictionary"),
+        );
     }
 }

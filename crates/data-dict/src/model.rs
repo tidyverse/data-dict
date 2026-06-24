@@ -33,6 +33,15 @@ pub struct DataDict {
 pub struct Table {
     pub name: Spanned<String>,
     pub columns: Vec<Column>,
+    pub source: Option<TableSource>,
+}
+
+/// Where a table's data lives. Currently only Parquet is supported.
+#[derive(Debug, Clone)]
+pub struct TableSource {
+    /// The path from `source.parquet`, if present. May be relative (resolved
+    /// against the dictionary file's directory) and may contain globs.
+    pub parquet: Option<Spanned<String>>,
 }
 
 impl Table {

@@ -324,6 +324,7 @@ name = "data-dict-lsp"
 version = "0.0.1"
 dependencies = [
  "data-dict",
+ "serde_json",
  "tokio",
  "tower-lsp",
 ]

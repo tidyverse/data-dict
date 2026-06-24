@@ -10,7 +10,9 @@ use quarto_yaml::YamlWithSourceInfo;
 
 use crate::join_expr::JoinExpr;
 use crate::lint::{Diagnostic, Diagnostics};
-use crate::model::{Cardinality, Column, Constraint, DataDict, Relationship, Spanned, Table};
+use crate::model::{
+    Cardinality, Column, Constraint, DataDict, Relationship, Spanned, Table, TableSource,
+};
 
 /// Lower an AST, collecting any lowering diagnostics (currently only DD004
 /// for unparseable join expressions).
@@ -57,7 +59,21 @@ fn lower_table(name: &str, name_span: &SourceInfo, value: &YamlWithSourceInfo) -
     Table {
         name: Spanned::new(name.to_string(), name_span.clone()),
         columns,
+        source: lower_source(value),
     }
+}
+
+fn lower_source(value: &YamlWithSourceInfo) -> Option<TableSource> {
+    let entries = value.get_hash_value("source")?.as_hash()?;
+    let mut parquet = None;
+    for entry in entries {
+        if entry.key.yaml.as_str() == Some("parquet")
+            && let Some(p) = entry.value.yaml.as_str()
+        {
+            parquet = Some(Spanned::new(p.to_string(), entry.value_span.clone()));
+        }
+    }
+    Some(TableSource { parquet })
 }
 
 fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
