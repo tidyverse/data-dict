@@ -369,3 +369,44 @@ fn lint_dd008_units_ok_on_quantity() {
 fn lint_dd008_units_on_non_quantity() {
     insta::assert_snapshot!(failing_diagnostic("lint/dd008-units-on-non-quantity.yaml"));
 }
+
+// --- in-memory entry points ----------------------------------------------
+
+// `validate_str` validates an unsaved buffer without touching disk; a clean
+// document yields no error diagnostics.
+#[test]
+fn validate_str_accepts_valid_content() {
+    let content = "$version: 0.1.0\n$learn_more: http://data-dict.tidyverse.org/\n";
+    let diags = data_dict::validate_str(content, "buffer.yaml").expect("must parse");
+    assert!(
+        diags.is_ok(),
+        "expected clean validation, got: {:?}",
+        diags.render()
+    );
+}
+
+// A structurally invalid buffer fails with a structured `SchemaError` exposing
+// the validation code and a source location, while its `Display` still renders
+// the full human-readable report.
+#[test]
+fn validate_str_reports_structured_schema_error() {
+    let content = "tables: {}\n"; // missing the required `$version` key
+    let err = data_dict::validate_str(content, "buffer.yaml")
+        .expect_err("missing $version must fail schema validation");
+    let data_dict::Error::Invalid(schema_err) = err else {
+        panic!("expected a schema error, got: {err:?}");
+    };
+    assert!(
+        schema_err.code.starts_with("Q-"),
+        "expected a Q-* validation code, got: {}",
+        schema_err.code
+    );
+    assert!(
+        schema_err.location.is_some(),
+        "schema error should carry a source location"
+    );
+    assert!(
+        !schema_err.to_string().is_empty(),
+        "Display should still render the report"
+    );
+}
