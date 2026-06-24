@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use data_dict::data::{ColumnIssue, DataError, validate_parquet};
+use data_dict::data::{
+    ColumnIssue, DataError, TableDataResult, validate_parquet, validate_table_source,
+};
 use parquet::data_type::{ByteArray, ByteArrayType, DoubleType};
 use parquet::file::properties::WriterProperties;
 use parquet::file::writer::SerializedFileWriter;
@@ -265,4 +267,62 @@ tables:
         matches!(err, DataError::TableNotFound { .. }),
         "got {err:?}"
     );
+}
+
+#[test]
+fn validate_table_source_reads_path_from_source() {
+    let dir = temp_dir();
+    write_parquet(&dir.join("data.parquet"));
+    let yaml = write_yaml(
+        &dir,
+        "
+$version: 0.1.0
+tables:
+  animals:
+    source:
+      parquet: data.parquet
+    columns:
+      - name: name
+        type: string
+        examples: [otter, seal]
+      - name: weight
+        type: number(quantity)
+        range: [0, 100]
+",
+    );
+
+    let (dict, diags) = data_dict::validate_and_lower(&yaml).unwrap();
+    assert!(diags.is_ok());
+    let table = dict.tables.values().next().unwrap();
+    match validate_table_source(table, &dir) {
+        TableDataResult::Compared(issues) => assert!(issues.is_empty(), "got {issues:?}"),
+        other => panic!("expected Compared, got {other:?}"),
+    }
+}
+
+#[test]
+fn validate_table_source_reports_unreadable_source() {
+    let dir = temp_dir();
+    // No parquet file is written, so the declared source cannot be read.
+    let yaml = write_yaml(
+        &dir,
+        "
+$version: 0.1.0
+tables:
+  animals:
+    source:
+      parquet: missing.parquet
+    columns:
+      - name: name
+        type: string
+        examples: [otter, seal]
+",
+    );
+
+    let (dict, _) = data_dict::validate_and_lower(&yaml).unwrap();
+    let table = dict.tables.values().next().unwrap();
+    match validate_table_source(table, &dir) {
+        TableDataResult::Unreadable { path, .. } => assert_eq!(path, "missing.parquet"),
+        other => panic!("expected Unreadable, got {other:?}"),
+    }
 }

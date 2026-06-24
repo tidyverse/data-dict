@@ -13,6 +13,7 @@ use std::path::Path;
 
 use data_dict_parquet::ParquetError;
 
+use crate::model::Table;
 use crate::{DataDict, Diagnostics, Error};
 
 /// A single way in which a dataset disagrees with its data dictionary.
@@ -184,10 +185,24 @@ fn compare_parquet_to_dict(
     };
 
     let actual = data_dict_parquet::column_types(parquet_path)?;
+    let issues = compare_columns(table, &actual);
 
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(DataError::Mismatch {
+            table: table.name.value.clone(),
+            issues,
+        })
+    }
+}
+
+/// Compare a table's declared columns against the `(name, type)` pairs read from
+/// the data, returning every discrepancy. An empty result means they agree.
+fn compare_columns(table: &Table, actual: &[(String, String)]) -> Vec<ColumnIssue> {
     let mut issues = Vec::new();
 
-    for (name, actual_type) in &actual {
+    for (name, actual_type) in actual {
         match table.column(name) {
             None => issues.push(ColumnIssue::ExtraInData {
                 column: name.clone(),
@@ -215,13 +230,42 @@ fn compare_parquet_to_dict(
         }
     }
 
-    if issues.is_empty() {
-        Ok(())
+    issues
+}
+
+/// The outcome of validating one table against the data at its `source`.
+#[derive(Debug)]
+pub enum TableDataResult {
+    /// The data was read and compared; the vector holds any discrepancies
+    /// (empty means the data matches the dictionary).
+    Compared(Vec<ColumnIssue>),
+    /// The table declares no Parquet source, so there is nothing to read.
+    NoParquetSource,
+    /// The source path could not be read as a Parquet file.
+    Unreadable { path: String, error: String },
+}
+
+/// Validate a single table against the Parquet file named in its `source`.
+///
+/// A relative `source.parquet` path is resolved against `base_dir` (the
+/// directory containing the `data-dict.yaml` file). This does not re-validate
+/// the dictionary; callers should do that first.
+pub fn validate_table_source(table: &Table, base_dir: &Path) -> TableDataResult {
+    let Some(raw) = table.source.as_ref().and_then(|s| s.parquet.as_ref()) else {
+        return TableDataResult::NoParquetSource;
+    };
+    let candidate = Path::new(&raw.value);
+    let path = if candidate.is_absolute() {
+        candidate.to_path_buf()
     } else {
-        Err(DataError::Mismatch {
-            table: table.name.value.clone(),
-            issues,
-        })
+        base_dir.join(candidate)
+    };
+    match data_dict_parquet::column_types(&path) {
+        Ok(actual) => TableDataResult::Compared(compare_columns(table, &actual)),
+        Err(error) => TableDataResult::Unreadable {
+            path: raw.value.clone(),
+            error: error.to_string(),
+        },
     }
 }
 

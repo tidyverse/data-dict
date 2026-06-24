@@ -10,9 +10,15 @@ repository.workspace = true
 name = "data-dict"
 path = "src/main.rs"
 
+[features]
+# Bundles the language server into the binary, behind a flag so a plain
+# `cargo install` stays lean. Build the editor-extension binary with this on.
+lsp = ["dep:data-dict-lsp"]
+
 [dependencies]
 data-dict.workspace = true
 data-dict-parquet.workspace = true
+data-dict-lsp = { workspace = true, optional = true }
 clap.workspace = true
 serde_json.workspace = true
 

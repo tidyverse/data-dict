@@ -69,7 +69,7 @@ source:
   parquet: inst/parquet/food.parquet
 ```
 
-* `parquet`: path to a Parquet file (may include globs).
+* `parquet`: path to a Parquet file (may include globs). A relative path is resolved against the directory containing the `data-dict.yaml` file.
 
 Parquet is the only source `data-dict` can currently validate against, so it's the only one the spec defines. We expect to add more access methods in the future — most importantly `SQL` (a schema-qualified table name such as `foodbank.food`, or a full `SELECT` query), and likely others such as R, Python, and Posit Connect pins.
 
