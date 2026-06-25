@@ -16,4 +16,5 @@ indexmap = "2"
 
 [dev-dependencies]
 insta = "1"
+indoc = "2"
 parquet.workspace = true

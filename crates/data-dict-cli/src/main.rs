@@ -293,6 +293,16 @@ fn issue_to_json(issue: &ColumnIssue) -> serde_json::Value {
             "column": column,
             "actual": actual,
         }),
+        ColumnIssue::NullsInRequired {
+            column,
+            count,
+            rows,
+        } => serde_json::json!({
+            "kind": "nulls_in_required",
+            "column": column,
+            "count": count,
+            "rows": rows,
+        }),
     }
 }
 

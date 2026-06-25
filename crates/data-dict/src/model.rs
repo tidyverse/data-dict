@@ -62,6 +62,12 @@ impl Column {
     pub fn is_unique_implied(&self) -> bool {
         self.has(Constraint::Unique) || self.has(Constraint::PrimaryKey)
     }
+
+    /// True if the column may not contain nulls: explicitly `required` or
+    /// `primary_key` (which the spec defines as implying `required`).
+    pub fn is_required_implied(&self) -> bool {
+        self.has(Constraint::Required) || self.has(Constraint::PrimaryKey)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

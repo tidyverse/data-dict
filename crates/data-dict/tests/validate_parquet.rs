@@ -10,9 +10,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use data_dict::data::{ColumnIssue, DataError, validate_parquet};
+use indoc::{formatdoc, indoc};
 use parquet::data_type::{ByteArray, ByteArrayType, DoubleType};
 use parquet::file::properties::WriterProperties;
-use parquet::file::writer::SerializedFileWriter;
+use parquet::file::writer::{SerializedColumnWriter, SerializedFileWriter};
 use parquet::schema::parser::parse_message_type;
 
 static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -264,5 +265,159 @@ tables:
     assert!(
         matches!(err, DataError::TableNotFound { .. }),
         "got {err:?}"
+    );
+}
+
+/// Validate a single column in isolation. Writes a one-column parquet file
+/// (`schema_col` is that column's line in a parquet message-type schema, e.g.
+/// `OPTIONAL DOUBLE weight`; `write` fills in its data) and wraps `column` —
+/// the YAML for one `columns:` entry — in an otherwise-minimal one-table
+/// dictionary, then validates the two against each other.
+///
+/// This keeps per-column tests focused: only the column under test is generated
+/// in both the data and the spec.
+fn check_column(
+    schema_col: &str,
+    write: impl FnOnce(&mut SerializedColumnWriter),
+    column: &str,
+) -> Result<(), DataError> {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+
+    let message = format!("message schema {{ {schema_col}; }}");
+    let schema = Arc::new(parse_message_type(&message).unwrap());
+    let props = Arc::new(WriterProperties::builder().build());
+    let file = File::create(&parquet).unwrap();
+    let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
+    let mut rg = writer.next_row_group().unwrap();
+    let mut col = rg.next_column().unwrap().unwrap();
+    write(&mut col);
+    col.close().unwrap();
+    rg.close().unwrap();
+    writer.close().unwrap();
+
+    // Indent the caller's column entry to sit under `columns:`.
+    let column = column
+        .trim_end()
+        .lines()
+        .map(|line| format!("      {line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let yaml = write_yaml(
+        &dir,
+        &formatdoc! {"
+            $version: 0.1.0
+            tables:
+              t:
+                source:
+                  parquet: data.parquet
+                columns:
+            {column}
+        "},
+    );
+
+    validate_parquet(&yaml, &parquet, None).1
+}
+
+/// Write an optional double column whose second row (1-based) is null. Used by
+/// the nullability tests via [`check_column`].
+fn write_double_with_null(col: &mut SerializedColumnWriter) {
+    // Definition levels: 1 = present, 0 = null. Row 2 is null, so the values
+    // slice holds only the two non-null doubles.
+    col.typed::<DoubleType>()
+        .write_batch(&[1.0_f64, 2.0], Some(&[1, 0, 1]), None)
+        .unwrap();
+}
+
+#[test]
+fn nulls_in_required_column_reported() {
+    let result = check_column(
+        "OPTIONAL DOUBLE weight",
+        write_double_with_null,
+        indoc! {"
+            - name: weight
+              type: number(quantity)
+              constraints: [required]
+              range: [0, 100]
+        "},
+    );
+
+    let err = result.unwrap_err();
+    let DataError::Mismatch { issues, .. } = err else {
+        panic!("expected Mismatch, got {err:?}");
+    };
+    assert!(
+        matches!(
+            issues.as_slice(),
+            [ColumnIssue::NullsInRequired { column, count, rows }]
+                if column == "weight" && *count == 1 && rows == &[2]
+        ),
+        "got {issues:?}"
+    );
+}
+
+#[test]
+fn required_column_without_nulls_ok() {
+    // No nulls present, so the statistics fast-path should resolve this without
+    // scanning the data pages.
+    let result = check_column(
+        "REQUIRED DOUBLE weight",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0_f64, 2.0, 3.0], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: weight
+              type: number(quantity)
+              constraints: [required]
+              range: [0, 100]
+        "},
+    );
+
+    assert!(result.is_ok(), "got {result:?}");
+}
+
+#[test]
+fn nulls_in_optional_column_ok() {
+    // `weight` has a null but is not declared required, so it's fine.
+    let result = check_column(
+        "OPTIONAL DOUBLE weight",
+        write_double_with_null,
+        indoc! {"
+            - name: weight
+              type: number(quantity)
+              range: [0, 100]
+        "},
+    );
+
+    assert!(result.is_ok(), "got {result:?}");
+}
+
+#[test]
+fn primary_key_implies_required_for_nulls() {
+    // `primary_key` implies `required`, so the null is reported even without an
+    // explicit `required` constraint.
+    let result = check_column(
+        "OPTIONAL DOUBLE weight",
+        write_double_with_null,
+        indoc! {"
+            - name: weight
+              type: number(id)
+              constraints: [primary_key]
+              examples: [1, 2]
+        "},
+    );
+
+    let err = result.unwrap_err();
+    let DataError::Mismatch { issues, .. } = err else {
+        panic!("expected Mismatch, got {err:?}");
+    };
+    assert!(
+        matches!(
+            issues.as_slice(),
+            [ColumnIssue::NullsInRequired { column, .. }] if column == "weight"
+        ),
+        "got {issues:?}"
     );
 }
