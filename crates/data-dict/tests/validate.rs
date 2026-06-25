@@ -171,6 +171,17 @@ fn minimal() {
     );
 }
 
+// An `ignore` column is deliberately undocumented, so it is exempt from the
+// DD007 data-representation requirement and validates without error.
+#[test]
+fn ignore_type_needs_no_representation() {
+    let path = fixture("valid/ignore-type.yaml");
+    assert!(
+        diagnostics(&path, Severity::Error).is_empty(),
+        "an `ignore` column must not trigger DD007"
+    );
+}
+
 // --- warnings ------------------------------------------------------------
 
 // A document missing the recommended `$learn_more` key validates (it is not an

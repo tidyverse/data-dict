@@ -188,7 +188,6 @@ pub fn column_stats(
     Ok(stats)
 }
 
-
 // First check if metadata proves that there are no nulls
 fn nulls_provably_absent(field: &Type, meta: &ParquetMetaData, col: usize) -> bool {
     // A `REQUIRED` field marked  cannot contain nulls by construction

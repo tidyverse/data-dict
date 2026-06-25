@@ -15,7 +15,7 @@ use std::path::Path;
 use data_dict_parquet::{ColumnNeeds, ColumnStats, ParquetError};
 
 use crate::model::Column;
-use crate::{DataDict, Diagnostics, Error};
+use crate::{DataDict, Diagnostics, Error, Severity};
 
 /// How many example values (e.g. offending rows) to record per validation
 /// issue. Issues count every offender but only list this many.
@@ -45,6 +45,91 @@ pub enum ColumnIssue {
     },
 }
 
+impl ColumnIssue {
+    /// Whether this issue fails validation (`Error`) or is merely advisory
+    /// (`Warning`). An undocumented column is a warning
+    pub fn severity(&self) -> Severity {
+        match self {
+            ColumnIssue::ExtraInData { .. } => Severity::Warning,
+            _ => Severity::Error,
+        }
+    }
+
+    /// The human-readable description of the issue, without any severity prefix.
+    fn body(&self) -> String {
+        match self {
+            ColumnIssue::TypeMismatch {
+                column,
+                declared,
+                actual,
+            } => format!("column \"{column}\": declared {declared}, data is {actual}"),
+            ColumnIssue::MissingInData { column } => {
+                format!("column \"{column}\": described in dictionary but missing from data")
+            }
+            ColumnIssue::ExtraInData { column, actual } => {
+                format!("column \"{column}\": present in data ({actual}) but not in dictionary")
+            }
+            ColumnIssue::NullsInRequired {
+                column,
+                count,
+                rows,
+            } => format!(
+                "column \"{column}\": required but has {count} null value{} ({})",
+                if *count == 1 { "" } else { "s" },
+                format_rows(rows, *count),
+            ),
+        }
+    }
+}
+
+/// The outcome of comparing a dataset against one table of a data dictionary:
+/// the table compared and every way the two disagree. Issues carry their own
+/// [`Severity`]; the report fails validation only if some issue is an error.
+#[derive(Debug)]
+pub struct DataReport {
+    pub table: String,
+    pub issues: Vec<ColumnIssue>,
+}
+
+impl DataReport {
+    /// A report for a comparison that did not run (e.g. the dictionary itself
+    /// failed validation, so comparing data against it is not meaningful).
+    fn skipped() -> Self {
+        DataReport {
+            table: String::new(),
+            issues: Vec::new(),
+        }
+    }
+
+    /// Whether any issue is an error. Warning-only reports (e.g. an undocumented
+    /// column) do not fail validation.
+    pub fn has_errors(&self) -> bool {
+        self.issues.iter().any(|i| i.severity() == Severity::Error)
+    }
+
+    /// Whether the dataset matched the dictionary with nothing to report.
+    pub fn is_clean(&self) -> bool {
+        self.issues.is_empty()
+    }
+}
+
+impl std::fmt::Display for DataReport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.issues.is_empty() {
+            return Ok(());
+        }
+        writeln!(f, "data does not match table \"{}\":", self.table)?;
+        for issue in &self.issues {
+            let severity = match issue.severity() {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+            };
+            writeln!(f, "  {severity}: {}", issue.body())?;
+        }
+        Ok(())
+    }
+}
+
 /// Errors returned by [`validate_parquet`].
 #[derive(Debug)]
 pub enum DataError {
@@ -60,11 +145,6 @@ pub enum DataError {
     /// No table name was given and the dictionary describes more than one, so
     /// the target is ambiguous.
     AmbiguousTable { available: Vec<String> },
-    /// The dataset disagrees with the dictionary in one or more columns.
-    Mismatch {
-        table: String,
-        issues: Vec<ColumnIssue>,
-    },
 }
 
 impl From<Error> for DataError {
@@ -98,43 +178,6 @@ impl std::fmt::Display for DataError {
                     available.join(", ")
                 )
             }
-            DataError::Mismatch { table, issues } => {
-                writeln!(
-                    f,
-                    "data does not match table \"{table}\" in the data dictionary:"
-                )?;
-                for issue in issues {
-                    match issue {
-                        ColumnIssue::TypeMismatch {
-                            column,
-                            declared,
-                            actual,
-                        } => writeln!(
-                            f,
-                            "  column \"{column}\": declared {declared}, data is {actual}"
-                        )?,
-                        ColumnIssue::MissingInData { column } => writeln!(
-                            f,
-                            "  column \"{column}\": described in dictionary but missing from data"
-                        )?,
-                        ColumnIssue::ExtraInData { column, actual } => writeln!(
-                            f,
-                            "  column \"{column}\": present in data ({actual}) but not in dictionary"
-                        )?,
-                        ColumnIssue::NullsInRequired {
-                            column,
-                            count,
-                            rows,
-                        } => writeln!(
-                            f,
-                            "  column \"{column}\": required but has {count} null value{} ({})",
-                            if *count == 1 { "" } else { "s" },
-                            format_rows(rows, *count),
-                        )?,
-                    }
-                }
-                Ok(())
-            }
         }
     }
 }
@@ -161,13 +204,13 @@ impl std::error::Error for DataError {
 /// Returns the dictionary's [`Diagnostics`] (errors and warnings, in emission
 /// order, with the source context to render them) and the data-validation
 /// result. The data comparison only runs when the dictionary itself is free of
-/// errors; either an error diagnostic or an `Err` result means validation
-/// failed.
+/// errors. Validation has failed if either an error diagnostic, an `Err`
+/// result, or a [`DataReport`] with error-severity issues is present.
 pub fn validate_parquet(
     dict_path: &Path,
     parquet_path: &Path,
     table: Option<&str>,
-) -> (Diagnostics, Result<(), DataError>) {
+) -> (Diagnostics, Result<DataReport, DataError>) {
     let (dict, diagnostics) = match crate::validate_and_lower(dict_path) {
         Ok(parsed) => parsed,
         Err(err) => return (Diagnostics::empty(), Err(err.into())),
@@ -175,7 +218,7 @@ pub fn validate_parquet(
     // Comparing data against a dictionary that fails its own validation isn't
     // meaningful, so skip it; the error diagnostics already signal the failure.
     let result = if diagnostics.has_errors() {
-        Ok(())
+        Ok(DataReport::skipped())
     } else {
         compare_parquet_to_dict(&dict, parquet_path, table)
     };
@@ -186,7 +229,7 @@ fn compare_parquet_to_dict(
     dict: &DataDict,
     parquet_path: &Path,
     table: Option<&str>,
-) -> Result<(), DataError> {
+) -> Result<DataReport, DataError> {
     let available = || dict.tables.keys().cloned().collect::<Vec<_>>();
     let table = match table {
         Some(name) => dict
@@ -216,6 +259,9 @@ fn compare_parquet_to_dict(
     // requirements are expressed.
     let mut needs: HashMap<String, ColumnNeeds> = HashMap::new();
     for col in &table.columns {
+        if col.is_ignored() {
+            continue;
+        }
         if present(&col.name.value) {
             let merged = VALUE_CHECKS
                 .iter()
@@ -242,6 +288,12 @@ fn compare_parquet_to_dict(
             });
             continue;
         };
+        // An `ignore` column must still exist in the data — documenting a column
+        // that isn't there is an error — but once present its type and values
+        // are deliberately not checked.
+        if col.is_ignored() {
+            continue;
+        }
         check_type(col, actual_type, &mut issues);
         if let Some(stat) = stats.get(&col.name.value) {
             for check in VALUE_CHECKS {
@@ -260,14 +312,10 @@ fn compare_parquet_to_dict(
         }
     }
 
-    if issues.is_empty() {
-        Ok(())
-    } else {
-        Err(DataError::Mismatch {
-            table: table.name.value.clone(),
-            issues,
-        })
-    }
+    Ok(DataReport {
+        table: table.name.value.clone(),
+        issues,
+    })
 }
 
 /// A column's declared type must be compatible with the type read from the data.

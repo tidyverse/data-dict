@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
-use data_dict::data::{ColumnIssue, DataError};
+use data_dict::data::{ColumnIssue, DataError, DataReport};
 use data_dict::{Diagnostic, Diagnostics, Severity};
 
 #[derive(Parser)]
@@ -131,12 +131,18 @@ fn main() -> ExitCode {
                     eprintln!("{line}");
                 }
                 match &result {
-                    Ok(()) if diagnostics.is_ok() => println!("{}: ok", parquet.display()),
-                    Ok(()) => {}
+                    Ok(report) if report.is_clean() && diagnostics.is_ok() => {
+                        println!("{}: ok", parquet.display())
+                    }
+                    Ok(report) => eprint!("{report}"),
                     Err(err) => eprintln!("{err}"),
                 }
             }
-            if diagnostics.has_errors() || result.is_err() {
+            let data_failed = match &result {
+                Ok(report) => report.has_errors(),
+                Err(_) => true,
+            };
+            if diagnostics.has_errors() || data_failed {
                 ExitCode::FAILURE
             } else {
                 ExitCode::SUCCESS
@@ -213,11 +219,27 @@ fn resolve_dict_path(path: Option<PathBuf>) -> Result<PathBuf, String> {
 
 fn validate_result_to_json(
     diagnostics: &Diagnostics,
-    result: &Result<(), DataError>,
+    result: &Result<DataReport, DataError>,
 ) -> serde_json::Value {
     let mut value = match result {
-        Ok(()) if diagnostics.is_ok() => serde_json::json!({"status": "ok"}),
-        Ok(()) => serde_json::json!({"status": "error", "kind": "dictionary"}),
+        Ok(report) => {
+            let failed = diagnostics.has_errors() || report.has_errors();
+            let status = if failed { "error" } else { "ok" };
+            if diagnostics.has_errors() && report.is_clean() {
+                // The data comparison was skipped because the dictionary itself
+                // is invalid; the diagnostics array carries the details.
+                serde_json::json!({"status": status, "kind": "dictionary"})
+            } else if report.is_clean() {
+                serde_json::json!({"status": status})
+            } else {
+                serde_json::json!({
+                    "status": status,
+                    "kind": "mismatch",
+                    "table": report.table,
+                    "issues": report.issues.iter().map(issue_to_json).collect::<Vec<_>>(),
+                })
+            }
+        }
         Err(DataError::Schema(e)) => serde_json::json!({
             "status": "error",
             "kind": "schema",
@@ -238,12 +260,6 @@ fn validate_result_to_json(
             "status": "error",
             "kind": "ambiguous_table",
             "available": available,
-        }),
-        Err(DataError::Mismatch { table, issues }) => serde_json::json!({
-            "status": "error",
-            "kind": "mismatch",
-            "table": table,
-            "issues": issues.iter().map(issue_to_json).collect::<Vec<_>>(),
         }),
     };
     value["diagnostics"] = serde_json::json!(
@@ -273,7 +289,11 @@ fn diagnostic_to_json(diagnostic: &Diagnostic) -> serde_json::Value {
 }
 
 fn issue_to_json(issue: &ColumnIssue) -> serde_json::Value {
-    match issue {
+    let severity = match issue.severity() {
+        Severity::Error => "error",
+        Severity::Warning => "warning",
+    };
+    let mut value = match issue {
         ColumnIssue::TypeMismatch {
             column,
             declared,
@@ -303,7 +323,9 @@ fn issue_to_json(issue: &ColumnIssue) -> serde_json::Value {
             "count": count,
             "rows": rows,
         }),
-    }
+    };
+    value["severity"] = serde_json::json!(severity);
+    value
 }
 
 fn print_types_table(cols: &[data_dict_parquet::ColumnTypeInfo]) {
@@ -430,7 +452,11 @@ mod tests {
     #[test]
     fn json_includes_diagnostics_on_success() {
         let diagnostics = warning_diagnostics("json-ok");
-        let json = validate_result_to_json(&diagnostics, &Ok(()));
+        let report = DataReport {
+            table: String::new(),
+            issues: Vec::new(),
+        };
+        let json = validate_result_to_json(&diagnostics, &Ok(report));
         assert_eq!(json["status"], "ok");
         assert_eq!(json["diagnostics"][0]["code"], "DD009");
         assert_eq!(json["diagnostics"][0]["severity"], "warning");

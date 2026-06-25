@@ -68,6 +68,13 @@ impl Column {
     pub fn is_required_implied(&self) -> bool {
         self.has(Constraint::Required) || self.has(Constraint::PrimaryKey)
     }
+
+    /// True if the column has `type: ignore` — deliberately undocumented, so
+    /// exempt from the data-representation requirement (DD007) and from
+    /// type/value checks against the data. It must still exist in the data.
+    pub fn is_ignored(&self) -> bool {
+        self.col_type.as_ref().map(|t| t.value.as_str()) == Some("ignore")
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
