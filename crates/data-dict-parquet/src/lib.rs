@@ -1,6 +1,6 @@
 //! Parquet reader for data-dict.yaml validation.
 
-use parquet::basic::{LogicalType, TimeUnit, Type as PhysicalType};
+use parquet::basic::{LogicalType, Repetition, TimeUnit, Type as PhysicalType};
 use parquet::file::metadata::ParquetMetaData;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::record::Field;
@@ -151,7 +151,9 @@ pub fn column_stats(
     // already prove there are none.
     let to_scan: Vec<usize> = requested
         .iter()
-        .filter(|(_, idx, n)| n.nulls && !nulls_provably_absent(meta, *idx))
+        .filter(|(_, idx, n)| {
+            n.nulls && !nulls_provably_absent(schema.get_fields()[*idx].as_ref(), meta, *idx)
+        })
         .map(|(_, idx, _)| *idx)
         .collect();
 
@@ -186,9 +188,17 @@ pub fn column_stats(
     Ok(stats)
 }
 
-/// Whether column `col`'s `null_count` statistics prove it holds no nulls. False
-/// when any row group lacks the statistic, since absence isn't proof.
-fn nulls_provably_absent(meta: &ParquetMetaData, col: usize) -> bool {
+
+// First check if metadata proves that there are no nulls
+fn nulls_provably_absent(field: &Type, meta: &ParquetMetaData, col: usize) -> bool {
+    // A `REQUIRED` field marked  cannot contain nulls by construction
+    if field.get_basic_info().has_repetition()
+        && field.get_basic_info().repetition() == Repetition::REQUIRED
+    {
+        return true;
+    }
+
+    // If present & per-row-group `null_count` sums to 0
     let mut total = 0;
     for rg in meta.row_groups() {
         match rg.column(col).statistics().and_then(|s| s.null_count_opt()) {
