@@ -1,27 +1,17 @@
 //! A single problem vocabulary for every validation level.
 //!
-//! This supersedes the three parallel "something is wrong" types the crate grew
-//! one per concern:
+//! A [`Problem`] is anything that can be wrong while validating — a failed spec
+//! check, a column that disagrees with the data, an unreadable file. They vary
+//! only on where the problem points (a YAML span / a named column / nowhere) and
+//! what structured payload they carry; a code, a severity, a message, and an
+//! optional hint are common to all. The structured payload is the flattened
+//! [`ProblemKind`] tag, so a single `#[derive(Serialize)]` produces the JSON for
+//! every kind uniformly.
 //!
-//! - [`crate::diagnostic::Diagnostic`] — spec (`S##`) problems, located by a
-//!   source span and rendered with highlighting.
-//! - [`crate::ColumnIssue`] — meta/data (`M##`/`D##`) problems, located by a
-//!   column name and carrying a structured payload.
-//! - [`crate::Error`] / [`crate::ValidationError`] — pre-flight failures (I/O,
-//!   unparseable YAML, unreadable parquet, no such table) that stop the run.
-//!
-//! They only ever differed on two axes: **where the problem points** (a YAML
-//! span / a named column / nowhere) and **what structured payload it carries**.
-//! Everything else — a code, a severity, a human message, an optional hint — was
-//! common. [`Problem`] is the union: one `#[derive(Serialize)]` type whose JSON
-//! is produced uniformly by serde, with the structured payload living in the
-//! flattened [`ProblemKind`] tag.
-//!
-//! "Fatal" is deliberately *not* a field. A problem that must stop the run (a
-//! pre-flight failure) is simply the last thing a level pushes before returning;
-//! a problem that blocks the *next* level (any spec error) is handled by the
-//! driver checking [`ProblemSet::has_errors`] before descending. Fatality is
-//! control flow, not data.
+//! There is no `fatal` field by design: a problem that must stop the run is the
+//! last thing a level pushes before returning, and a problem that blocks the
+//! next level is caught by the driver checking [`ProblemSet::has_errors`] before
+//! descending. Fatality is control flow, not data.
 
 use quarto_error_reporting::DiagnosticMessageBuilder;
 use quarto_source_map::{SourceContext, SourceInfo};
