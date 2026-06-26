@@ -1,11 +1,9 @@
 //! Data-level validation: the data's *values* match the dictionary.
 //!
-//! This is the last and most expensive of the three validation levels: it is
-//! the only one that reads the data itself. It runs everything the metadata
-//! level ([`crate::validate_meta`]) does, then adds value-level checks that require a
-//! scan. Today that is just:
-//!
-//! - `D01` nulls in a required column — a `required`/`primary_key` column with nulls.
+//! This is the last and most expensive of the three validation levels (the
+//! `D##` checks; see `site/validation.md` for what each code means): it is the
+//! only one that reads the data itself. It runs everything the metadata level
+//! ([`crate::validate_meta`]) does, then adds value-level checks that require a scan.
 //!
 //! [`validate_data`] is the entry point; [`value_issues`] is the value-checking
 //! core the [`crate::compare`] orchestrator runs after the metadata checks.

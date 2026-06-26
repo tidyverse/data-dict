@@ -13,8 +13,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Validate a data-dict.yaml file or directory: the dictionary itself [default: .]
-    ValidateSchema { path: Option<PathBuf> },
+    /// Validate a data-dict.yaml file or directory against the spec [default: .]
+    ValidateSpec { path: Option<PathBuf> },
     /// Validate a dataset's column names and types against a data dictionary
     ValidateMeta(CompareArgs),
     /// Validate a dataset's values against a data dictionary
@@ -69,7 +69,7 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     };
     match command {
-        Command::ValidateSchema { path } => {
+        Command::ValidateSpec { path } => {
             let path = match resolve_dict_path(path) {
                 Ok(path) => path,
                 Err(err) => {
@@ -77,7 +77,7 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             };
-            match data_dict::validate_schema(&path) {
+            match data_dict::validate_spec(&path) {
                 Ok(diagnostics) => {
                     for line in diagnostics.render() {
                         eprintln!("{line}");
@@ -392,7 +392,7 @@ mod tests {
         let dir = temp_dir(name);
         let dict = dir.join("data-dict.yaml");
         fs::write(&dict, "$version: 0.1.0\n").unwrap();
-        data_dict::validate_schema(&dict).expect("must validate")
+        data_dict::validate_spec(&dict).expect("must validate")
     }
 
     #[test]

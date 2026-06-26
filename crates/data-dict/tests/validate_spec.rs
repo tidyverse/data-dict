@@ -3,8 +3,8 @@
 //! Each test points at a YAML fixture under `tests/fixtures/{valid,invalid}/`.
 //! The fixtures double as runnable inputs for the CLI:
 //!
-//!     cargo run -p data-dict-cli -- validate-schema \
-//!         crates/data-dict/tests/fixtures/schema/s07-enum-without-values.yaml
+//!     cargo run -p data-dict-cli -- validate-spec \
+//!         crates/data-dict/tests/fixtures/spec/s07-enum-without-values.yaml
 //!
 //! When adding a new rule, prefer adding a fixture file (with a one-line
 //! `# expected: ...` header) and a one-line test here over inline YAML.
@@ -24,7 +24,7 @@ fn fixture(rel: &str) -> PathBuf {
 /// order. A structural/parse failure ([`data_dict::Error`]) is treated as a
 /// single error-severity diagnostic and ignored when collecting warnings.
 fn diagnostics(path: &Path, severity: Severity) -> Vec<String> {
-    match data_dict::validate_schema(path) {
+    match data_dict::validate_spec(path) {
         Ok(diags) => diags
             .items
             .iter()
@@ -275,7 +275,7 @@ fn non_string_glossary_value_errors() {
 
 #[test]
 fn clean_two_tables() {
-    assert_valid(fixture("schema/clean-two-tables.yaml"));
+    assert_valid(fixture("spec/clean-two-tables.yaml"));
 }
 
 // Each local schema-check fixture snapshots its full rendered diagnostic. Snapshotting
@@ -286,28 +286,28 @@ fn clean_two_tables() {
 
 #[test]
 fn s01_fk_no_relationship() {
-    insta::assert_snapshot!(failing_diagnostic("schema/s01-fk-no-relationship.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("spec/s01-fk-no-relationship.yaml"));
 }
 
 #[test]
 fn s02_missing_table() {
-    insta::assert_snapshot!(failing_diagnostic("schema/s02-missing-table.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("spec/s02-missing-table.yaml"));
 }
 
 #[test]
 fn s03_missing_column() {
-    insta::assert_snapshot!(failing_diagnostic("schema/s03-missing-column.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("spec/s03-missing-column.yaml"));
 }
 
 #[test]
 fn s04_bad_join() {
-    insta::assert_snapshot!(failing_diagnostic("schema/s04-bad-join.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("spec/s04-bad-join.yaml"));
 }
 
 #[test]
 fn s05_conflicts_not_on_both_sides() {
     insta::assert_snapshot!(failing_diagnostic(
-        "schema/s05-conflicts-not-on-both-sides.yaml"
+        "spec/s05-conflicts-not-on-both-sides.yaml"
     ));
 }
 
@@ -316,12 +316,12 @@ fn s05_conflicts_not_on_both_sides() {
 // entries, so this must validate cleanly rather than demanding the conflict be named.
 #[test]
 fn s05_undeclared_conflict_ok() {
-    assert_valid(fixture("schema/s05-undeclared-conflict-ok.yaml"));
+    assert_valid(fixture("spec/s05-undeclared-conflict-ok.yaml"));
 }
 
 #[test]
 fn s06_cardinality_mismatch() {
-    insta::assert_snapshot!(failing_diagnostic("schema/s06-cardinality-mismatch.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("spec/s06-cardinality-mismatch.yaml"));
 }
 
 // Recreated from the bundled `otters` example: a one-to-many self-join whose
@@ -329,25 +329,23 @@ fn s06_cardinality_mismatch() {
 // `examples` (S07). Guards that both findings surface together.
 #[test]
 fn s06_self_join_one_to_many() {
-    insta::assert_snapshot!(failing_diagnostic("schema/s06-self-join-one-to-many.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("spec/s06-self-join-one-to-many.yaml"));
 }
 
 #[test]
 fn s07_enum_without_values() {
-    insta::assert_snapshot!(failing_diagnostic("schema/s07-enum-without-values.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("spec/s07-enum-without-values.yaml"));
 }
 
 #[test]
 fn s07_range_type_missing_range() {
-    insta::assert_snapshot!(failing_diagnostic(
-        "schema/s07-range-type-missing-range.yaml"
-    ));
+    insta::assert_snapshot!(failing_diagnostic("spec/s07-range-type-missing-range.yaml"));
 }
 
 #[test]
 fn s07_other_type_missing_examples() {
     insta::assert_snapshot!(failing_diagnostic(
-        "schema/s07-other-type-missing-examples.yaml"
+        "spec/s07-other-type-missing-examples.yaml"
     ));
 }
 
@@ -356,27 +354,27 @@ fn s07_other_type_missing_examples() {
 // missing-`examples` check.
 #[test]
 fn s07_boolean_no_examples_ok() {
-    assert_valid(fixture("schema/s07-boolean-no-examples-ok.yaml"));
+    assert_valid(fixture("spec/s07-boolean-no-examples-ok.yaml"));
 }
 
 #[test]
 fn s07_wrong_rep_on_enum() {
-    insta::assert_snapshot!(failing_diagnostic("schema/s07-wrong-rep-on-enum.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("spec/s07-wrong-rep-on-enum.yaml"));
 }
 
 #[test]
 fn s08_range_on_string_type() {
-    insta::assert_snapshot!(failing_diagnostic("schema/s08-range-on-string-type.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("spec/s08-range-on-string-type.yaml"));
 }
 
 // `units` is valid only on `number(quantity)`. A quantity column with units
 // validates cleanly; units on any other type is S08.
 #[test]
 fn s08_units_ok_on_quantity() {
-    assert_valid(fixture("schema/s08-units-on-quantity-ok.yaml"));
+    assert_valid(fixture("spec/s08-units-on-quantity-ok.yaml"));
 }
 
 #[test]
 fn s08_units_on_non_quantity() {
-    insta::assert_snapshot!(failing_diagnostic("schema/s08-units-on-non-quantity.yaml"));
+    insta::assert_snapshot!(failing_diagnostic("spec/s08-units-on-non-quantity.yaml"));
 }

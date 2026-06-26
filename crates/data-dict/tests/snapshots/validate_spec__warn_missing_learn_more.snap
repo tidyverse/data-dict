@@ -1,5 +1,5 @@
 ---
-source: crates/data-dict/tests/validate_schema.rs
+source: crates/data-dict/tests/validate_spec.rs
 expression: "warning_diagnostic(\"valid/no-learn-more.yaml\")"
 ---
 Warning: [S09]

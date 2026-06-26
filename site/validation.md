@@ -4,7 +4,7 @@
 
 Validation happens at three levels, each a strict superset of the one before it:
 
-* Validating the **schema** checks that the dictionary file is well-formed and internally consistent — that types are valid, foreign keys have matching relationships, joins parse, and so on. These checks have an unambiguous right answer, so most are errors. This level looks only at the `data-dict.yaml` file, never at the data. This is performed by `data-dict validate-schema`.
+* Validating the **spec** checks that the dictionary file itself conforms to the data-dict spec — that it is well-formed and internally consistent, with valid types, foreign keys that have matching relationships, joins that parse, and so on. These checks have an unambiguous right answer, so most are errors. This level looks only at the `data-dict.yaml` file, never at the data. This is performed by `data-dict validate-spec`.
 
 * Validating the **metadata** checks that the data's column names and types match the dictionary. It reads only the data's metadata (for example, a Parquet file's footer), not its values, so it stays cheap. This is performed by `data-dict validate-meta`.
 
@@ -12,9 +12,9 @@ Validation happens at three levels, each a strict superset of the one before it:
 
 The last two levels compare the dictionary against the data (or equivalently, the data against the dictionary). When they disagree, we can't tell which side needs to change. If you're creating the dictionary as you learn about the data, then you might need to change the dictionary. If you're using the dictionary to validate a dataset, there might be an upstream issue that you need to resolve.
 
-Each level implies the ones before it: validating the metadata validates the schema first, and validating the data validates both the schema and the metadata first. Validating the schema and metadata are cheap, so they can be run continually while you edit the `data-dict.yaml`; validating the data adds a full scan and get more expensive as the size of the data increases.
+Each level implies the ones before it: validating the metadata validates the spec first, and validating the data validates both the spec and the metadata first. Validating the spec and metadata are cheap, so they can be run continually while you edit the `data-dict.yaml`; validating the data adds a full scan and get more expensive as the size of the data increases.
 
-Each check has a code prefixed by its level: schema checks are `S01`, `S02`, …; metadata checks `M01`, …; data checks `D01`, …. Severity is independent of level — any level can raise errors or warnings.
+Each check has a code prefixed by its level: spec checks are `S01`, `S02`, …; metadata checks `M01`, …; data checks `D01`, …. Severity is independent of level — any level can raise errors or warnings.
 
 ## Errors vs warnings
 
@@ -24,9 +24,9 @@ A validator reports two severities of problem: **errors** and **warnings**. The 
 
 * A **warning** means the dictionary is usable but the data and dictionary may have drifted apart. Warnings will not cause a production pipeline to fail, but if you're actively working on the project you should make sure to fix them.
 
-## Schema-validation checks
+## Spec-validation checks
 
-When validating the schema, each problem with the dictionary is one of:
+When validating the spec, each problem with the dictionary is one of:
 
 * **Unresolved foreign key** (S01, error): a `foreign_key` column has no `relationships` entry pointing it at a `primary_key` column.
 * **Unknown table** (S02, error): a relationship references a table that is not defined in `tables`.

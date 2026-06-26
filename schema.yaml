@@ -26,7 +26,7 @@ object:
         Version of the data-dict.yaml spec this document conforms to.
 
     # Optional in the schema (its absence is a warning, not an error — see
-    # S09 in schema.rs); a URL where readers can learn about the format.
+    # S09 in validate_spec.rs); a URL where readers can learn about the format.
     "$learn_more": string
 
     # `description` is not in site/spec.md but appears in real-world files

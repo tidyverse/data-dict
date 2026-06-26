@@ -1,9 +1,9 @@
 ---
-source: crates/data-dict/tests/validate_schema.rs
-expression: "failing_diagnostic(\"schema/s04-bad-join.yaml\")"
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s03-missing-column.yaml\")"
 ---
 Error: [S07]
-    ╭─[ schema/s04-bad-join.yaml:13:15 ]
+    ╭─[ spec/s03-missing-column.yaml:13:15 ]
     │
  13 │       - name: id
     │               ─┬  
@@ -11,7 +11,7 @@ Error: [S07]
 ────╯
 
 Error: [S01]
-    ╭─[ schema/s04-bad-join.yaml:17:15 ]
+    ╭─[ spec/s03-missing-column.yaml:17:15 ]
     │
  17 │       - name: food_category_id
     │               ────────┬───────  
@@ -19,7 +19,7 @@ Error: [S01]
 ────╯
 
 Error: [S07]
-    ╭─[ schema/s04-bad-join.yaml:17:15 ]
+    ╭─[ spec/s03-missing-column.yaml:17:15 ]
     │
  17 │       - name: food_category_id
     │               ────────┬───────  
@@ -27,17 +27,17 @@ Error: [S07]
 ────╯
 
 Error: [S07]
-    ╭─[ schema/s04-bad-join.yaml:27:15 ]
+    ╭─[ spec/s03-missing-column.yaml:27:15 ]
     │
  27 │       - name: id
     │               ─┬  
     │                ╰── column `food_category.id` has type `number(id)` but is missing the expected `examples` property
 ────╯
 
-Error: [S04]
-    ╭─[ schema/s04-bad-join.yaml:35:33 ]
+Error: [S03]
+    ╭─[ spec/s03-missing-column.yaml:35:35 ]
     │
- 35 │     join: food.food_category_id ~ food_category.id
-    │                                 │ 
-    │                                 ╰─ `join` expression does not parse: expected one of `=`, `>=`, `<=`, `>`, `<`
+ 35 │     join: food.food_category_id = food_category.identifier
+    │                                   ────────────┬───────────  
+    │                                               ╰───────────── column `identifier` is not defined in table `food_category`
 ────╯

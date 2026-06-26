@@ -1,9 +1,9 @@
 ---
-source: crates/data-dict/tests/validate_schema.rs
-expression: "failing_diagnostic(\"schema/s07-other-type-missing-examples.yaml\")"
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s07-other-type-missing-examples.yaml\")"
 ---
 Error: [S07]
-    ╭─[ schema/s07-other-type-missing-examples.yaml:11:15 ]
+    ╭─[ spec/s07-other-type-missing-examples.yaml:11:15 ]
     │
  11 │       - name: label
     │               ──┬──  
@@ -11,7 +11,7 @@ Error: [S07]
 ────╯
 
 Error: [S07]
-    ╭─[ schema/s07-other-type-missing-examples.yaml:14:15 ]
+    ╭─[ spec/s07-other-type-missing-examples.yaml:14:15 ]
     │
  14 │       - name: code
     │               ──┬─  

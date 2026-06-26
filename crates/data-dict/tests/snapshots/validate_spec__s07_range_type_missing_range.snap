@@ -1,9 +1,9 @@
 ---
-source: crates/data-dict/tests/validate_schema.rs
-expression: "failing_diagnostic(\"schema/s07-range-type-missing-range.yaml\")"
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s07-range-type-missing-range.yaml\")"
 ---
 Error: [S07]
-    ╭─[ schema/s07-range-type-missing-range.yaml:11:15 ]
+    ╭─[ spec/s07-range-type-missing-range.yaml:11:15 ]
     │
  11 │       - name: weight
     │               ───┬──  
@@ -11,7 +11,7 @@ Error: [S07]
 ────╯
 
 Error: [S07]
-    ╭─[ schema/s07-range-type-missing-range.yaml:14:15 ]
+    ╭─[ spec/s07-range-type-missing-range.yaml:14:15 ]
     │
  14 │       - name: recorded_at
     │               ─────┬─────  

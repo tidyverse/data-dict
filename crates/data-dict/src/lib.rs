@@ -3,14 +3,15 @@
 //! Validation happens at three levels, each a strict superset of the last (see
 //! `site/validation.md`):
 //!
-//! 1. [`validate_schema`] (`S##`) — the dictionary itself: well-formed and
-//!    internally consistent. Never looks at the data.
+//! 1. [`validate_spec`] (`S##`) — the dictionary itself conforms to the
+//!    data-dict spec: well-formed and internally consistent. Never looks at the
+//!    data.
 //! 2. [`validate_meta`] (`M##`) — the data's column names and types match the
 //!    dictionary. Reads only the data's schema (e.g. a parquet footer).
 //! 3. [`validate_data`] (`D##`) — the data's values match the dictionary. Reads
 //!    the data.
 //!
-//! Each level validates the schema first, then (for meta/data) compares the
+//! Each level validates the spec first, then (for meta/data) compares the
 //! dictionary against a dataset. This module holds the shared comparison
 //! vocabulary ([`Level`], [`ColumnIssue`], [`CompareReport`], [`CompareError`])
 //! and the [`compare`] orchestration the meta and data levels delegate to.
@@ -25,13 +26,13 @@ pub mod lower;
 pub mod model;
 pub mod validate_data;
 pub mod validate_meta;
-pub mod validate_schema;
+pub mod validate_spec;
 
 pub use diagnostic::{Diagnostic, Diagnostics, Severity};
 pub use quarto_source_map::SourceContext;
 pub use validate_data::validate_data;
 pub use validate_meta::validate_meta;
-pub use validate_schema::{validate_and_lower, validate_schema};
+pub use validate_spec::{validate_and_lower, validate_spec};
 
 use model::{DataDict, Table};
 
@@ -40,7 +41,7 @@ use model::{DataDict, Table};
 /// filesystem dependency.
 pub const SPEC_MD: &str = include_str!("../../../site/spec.md");
 
-/// Errors returned by [`validate_schema`].
+/// Errors returned by [`validate_spec`].
 #[derive(Debug)]
 pub enum Error {
     /// I/O failure reading the document.
@@ -78,7 +79,7 @@ impl std::error::Error for Error {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Level {
-    Schema,
+    Spec,
     Meta,
     Data,
 }
@@ -308,7 +309,7 @@ pub(crate) fn compare(
     table: Option<&str>,
     level: Level,
 ) -> (Diagnostics, Result<CompareReport, CompareError>) {
-    let (dict, diagnostics) = match validate_schema::validate_and_lower(dict_path) {
+    let (dict, diagnostics) = match validate_spec::validate_and_lower(dict_path) {
         Ok(parsed) => parsed,
         Err(err) => return (Diagnostics::empty(), Err(err.into())),
     };

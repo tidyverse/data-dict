@@ -1,13 +1,9 @@
 //! Metadata-level validation: the data's column names and types match the
 //! dictionary.
 //!
-//! This is the middle of the three validation levels. It reads only the data's
-//! schema (e.g. a parquet footer), never its values, so it stays cheap. The
-//! checks it owns are:
-//!
-//! - `M01` type mismatch — a column's declared type is incompatible with the data.
-//! - `M02` missing column — a column the dictionary describes is absent from the data.
-//! - `M03` undocumented column (warning) — a column in the data the dictionary omits.
+//! This is the middle of the three validation levels (the `M##` checks; see
+//! `site/validation.md` for what each code means). It reads only the data's
+//! schema (e.g. a parquet footer), never its values, so it stays cheap.
 //!
 //! [`validate_meta`] is the entry point; [`meta_issues`] is the reusable core
 //! that the data level ([`crate::validate_data`]) runs before its own value checks.

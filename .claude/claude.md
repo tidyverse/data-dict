@@ -37,14 +37,14 @@ cargo build --workspace --all-targets   # includes tests, examples, benches
 # Test
 cargo test --workspace
 cargo test -p data-dict                 # single crate
-cargo test -p data-dict schema          # tests matching "schema" in data-dict crate
+cargo test -p data-dict spec            # tests matching "spec" in data-dict crate
 
 # Format and lint (run before committing Rust changes)
 cargo fmt --all
 cargo clippy --workspace --all-targets
 
 # Validate a file
-cargo run -p data-dict-cli -- validate-schema site/examples/otters.yaml
+cargo run -p data-dict-cli -- validate-spec site/examples/otters.yaml
 ```
 
 To review/accept insta snapshots: `cargo insta review`.
@@ -53,55 +53,25 @@ To review/accept insta snapshots: `cargo insta review`.
 
 Rust workspace with three crates:
 
-- `crates/data-dict/` — core library: YAML parsing, schema validation, lowering to typed model, and semantic schema checks. All logic lives here.
-- `crates/data-dict-cli/` — thin CLI wrapper (`validate-schema` / `validate-meta` / `validate-data`, plus `types parquet`). Keep it thin.
+- `crates/data-dict/` — core library: YAML parsing, spec validation, lowering to typed model, and semantic checks. All logic lives here.
+- `crates/data-dict-cli/` — thin CLI wrapper (`validate-spec` / `validate-meta` / `validate-data`, plus `types parquet`). Keep it thin.
 - `crates/data-dict-parquet/` — reads Parquet file schemas and maps column types to data-dict types.
 
-### Schema validation pipeline
+### Validation levels
 
-```
-YAML file
-  → quarto_yaml: parse to AST with source spans
-  → structural validation against schema.yaml (embedded via include_str!)
-  → lower.rs: AST → typed model (DataDict, Table, Column, Relationship, ...)
-  → validate_schema.rs: semantic checks S01–S08
-  → Result<(), Vec<Diagnostic>>
-```
+The three levels and every check code (`S##` / `M##` / `D##`) are defined in `site/validation.md` — the single source of truth. Don't re-document the checks here or in code comments; point to that file. Each level implies the ones before it.
 
-### Validation levels and checks
+Implementation, one module per level (entry points re-exported at the crate root):
 
-Validation has three levels (see `site/validation.md`), each with its own code prefix:
+| Level | Module | CLI |
+|-------|--------|-----|
+| spec (`S##`) | `validate_spec.rs` — structural check against `schema.yaml`, then the semantic `S` checks | `validate-spec` |
+| metadata (`M##`) | `validate_meta.rs` | `validate-meta` |
+| data (`D##`) | `validate_data.rs` | `validate-data` |
 
-- **schema** (`validate-schema`, `S##`): the dictionary itself — well-formed and internally consistent. No data access.
-- **metadata** (`validate-meta`, `M##`): the data's column names and types match the dictionary. Reads only the data's schema.
-- **data** (`validate-data`, `D##`): the data's values match the dictionary. Reads the data.
+Shared comparison vocabulary (`Level`, `ColumnIssue`, `IssueKind`, `CompareReport`, `CompareError`) and the `compare` orchestrator live in `lib.rs`; `Diagnostic`/`Diagnostics`/`Severity` in `diagnostic.rs`.
 
-Each level implies the ones before it. Most checks are errors (fail validation); S09 and M03 are warnings.
-
-**Schema checks (S01–S09)** — in `validate_schema.rs`:
-
-| Rule | Description |
-|------|-------------|
-| S01 | `foreign_key` column has no matching relationship with `primary_key` |
-| S02 | Relationship references non-existent table |
-| S03 | Relationship references non-existent column |
-| S04 | `join` expression fails to parse or references wrong number of tables |
-| S05 | Column in `conflicts` doesn't appear on both sides of the join |
-| S06 | Cardinality inconsistent with column constraints |
-| S07 | Column missing required representation key (`values`, `range`, or `examples`) |
-| S08 | Column has `units` but its type is not `number(quantity)` |
-| S09 | Document omits the recommended `$learn_more` key (warning) |
-
-**Metadata checks (M01–M03)** and **data checks (D01)** — in `validate_meta.rs` / `validate_data.rs`:
-
-| Rule | Description |
-|------|-------------|
-| M01 | Column's declared type is incompatible with the data |
-| M02 | Column described in the dictionary is missing from the data |
-| M03 | Column present in the data is undocumented (warning) |
-| D01 | `required` / `primary_key` column contains nulls |
-
-Test fixtures for the schema rules are in `crates/data-dict/tests/fixtures/{valid,invalid,schema}/`. Each fixture has a `# expected: ...` header documenting the intended outcome.
+Test fixtures for the spec rules are in `crates/data-dict/tests/fixtures/{valid,invalid,spec}/`. Each fixture has a `# expected: ...` header documenting the intended outcome. Integration tests mirror the levels: `tests/validate_spec.rs` / `validate_meta.rs` / `validate_data.rs`.
 
 Diagnostic hints always start with a capital letter.
 

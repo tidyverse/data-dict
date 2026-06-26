@@ -1,9 +1,9 @@
 ---
-source: crates/data-dict/tests/validate_schema.rs
-expression: "failing_diagnostic(\"schema/s06-self-join-one-to-many.yaml\")"
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s06-self-join-one-to-many.yaml\")"
 ---
 Error: [S07]
-    ╭─[ schema/s06-self-join-one-to-many.yaml:24:15 ]
+    ╭─[ spec/s06-self-join-one-to-many.yaml:24:15 ]
     │
  24 │       - name: comments
     │               ────┬───  
@@ -11,7 +11,7 @@ Error: [S07]
 ────╯
 
 Error: [S06]
-    ╭─[ schema/s06-self-join-one-to-many.yaml:30:18 ]
+    ╭─[ spec/s06-self-join-one-to-many.yaml:30:18 ]
     │
  30 │     cardinality: one-to-many
     │                  ─────┬─────  

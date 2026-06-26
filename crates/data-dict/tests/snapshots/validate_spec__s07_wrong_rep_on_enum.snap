@@ -1,9 +1,9 @@
 ---
-source: crates/data-dict/tests/validate_schema.rs
-expression: "failing_diagnostic(\"schema/s07-wrong-rep-on-enum.yaml\")"
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s07-wrong-rep-on-enum.yaml\")"
 ---
 Error: [S07]
-    ╭─[ schema/s07-wrong-rep-on-enum.yaml:11:15 ]
+    ╭─[ spec/s07-wrong-rep-on-enum.yaml:11:15 ]
     │
  11 │       - name: status
     │               ───┬──  
@@ -11,7 +11,7 @@ Error: [S07]
 ────╯
 
 Error: [S07]
-    ╭─[ schema/s07-wrong-rep-on-enum.yaml:11:15 ]
+    ╭─[ spec/s07-wrong-rep-on-enum.yaml:11:15 ]
     │
  11 │       - name: status
     │               ───┬──  

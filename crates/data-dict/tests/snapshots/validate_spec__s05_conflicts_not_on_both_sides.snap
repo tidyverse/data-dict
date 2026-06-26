@@ -1,9 +1,9 @@
 ---
-source: crates/data-dict/tests/validate_schema.rs
-expression: "failing_diagnostic(\"schema/s05-conflicts-not-on-both-sides.yaml\")"
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s05-conflicts-not-on-both-sides.yaml\")"
 ---
 Error: [S07]
-    ╭─[ schema/s05-conflicts-not-on-both-sides.yaml:13:15 ]
+    ╭─[ spec/s05-conflicts-not-on-both-sides.yaml:13:15 ]
     │
  13 │       - name: id
     │               ─┬  
@@ -11,7 +11,7 @@ Error: [S07]
 ────╯
 
 Error: [S07]
-    ╭─[ schema/s05-conflicts-not-on-both-sides.yaml:23:15 ]
+    ╭─[ spec/s05-conflicts-not-on-both-sides.yaml:23:15 ]
     │
  23 │       - name: id
     │               ─┬  
@@ -19,7 +19,7 @@ Error: [S07]
 ────╯
 
 Error: [S07]
-    ╭─[ schema/s05-conflicts-not-on-both-sides.yaml:27:15 ]
+    ╭─[ spec/s05-conflicts-not-on-both-sides.yaml:27:15 ]
     │
  27 │       - name: food_id
     │               ───┬───  
@@ -27,7 +27,7 @@ Error: [S07]
 ────╯
 
 Error: [S07]
-    ╭─[ schema/s05-conflicts-not-on-both-sides.yaml:31:15 ]
+    ╭─[ spec/s05-conflicts-not-on-both-sides.yaml:31:15 ]
     │
  31 │       - name: amount
     │               ───┬──  
@@ -35,7 +35,7 @@ Error: [S07]
 ────╯
 
 Error: [S05]
-    ╭─[ schema/s05-conflicts-not-on-both-sides.yaml:39:17 ]
+    ╭─[ spec/s05-conflicts-not-on-both-sides.yaml:39:17 ]
     │
  39 │     conflicts: [amount]
     │                 ───┬──  

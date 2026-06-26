@@ -1,5 +1,5 @@
 ---
-source: crates/data-dict/tests/validate_schema.rs
+source: crates/data-dict/tests/validate_spec.rs
 expression: "failing_diagnostic(\"invalid/missing-version.yaml\")"
 ---
 Error: [Q-1-10] YAML Validation Failed

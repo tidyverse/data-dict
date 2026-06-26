@@ -1,45 +1,23 @@
-//! Schema-level validation: the dictionary itself.
+//! Spec-level validation: the dictionary itself conforms to the data-dict spec.
 //!
-//! The first of the three validation levels. [`validate_schema`] runs two
-//! passes on a `data-dict.yaml` document:
+//! The first of the three validation levels (the `S##` checks; see
+//! `site/validation.md` for what each code means). [`validate_spec`] runs two
+//! internal passes on a `data-dict.yaml` document — a distinction not surfaced
+//! in the CLI:
 //!
-//! 1. Structural validation against the embedded `schema.yaml` for spec
-//!    version 0.1.0, via the `quarto-yaml-validation` crate.
-//! 2. The cross-table semantic checks below (`S01`–`S09`) — foreign-key
-//!    targets, `join` expression parsing, `conflicts` column resolution,
-//!    cardinality consistency, and column data representation.
+//! 1. **schema**: structural validation against the embedded `schema.yaml` via
+//!    the `quarto-yaml-validation` crate — everything a JSON Schema can express.
+//! 2. **spec**: the cross-table semantic checks below that the schema can't
+//!    express (foreign-key targets, `join` parsing, cardinality, …).
 //!
 //! The second pass only runs if the first succeeds: there is no point chasing
-//! FK references in a document whose `tables` block is malformed. The checks
-//! can also surface *warnings* (e.g. a missing `$learn_more` key), which do not
-//! fail validation.
+//! FK references in a document whose `tables` block is malformed. The checks can
+//! also surface *warnings* (e.g. a missing `$learn_more` key), which do not fail
+//! validation.
 //!
-//! This level never looks at the data. The [`crate::validate_meta`] and [`crate::validate_data`]
-//! levels build on it: both validate the schema first and only compare against a
-//! dataset when the schema is free of errors.
-//!
-//! Schema check codes:
-//!
-//! - `S01`: `foreign_key` column has no matching `relationships` entry whose
-//!   other side is a `primary_key` column.
-//! - `S02`: relationship references a table that does not exist.
-//! - `S03`: relationship references a column that does not exist on its table.
-//! - `S04`: `join` string fails to parse, or references neither one nor two
-//!   tables.
-//! - `S05`: a name in `conflicts` does not appear as a column on both sides of
-//!   the join.
-//! - `S06`: cardinality is inconsistent with the constraints on the joined
-//!   columns (e.g. `one-to-many` whose "one" side lacks `primary_key` /
-//!   `unique`).
-//! - `S07`: a column's data representation key (`values`, `range`, or
-//!   `examples`) is absent or wrong for its type. Each type expects exactly
-//!   one: `enum` → `values`; `number(ordinal)`, `number(quantity)`, `date`,
-//!   `datetime` → `range`; all others → `examples` (except `boolean`, which
-//!   needs no data representation key). A column with no `type` is exempt.
-//! - `S08`: a column carries `units` but its type is not `number(quantity)`.
-//!   Units are only meaningful for quantities.
-//! - `S09` (warning): the document omits the recommended `$learn_more`
-//!   top-level key.
+//! This level never looks at the data. The [`crate::validate_meta`] and
+//! [`crate::validate_data`] levels build on it: both validate the spec first and
+//! only compare against a dataset when the spec is free of errors.
 
 use std::path::Path;
 use std::sync::OnceLock;
@@ -74,13 +52,13 @@ fn schema() -> &'static Schema {
 ///
 /// [`Error`] is reserved for failures that prevent checking altogether: I/O,
 /// unparseable YAML, or a structurally invalid document.
-pub fn validate_schema(path: &Path) -> Result<Diagnostics, Error> {
+pub fn validate_spec(path: &Path) -> Result<Diagnostics, Error> {
     validate_and_lower(path).map(|(_, diagnostics)| diagnostics)
 }
 
 /// Validate a `data-dict.yaml` file at `path` and return the lowered
 /// [`DataDict`] model alongside its [`Diagnostics`]. Runs the same two passes as
-/// [`validate_schema`] — structural schema check then the semantic checks. The
+/// [`validate_spec`] — structural schema check then the semantic checks. The
 /// model is returned even when the diagnostics contain errors, since lowering
 /// succeeds whenever the document is structurally sound.
 pub fn validate_and_lower(path: &Path) -> Result<(DataDict, Diagnostics), Error> {
@@ -102,7 +80,7 @@ pub fn validate_and_lower(path: &Path) -> Result<(DataDict, Diagnostics), Error>
 
     let mut diagnostics = Diagnostics::new(source);
     let dict = lower::lower(&doc, &mut diagnostics);
-    check_schema(&dict, &mut diagnostics);
+    check_spec(&dict, &mut diagnostics);
     check_learn_more(&doc, &mut diagnostics);
     diagnostics.sort();
 
@@ -111,7 +89,7 @@ pub fn validate_and_lower(path: &Path) -> Result<(DataDict, Diagnostics), Error>
 
 /// Run every rule, pushing any findings into `out`. Rules run in code order;
 /// call [`Diagnostics::sort`] afterwards to put the findings in source order.
-fn check_schema(dict: &DataDict, out: &mut Diagnostics) {
+fn check_spec(dict: &DataDict, out: &mut Diagnostics) {
     check_relationship_table_refs(dict, out); // S02
     check_relationship_column_refs(dict, out); // S03
     check_join_table_count(dict, out); // S04
