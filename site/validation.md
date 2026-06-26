@@ -25,6 +25,6 @@ A validator reports two severities of problem: **errors** and **warnings**. The 
 When validating data against the dictionary, each column mismatch is one of:
 
 * **Type mismatch** (error): a column's declared type is incompatible with the data.
-* **Missing column** (error): a column the dictionary describes is absent from the data. This applies even to `type: ignore` columns — documenting a column that doesn't exist is an error.
+* **Missing column** (error): a column the dictionary describes is absent from the data. This applies even to columns listed by name only — listing a column that doesn't exist is an error.
 * **Nulls in a required column** (error): a `required` or `primary_key` column contains nulls.
-* **Undocumented column** (warning): a column present in the data that the dictionary does not describe. This is a warning, not an error: if a production pipeline adds a column, validation should not fail, but you should document it (or mark it `type: ignore`) next time you touch the dictionary.
+* **Undocumented column** (warning): a column present in the data that the dictionary does not describe. This is a warning, not an error: if a production pipeline adds a column, validation should not fail, but you should document it (or at least list it by name) next time you touch the dictionary.

@@ -23,8 +23,8 @@
 //! - `DD007`: a column's data representation key (`values`, `range`, or
 //!   `examples`) is absent or wrong for its type. Each type expects exactly
 //!   one: `enum` → `values`; `number(ordinal)`, `number(quantity)`, `date`,
-//!   `datetime` → `range`; all others → `examples` (except `boolean` and
-//!   `ignore`, which need no data representation key).
+//!   `datetime` → `range`; all others → `examples` (except `boolean`, which
+//!   needs no data representation key). A column with no `type` is exempt.
 //! - `DD008`: a column carries `units` but its type is not `number(quantity)`.
 //!   Units are only meaningful for quantities.
 //! - `DD009` (warning): the document omits the recommended `$learn_more`
@@ -488,12 +488,6 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
             };
             let type_name = col_type.value.as_str();
             let span = col.name.span.clone();
-
-            // An `ignore` column is intentionally undocumented, so it carries no
-            // data representation key.
-            if type_name == "ignore" {
-                continue;
-            }
 
             if type_name == "enum" {
                 if !col.has_values {

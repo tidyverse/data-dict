@@ -166,12 +166,12 @@ fn extra_column_in_data_is_warning() {
 }
 
 #[test]
-fn ignore_type_skips_type_check_for_present_column() {
+fn typeless_column_skips_type_check_for_present_column() {
     let dir = temp_dir();
     let parquet = dir.join("data.parquet");
     write_parquet(&parquet);
-    // `weight` is a double in the data but marked `ignore`, so its type is not
-    // checked; and because it is documented it is not flagged as undocumented.
+    // `weight` is a double in the data but listed without a `type`, so its type
+    // is not checked; and because it is listed it is not flagged as undocumented.
     let yaml = write_yaml(
         &dir,
         indoc! {"
@@ -185,7 +185,6 @@ fn ignore_type_skips_type_check_for_present_column() {
                     type: string
                     examples: [otter, seal]
                   - name: weight
-                    type: ignore
         "},
     );
 
@@ -194,12 +193,12 @@ fn ignore_type_skips_type_check_for_present_column() {
 }
 
 #[test]
-fn ignore_type_still_must_exist_in_data() {
+fn typeless_column_still_must_exist_in_data() {
     let dir = temp_dir();
     let parquet = dir.join("data.parquet");
     write_parquet(&parquet);
-    // `height` is documented (as `ignore`) but absent from the data. Documenting
-    // a column that doesn't exist is still an error, even for `ignore`.
+    // `height` is listed (without a `type`) but absent from the data. Listing a
+    // column that doesn't exist is an error, even when it isn't described.
     let yaml = write_yaml(
         &dir,
         indoc! {"
@@ -216,7 +215,6 @@ fn ignore_type_still_must_exist_in_data() {
                     type: number(quantity)
                     range: [0, 100]
                   - name: height
-                    type: ignore
         "},
     );
 

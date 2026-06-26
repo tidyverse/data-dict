@@ -66,8 +66,7 @@ object:
                       units: string
                       type:
                         enum: ["enum", "number(ordinal)", "number(quantity)", "date",
-                               "datetime", "number", "number(id)", "string", "boolean",
-                               "ignore"]
+                               "datetime", "number", "number(id)", "string", "boolean"]
                       values:
                         anyOf:
                           - arrayOf: any              # [M, F, U]

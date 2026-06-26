@@ -80,13 +80,15 @@ Each entry in the `columns` list is a column descriptor. Columns are matched to 
 Each descriptor has the following properties:
 
 * `name` (required, unique): column name. Used to match the descriptor to a column in the underlying data.
-* `type`: the column's data type. Must match (approximately) the underlying data type (see [Types](#types)).
+* `type`: the column's data type (see [Types](#types)). Should match (approximately) the underlying data type. Optional — see below.
 * `constraints`: a list of column-level constraints (see [Column constraints](#column-constraints)).
 * `description`: a human-readable description of the column. Can use markdown.
 * `details`: additional information about the column, e.g. how it was computed or edge cases to watch out for. Can be any length.
 * `units`: the unit of measurement, for `number(quantity)` columns only (see [Measures](#measures)).
 
 A column also carries one of `values`, `range`, or `examples`, which represents the data it contains. Which one is determined by its `type` (see [Types](#types)).
+
+A column may also be listed with only its `name` and no `type`. This acknowledges the column without describing it and you should use it for columns that you don't care about but don't want flagged as undocumented. Such a column makes no claims about its contents, so it's never check, but it must still exist in the data.
 
 #### Description & details
 
@@ -104,9 +106,8 @@ The supported types are:
 * `date`: calendar dates.
 * `datetime`: date-times with timezone.
 * `enum`: a column with repeated values from a known set. The allowed values are listed in the `values` property.
-* `ignore`: a column you deliberately don't describe. Use it for columns you don't care about but don't want to trigger an undocumented-column warning. It has no required additional fields, and its type and values are not checked against the data. The column must still exist in the data, though — documenting a column that isn't there is an error.
 
-Every type *except* `boolean` and `ignore` has some way of representing the data it contains: an exhaustive set of values, a range, or a handful of examples. Each such column carries exactly one of the following three properties, and which one is determined by the column's `type`:
+Every type *except* `boolean` has some way of representing the data it contains: an exhaustive set of values, a range, or a handful of examples. Each such column carries exactly one of the following three properties, and which one is determined by the column's `type`:
 
 * `values`: the allowed values for an `enum` column. Can be a list (`[M, F, U]`) when values are self-explanatory, or a map (`{M: Male, F: Female, U: Unknown}`) when values need labels. (`boolean` columns implicitly have `values: [true, false]`, no need to explicitly include it.)
 * `range`: a two-element list `[min, max]` giving the inclusive minimum and maximum *observed* in the column. Like `examples`, it describes the data rather than constraining it — a value outside the range will generate a warning, not a validation error. Used for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`.

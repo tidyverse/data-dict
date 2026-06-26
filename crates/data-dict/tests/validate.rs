@@ -171,14 +171,14 @@ fn minimal() {
     );
 }
 
-// An `ignore` column is deliberately undocumented, so it is exempt from the
-// DD007 data-representation requirement and validates without error.
+// A column with only a `name` and no `type` is acknowledged but not described,
+// so it is exempt from the DD007 data-representation requirement.
 #[test]
-fn ignore_type_needs_no_representation() {
-    let path = fixture("valid/ignore-type.yaml");
+fn typeless_column_needs_no_representation() {
+    let path = fixture("valid/typeless-column.yaml");
     assert!(
         diagnostics(&path, Severity::Error).is_empty(),
-        "an `ignore` column must not trigger DD007"
+        "a column with no `type` must not trigger DD007"
     );
 }
 

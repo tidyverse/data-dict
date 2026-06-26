@@ -273,18 +273,16 @@ fn compare_parquet_to_dict(
     // requirements are expressed.
     let mut needs: HashMap<String, ColumnNeeds> = HashMap::new();
     for col in &table.columns {
-        if col.is_ignored() {
+        if !present(&col.name.value) {
             continue;
         }
-        if present(&col.name.value) {
-            let merged = VALUE_CHECKS
-                .iter()
-                .fold(ColumnNeeds::default(), |acc, check| {
-                    acc.merge(check.needs(col))
-                });
-            if merged.any() {
-                needs.insert(col.name.value.clone(), merged);
-            }
+        let merged = VALUE_CHECKS
+            .iter()
+            .fold(ColumnNeeds::default(), |acc, check| {
+                acc.merge(check.needs(col))
+            });
+        if merged.any() {
+            needs.insert(col.name.value.clone(), merged);
         }
     }
 
@@ -303,12 +301,9 @@ fn compare_parquet_to_dict(
             ));
             continue;
         };
-        // An `ignore` column must still exist in the data — documenting a column
-        // that isn't there is an error — but once present its type and values
-        // are deliberately not checked.
-        if col.is_ignored() {
-            continue;
-        }
+        // A column with no `type` makes no claims about its contents, so
+        // `check_type` and the value checks below are naturally no-ops for it;
+        // only its existence (checked above) is required.
         check_type(col, actual_type, &mut issues);
         if let Some(stat) = stats.get(&col.name.value) {
             for check in VALUE_CHECKS {
