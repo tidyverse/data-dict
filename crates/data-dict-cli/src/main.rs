@@ -95,8 +95,8 @@ fn main() -> ExitCode {
                 }
             }
         }
-        Command::ValidateMeta(args) => run_compare(args, data_dict::meta::validate_meta),
-        Command::ValidateData(args) => run_compare(args, data_dict::data::validate_data),
+        Command::ValidateMeta(args) => run_compare(args, data_dict::validate_meta),
+        Command::ValidateData(args) => run_compare(args, data_dict::validate_data),
         Command::Spec => {
             print!("{}", data_dict::SPEC_MD);
             ExitCode::SUCCESS

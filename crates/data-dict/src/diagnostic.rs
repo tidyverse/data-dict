@@ -4,7 +4,7 @@
 //! A [`Diagnostic`] is one problem found in a `data-dict.yaml` document, with a
 //! rule code, a [`Severity`], and the source span it concerns. A [`Diagnostics`]
 //! collects them together with the [`SourceContext`] needed to render them. The
-//! schema checks in [`crate::schema`] push into a `Diagnostics` as they run; the
+//! schema checks in [`crate::validate_schema`] push into a `Diagnostics` as they run; the
 //! meta and data levels report their findings as [`crate::ColumnIssue`]s instead.
 
 use quarto_error_reporting::DiagnosticMessageBuilder;

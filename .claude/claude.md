@@ -64,7 +64,7 @@ YAML file
   → quarto_yaml: parse to AST with source spans
   → structural validation against schema.yaml (embedded via include_str!)
   → lower.rs: AST → typed model (DataDict, Table, Column, Relationship, ...)
-  → schema.rs: semantic checks S01–S08
+  → validate_schema.rs: semantic checks S01–S08
   → Result<(), Vec<Diagnostic>>
 ```
 
@@ -78,7 +78,7 @@ Validation has three levels (see `site/validation.md`), each with its own code p
 
 Each level implies the ones before it. Most checks are errors (fail validation); S09 and M03 are warnings.
 
-**Schema checks (S01–S09)** — in `schema.rs`:
+**Schema checks (S01–S09)** — in `validate_schema.rs`:
 
 | Rule | Description |
 |------|-------------|
@@ -92,7 +92,7 @@ Each level implies the ones before it. Most checks are errors (fail validation);
 | S08 | Column has `units` but its type is not `number(quantity)` |
 | S09 | Document omits the recommended `$learn_more` key (warning) |
 
-**Metadata checks (M01–M03)** and **data checks (D01)** — in `meta.rs` / `data.rs`:
+**Metadata checks (M01–M03)** and **data checks (D01)** — in `validate_meta.rs` / `validate_data.rs`:
 
 | Rule | Description |
 |------|-------------|

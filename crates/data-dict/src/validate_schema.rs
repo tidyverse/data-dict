@@ -14,7 +14,7 @@
 //! can also surface *warnings* (e.g. a missing `$learn_more` key), which do not
 //! fail validation.
 //!
-//! This level never looks at the data. The [`crate::meta`] and [`crate::data`]
+//! This level never looks at the data. The [`crate::validate_meta`] and [`crate::validate_data`]
 //! levels build on it: both validate the schema first and only compare against a
 //! dataset when the schema is free of errors.
 //!

@@ -2,7 +2,7 @@
 //!
 //! This is the last and most expensive of the three validation levels: it is
 //! the only one that reads the data itself. It runs everything the metadata
-//! level ([`crate::meta`]) does, then adds value-level checks that require a
+//! level ([`crate::validate_meta`]) does, then adds value-level checks that require a
 //! scan. Today that is just:
 //!
 //! - `D01` nulls in a required column — a `required`/`primary_key` column with nulls.
@@ -25,7 +25,7 @@ const SAMPLE_LIMIT: usize = 5;
 /// Validate a parquet file's values against a data dictionary.
 ///
 /// Validates the dictionary first (schema check), then — when it is free of
-/// errors — runs every metadata-level check ([`crate::meta`]) plus the
+/// errors — runs every metadata-level check ([`crate::validate_meta`]) plus the
 /// value-level checks below: reading the columns and pages the checks imply and
 /// reporting, for example, nulls in a required column.
 pub fn validate_data(

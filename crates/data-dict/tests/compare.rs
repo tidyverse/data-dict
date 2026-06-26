@@ -1,5 +1,5 @@
 //! Integration tests for the metadata and data comparison levels
-//! (`data_dict::meta::validate_meta` and `data_dict::data::validate_data`).
+//! (`data_dict::validate_meta` and `data_dict::validate_data`).
 //!
 //! Each test writes a small parquet file (a `string` column `name` and a
 //! `number` column `weight`) and a dictionary YAML to a temp dir, then checks
@@ -10,9 +10,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use data_dict::data::validate_data;
-use data_dict::meta::validate_meta;
-use data_dict::{ColumnIssue, CompareError, CompareReport, IssueKind, Severity};
+use data_dict::{
+    ColumnIssue, CompareError, CompareReport, IssueKind, Severity, validate_data, validate_meta,
+};
 use indoc::{formatdoc, indoc};
 use parquet::data_type::{ByteArray, ByteArrayType, DoubleType};
 use parquet::file::properties::WriterProperties;

@@ -3,11 +3,12 @@
 //! Validation happens at three levels, each a strict superset of the last (see
 //! `site/validation.md`):
 //!
-//! 1. [`schema`] (`S##`) — the dictionary itself: well-formed and internally
-//!    consistent. Never looks at the data.
-//! 2. [`meta`] (`M##`) — the data's column names and types match the dictionary.
-//!    Reads only the data's schema (e.g. a parquet footer).
-//! 3. [`data`] (`D##`) — the data's values match the dictionary. Reads the data.
+//! 1. [`validate_schema`] (`S##`) — the dictionary itself: well-formed and
+//!    internally consistent. Never looks at the data.
+//! 2. [`validate_meta`] (`M##`) — the data's column names and types match the
+//!    dictionary. Reads only the data's schema (e.g. a parquet footer).
+//! 3. [`validate_data`] (`D##`) — the data's values match the dictionary. Reads
+//!    the data.
 //!
 //! Each level validates the schema first, then (for meta/data) compares the
 //! dictionary against a dataset. This module holds the shared comparison
@@ -18,17 +19,19 @@ use std::path::Path;
 
 use data_dict_parquet::ParquetError;
 
-pub mod data;
 pub mod diagnostic;
 pub mod join_expr;
 pub mod lower;
-pub mod meta;
 pub mod model;
-pub mod schema;
+pub mod validate_data;
+pub mod validate_meta;
+pub mod validate_schema;
 
 pub use diagnostic::{Diagnostic, Diagnostics, Severity};
 pub use quarto_source_map::SourceContext;
-pub use schema::{validate_and_lower, validate_schema};
+pub use validate_data::validate_data;
+pub use validate_meta::validate_meta;
+pub use validate_schema::{validate_and_lower, validate_schema};
 
 use model::{DataDict, Table};
 
@@ -37,7 +40,7 @@ use model::{DataDict, Table};
 /// filesystem dependency.
 pub const SPEC_MD: &str = include_str!("../../../site/spec.md");
 
-/// Errors returned by [`schema::validate_schema`].
+/// Errors returned by [`validate_schema`].
 #[derive(Debug)]
 pub enum Error {
     /// I/O failure reading the document.
@@ -293,7 +296,7 @@ impl std::error::Error for CompareError {
 }
 
 /// Validate the schema, then compare a parquet file against the dictionary at
-/// `level`. Shared by [`meta::validate_meta`] and [`data::validate_data`].
+/// `level`. Shared by [`validate_meta`] and [`validate_data`].
 ///
 /// First validates the dictionary at `dict_path` (schema check). The data
 /// comparison only runs when the dictionary itself is free of errors; otherwise
@@ -305,7 +308,7 @@ pub(crate) fn compare(
     table: Option<&str>,
     level: Level,
 ) -> (Diagnostics, Result<CompareReport, CompareError>) {
-    let (dict, diagnostics) = match schema::validate_and_lower(dict_path) {
+    let (dict, diagnostics) = match validate_schema::validate_and_lower(dict_path) {
         Ok(parsed) => parsed,
         Err(err) => return (Diagnostics::empty(), Err(err.into())),
     };
@@ -327,11 +330,11 @@ fn compare_dataset(
 
     // Metadata level: column names and types, from the parquet schema only.
     let actual = data_dict_parquet::column_types(parquet_path)?;
-    let mut issues = meta::meta_issues(table, &actual);
+    let mut issues = validate_meta::meta_issues(table, &actual);
 
     // Data level adds value checks, which scan the data.
     if level == Level::Data {
-        data::value_issues(table, parquet_path, &actual, &mut issues)?;
+        validate_data::value_issues(table, parquet_path, &actual, &mut issues)?;
     }
 
     Ok(CompareReport {

@@ -10,7 +10,7 @@
 //! - `M03` undocumented column (warning) — a column in the data the dictionary omits.
 //!
 //! [`validate_meta`] is the entry point; [`meta_issues`] is the reusable core
-//! that the data level ([`crate::data`]) runs before its own value checks.
+//! that the data level ([`crate::validate_data`]) runs before its own value checks.
 
 use std::path::Path;
 
@@ -23,7 +23,7 @@ use crate::{ColumnIssue, CompareError, CompareReport, Diagnostics, IssueKind, Le
 /// errors — compares the parquet file's column schema against the selected
 /// table, reporting type mismatches, columns described but absent from the data,
 /// and columns in the data the dictionary does not describe. Values are never
-/// read; see [`crate::data::validate_data`] for the level that does.
+/// read; see [`crate::validate_data::validate_data`] for the level that does.
 pub fn validate_meta(
     dict_path: &Path,
     parquet_path: &Path,
