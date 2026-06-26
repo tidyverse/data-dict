@@ -318,6 +318,8 @@ dependencies = [
  "quarto-source-map",
  "quarto-yaml",
  "quarto-yaml-validation",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

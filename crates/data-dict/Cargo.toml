@@ -13,8 +13,10 @@ quarto-yaml = { git = "https://github.com/quarto-dev/q2", branch = "main" }
 quarto-source-map = { git = "https://github.com/quarto-dev/q2", branch = "main" }
 quarto-error-reporting = { git = "https://github.com/quarto-dev/q2", branch = "main" }
 indexmap = "2"
+serde.workspace = true
 
 [dev-dependencies]
 insta = "1"
 indoc = "2"
 parquet.workspace = true
+serde_json.workspace = true

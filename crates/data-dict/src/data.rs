@@ -24,15 +24,22 @@ const SAMPLE_LIMIT: usize = 5;
 /// A single way in which a dataset disagrees with its data dictionary. Every
 /// issue concerns one `column` and carries its own [`Severity`]; `kind` says
 /// what specifically is wrong.
-#[derive(Debug)]
+///
+/// The `serde` representation is the tool's JSON wire format: the `kind`'s
+/// snake_case tag and its fields are flattened alongside `column` and
+/// `severity` (e.g. `{"column": "x", "severity": "error", "kind":
+/// "type_mismatch", "declared": ..., "actual": ...}`).
+#[derive(Debug, serde::Serialize)]
 pub struct ColumnIssue {
     pub column: String,
     pub severity: Severity,
+    #[serde(flatten)]
     pub kind: IssueKind,
 }
 
 /// What is wrong with a column — the payload behind a [`ColumnIssue`].
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum IssueKind {
     /// The column is present in both, but its declared type is not compatible
     /// with the type read from the data.
@@ -438,6 +445,44 @@ mod tests {
         assert_eq!(normalize_dict_type("number(id)"), "number");
         assert_eq!(normalize_dict_type("number"), "number");
         assert_eq!(normalize_dict_type("string"), "string");
+    }
+
+    #[test]
+    fn issue_json_flattens_kind_with_column_and_severity() {
+        let issue = ColumnIssue::error(
+            "weight",
+            IssueKind::TypeMismatch {
+                declared: "string".into(),
+                actual: "number".into(),
+            },
+        );
+        assert_eq!(
+            serde_json::to_value(&issue).unwrap(),
+            serde_json::json!({
+                "column": "weight",
+                "severity": "error",
+                "kind": "type_mismatch",
+                "declared": "string",
+                "actual": "number",
+            })
+        );
+
+        // A unit kind carries no extra fields beyond `column`/`severity`/`kind`.
+        let extra = ColumnIssue::warning(
+            "notes",
+            IssueKind::ExtraInData {
+                actual: "string".into(),
+            },
+        );
+        assert_eq!(
+            serde_json::to_value(&extra).unwrap(),
+            serde_json::json!({
+                "column": "notes",
+                "severity": "warning",
+                "kind": "extra_in_data",
+                "actual": "string",
+            })
+        );
     }
 
     #[test]

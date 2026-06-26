@@ -43,7 +43,8 @@ pub const LEARN_MORE_URL: &str = "http://data-dict.tidyverse.org/";
 /// Whether a diagnostic blocks validation (`Error`) or is purely advisory
 /// (`Warning`). Errors fail validation; warnings are reported alongside a
 /// successful result.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Severity {
     Error,
     Warning,

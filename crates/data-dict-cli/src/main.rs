@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
-use data_dict::data::{ColumnIssue, DataError, DataReport, IssueKind};
+use data_dict::data::{DataError, DataReport};
 use data_dict::{Diagnostic, Diagnostics, Severity};
 
 #[derive(Parser)]
@@ -236,7 +236,7 @@ fn validate_result_to_json(
                     "status": status,
                     "kind": "mismatch",
                     "table": report.table,
-                    "issues": report.issues.iter().map(issue_to_json).collect::<Vec<_>>(),
+                    "issues": report.issues,
                 })
             }
         }
@@ -285,39 +285,6 @@ fn diagnostic_to_json(diagnostic: &Diagnostic) -> serde_json::Value {
     if let Some(hint) = &diagnostic.hint {
         value["hint"] = serde_json::json!(hint);
     }
-    value
-}
-
-fn issue_to_json(issue: &ColumnIssue) -> serde_json::Value {
-    let severity = match issue.severity {
-        Severity::Error => "error",
-        Severity::Warning => "warning",
-    };
-    let column = &issue.column;
-    let mut value = match &issue.kind {
-        IssueKind::TypeMismatch { declared, actual } => serde_json::json!({
-            "kind": "type_mismatch",
-            "column": column,
-            "declared": declared,
-            "actual": actual,
-        }),
-        IssueKind::MissingInData => serde_json::json!({
-            "kind": "missing_in_data",
-            "column": column,
-        }),
-        IssueKind::ExtraInData { actual } => serde_json::json!({
-            "kind": "extra_in_data",
-            "column": column,
-            "actual": actual,
-        }),
-        IssueKind::NullsInRequired { count, rows } => serde_json::json!({
-            "kind": "nulls_in_required",
-            "column": column,
-            "count": count,
-            "rows": rows,
-        }),
-    };
-    value["severity"] = serde_json::json!(severity);
     value
 }
 
