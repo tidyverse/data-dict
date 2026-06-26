@@ -13,8 +13,9 @@
 //!
 //! Each level validates the spec first, then (for meta/data) compares the
 //! dictionary against a dataset. This module holds the shared comparison
-//! vocabulary ([`Level`], [`ColumnIssue`], [`CompareReport`], [`CompareError`])
-//! and the [`compare`] orchestration the meta and data levels delegate to.
+//! vocabulary ([`Level`], [`ColumnIssue`], [`ValidationReport`], [`ValidationError`])
+//! and the leaf helpers ([`validated_dict`], [`select_table`]) the meta and data
+//! levels build on.
 
 use std::path::Path;
 
@@ -188,17 +189,17 @@ impl ColumnIssue {
 /// carry their own [`Severity`]; the report fails validation only if some issue
 /// is an error.
 #[derive(Debug)]
-pub struct CompareReport {
+pub struct ValidationReport {
     pub table: String,
     pub level: Level,
     pub issues: Vec<ColumnIssue>,
 }
 
-impl CompareReport {
+impl ValidationReport {
     /// A report for a comparison that did not run (e.g. the dictionary itself
     /// failed validation, so comparing data against it is not meaningful).
     fn skipped(level: Level) -> Self {
-        CompareReport {
+        ValidationReport {
             table: String::new(),
             level,
             issues: Vec::new(),
@@ -217,7 +218,7 @@ impl CompareReport {
     }
 }
 
-impl std::fmt::Display for CompareReport {
+impl std::fmt::Display for ValidationReport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.issues.is_empty() {
             return Ok(());
@@ -234,9 +235,9 @@ impl std::fmt::Display for CompareReport {
     }
 }
 
-/// Errors returned by the meta/data comparison entry points.
+/// Errors returned by the meta and data validation entry points.
 #[derive(Debug)]
-pub enum CompareError {
+pub enum ValidationError {
     /// The dictionary itself failed schema/semantic validation.
     Schema(Error),
     /// The parquet file could not be read.
@@ -251,31 +252,31 @@ pub enum CompareError {
     AmbiguousTable { available: Vec<String> },
 }
 
-impl From<Error> for CompareError {
+impl From<Error> for ValidationError {
     fn from(e: Error) -> Self {
-        CompareError::Schema(e)
+        ValidationError::Schema(e)
     }
 }
 
-impl From<ParquetError> for CompareError {
+impl From<ParquetError> for ValidationError {
     fn from(e: ParquetError) -> Self {
-        CompareError::Parquet(e)
+        ValidationError::Parquet(e)
     }
 }
 
-impl std::fmt::Display for CompareError {
+impl std::fmt::Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CompareError::Schema(e) => write!(f, "{e}"),
-            CompareError::Parquet(e) => write!(f, "{e}"),
-            CompareError::TableNotFound { name, available } => {
+            ValidationError::Schema(e) => write!(f, "{e}"),
+            ValidationError::Parquet(e) => write!(f, "{e}"),
+            ValidationError::TableNotFound { name, available } => {
                 write!(
                     f,
                     "table \"{name}\" is not in the data dictionary (available: {})",
                     available.join(", ")
                 )
             }
-            CompareError::AmbiguousTable { available } => {
+            ValidationError::AmbiguousTable { available } => {
                 write!(
                     f,
                     "the data dictionary describes multiple tables ({}); specify which one to validate against",
@@ -286,74 +287,52 @@ impl std::fmt::Display for CompareError {
     }
 }
 
-impl std::error::Error for CompareError {
+impl std::error::Error for ValidationError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            CompareError::Schema(e) => Some(e),
-            CompareError::Parquet(e) => Some(e),
+            ValidationError::Schema(e) => Some(e),
+            ValidationError::Parquet(e) => Some(e),
             _ => None,
         }
     }
 }
 
-/// Validate the schema, then compare a parquet file against the dictionary at
-/// `level`. Shared by [`validate_meta`] and [`validate_data`].
+/// Validate the spec at `dict_path` and return the lowered dictionary to compare
+/// a dataset against — shared by [`validate_meta`] and [`validate_data`], which
+/// each drive their own comparison from here.
 ///
-/// First validates the dictionary at `dict_path` (schema check). The data
-/// comparison only runs when the dictionary itself is free of errors; otherwise
-/// the error diagnostics already signal the failure and a skipped report is
-/// returned. Returns the dictionary's [`Diagnostics`] and the comparison result.
-pub(crate) fn compare(
+/// Returns `Ok(None)` when the spec itself has errors: comparing data against an
+/// invalid dictionary isn't meaningful, so the caller skips it and the returned
+/// [`Diagnostics`] already carry the failure. `Err` is reserved for failures that
+/// prevent validation entirely (I/O, unparseable YAML, …).
+pub(crate) fn validated_dict(
     dict_path: &Path,
-    parquet_path: &Path,
-    table: Option<&str>,
-    level: Level,
-) -> (Diagnostics, Result<CompareReport, CompareError>) {
-    let (dict, diagnostics) = match validate_spec::validate_and_lower(dict_path) {
-        Ok(parsed) => parsed,
-        Err(err) => return (Diagnostics::empty(), Err(err.into())),
-    };
-    let result = if diagnostics.has_errors() {
-        Ok(CompareReport::skipped(level))
-    } else {
-        compare_dataset(&dict, parquet_path, table, level)
-    };
-    (diagnostics, result)
-}
-
-fn compare_dataset(
-    dict: &DataDict,
-    parquet_path: &Path,
-    table: Option<&str>,
-    level: Level,
-) -> Result<CompareReport, CompareError> {
-    let table = select_table(dict, table)?;
-
-    // Metadata level: column names and types, from the parquet schema only.
-    let actual = data_dict_parquet::column_types(parquet_path)?;
-    let mut issues = validate_meta::meta_issues(table, &actual);
-
-    // Data level adds value checks, which scan the data.
-    if level == Level::Data {
-        validate_data::value_issues(table, parquet_path, &actual, &mut issues)?;
+) -> (Diagnostics, Result<Option<DataDict>, ValidationError>) {
+    match validate_spec::validate_and_lower(dict_path) {
+        Err(err) => (Diagnostics::empty(), Err(err.into())),
+        Ok((dict, diagnostics)) => {
+            let dict = if diagnostics.has_errors() {
+                None
+            } else {
+                Some(dict)
+            };
+            (diagnostics, Ok(dict))
+        }
     }
-
-    Ok(CompareReport {
-        table: table.name.value.clone(),
-        level,
-        issues,
-    })
 }
 
-/// Resolve which table to compare against: `table` if given, otherwise the sole
+/// Resolve which table to validate against: `table` if given, otherwise the sole
 /// table when the dictionary describes exactly one.
-fn select_table<'a>(dict: &'a DataDict, table: Option<&str>) -> Result<&'a Table, CompareError> {
+pub(crate) fn select_table<'a>(
+    dict: &'a DataDict,
+    table: Option<&str>,
+) -> Result<&'a Table, ValidationError> {
     let available = || dict.tables.keys().cloned().collect::<Vec<_>>();
     match table {
         Some(name) => dict
             .tables
             .get(name)
-            .ok_or_else(|| CompareError::TableNotFound {
+            .ok_or_else(|| ValidationError::TableNotFound {
                 name: name.to_string(),
                 available: available(),
             }),
@@ -361,7 +340,7 @@ fn select_table<'a>(dict: &'a DataDict, table: Option<&str>) -> Result<&'a Table
             if dict.tables.len() == 1 {
                 Ok(dict.tables.values().next().expect("len == 1"))
             } else {
-                Err(CompareError::AmbiguousTable {
+                Err(ValidationError::AmbiguousTable {
                     available: available(),
                 })
             }

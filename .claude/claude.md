@@ -69,7 +69,7 @@ Implementation, one module per level (entry points re-exported at the crate root
 | metadata (`M##`) | `validate_meta.rs` | `validate-meta` |
 | data (`D##`) | `validate_data.rs` | `validate-data` |
 
-Shared comparison vocabulary (`Level`, `ColumnIssue`, `IssueKind`, `CompareReport`, `CompareError`) and the `compare` orchestrator live in `lib.rs`; `Diagnostic`/`Diagnostics`/`Severity` in `diagnostic.rs`.
+Shared comparison vocabulary (`Level`, `ColumnIssue`, `IssueKind`, `ValidationReport`, `ValidationError`) and the leaf helpers (`validated_dict`, `select_table`) live in `lib.rs`; `Diagnostic`/`Diagnostics`/`Severity` in `diagnostic.rs`. Each level's entry point drives its own flow (no central dispatcher).
 
 Test fixtures for the spec rules are in `crates/data-dict/tests/fixtures/{valid,invalid,spec}/`. Each fixture has a `# expected: ...` header documenting the intended outcome. Integration tests mirror the levels: `tests/validate_spec.rs` / `validate_meta.rs` / `validate_data.rs`.
 

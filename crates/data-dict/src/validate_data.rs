@@ -5,16 +5,16 @@
 //! only one that reads the data itself. It runs everything the metadata level
 //! ([`crate::validate_meta`]) does, then adds value-level checks that require a scan.
 //!
-//! [`validate_data`] is the entry point; [`value_issues`] is the value-checking
-//! core the [`crate::compare`] orchestrator runs after the metadata checks.
+//! [`validate_data`] is the entry point; `value_issues` is the value-checking
+//! core it runs after the metadata checks.
 
 use std::collections::HashMap;
 use std::path::Path;
 
 use data_dict_parquet::{ColumnNeeds, ColumnStats};
 
-use crate::model::{Column, Table};
-use crate::{ColumnIssue, CompareError, CompareReport, Diagnostics, IssueKind, Level};
+use crate::model::{Column, DataDict, Table};
+use crate::{ColumnIssue, Diagnostics, IssueKind, Level, ValidationError, ValidationReport};
 
 /// How many example values (e.g. offending rows) to record per validation
 /// issue. Issues count every offender but only list this many.
@@ -22,27 +22,51 @@ const SAMPLE_LIMIT: usize = 5;
 
 /// Validate a parquet file's values against a data dictionary.
 ///
-/// Validates the dictionary first (schema check), then — when it is free of
-/// errors — runs every metadata-level check ([`crate::validate_meta`]) plus the
-/// value-level checks below: reading the columns and pages the checks imply and
-/// reporting, for example, nulls in a required column.
+/// Validates the spec first, then — when it is free of errors — runs every
+/// metadata-level check ([`crate::validate_meta`]) plus the value-level checks
+/// below: reading the columns and pages the checks imply and reporting, for
+/// example, nulls in a required column.
 pub fn validate_data(
     dict_path: &Path,
     parquet_path: &Path,
     table: Option<&str>,
-) -> (Diagnostics, Result<CompareReport, CompareError>) {
-    crate::compare(dict_path, parquet_path, table, Level::Data)
+) -> (Diagnostics, Result<ValidationReport, ValidationError>) {
+    let (diagnostics, dict) = crate::validated_dict(dict_path);
+    let result = match dict {
+        Err(err) => Err(err),
+        Ok(None) => Ok(ValidationReport::skipped(Level::Data)),
+        Ok(Some(dict)) => report(&dict, parquet_path, table),
+    };
+    (diagnostics, result)
+}
+
+/// Build the data-level report for one dataset: the metadata checks, then the
+/// value-level checks that require scanning the data.
+fn report(
+    dict: &DataDict,
+    parquet_path: &Path,
+    table: Option<&str>,
+) -> Result<ValidationReport, ValidationError> {
+    let table = crate::select_table(dict, table)?;
+    let actual = data_dict_parquet::column_types(parquet_path)?;
+    let mut issues = crate::validate_meta::meta_issues(table, &actual);
+    value_issues(table, parquet_path, &actual, &mut issues)?;
+    Ok(ValidationReport {
+        table: table.name.value.clone(),
+        level: Level::Data,
+        issues,
+    })
 }
 
 /// Run the value-level checks for the dictionary's `table` against the data,
 /// appending any issues found. `actual` is the column schema already read for
 /// the metadata checks, used here only to tell which columns are present.
-pub(crate) fn value_issues(
+fn value_issues(
     table: &Table,
     parquet_path: &Path,
     actual: &[(String, String)],
     issues: &mut Vec<ColumnIssue>,
-) -> Result<(), CompareError> {
+) -> Result<(), ValidationError> {
     let present = |name: &str| actual.iter().any(|(an, _)| an == name);
 
     // Phase 1 — plan. Ask every value-level check what it needs of each present

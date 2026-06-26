@@ -8,7 +8,7 @@
 mod common;
 use common::{temp_dir, write_parquet, write_yaml};
 
-use data_dict::{ColumnIssue, CompareError, IssueKind, Severity, validate_meta};
+use data_dict::{ColumnIssue, IssueKind, Severity, ValidationError, validate_meta};
 use indoc::indoc;
 
 #[test]
@@ -228,7 +228,7 @@ fn ambiguous_table_without_name() {
 
     let err = validate_meta(&yaml, &parquet, None).1.unwrap_err();
     assert!(
-        matches!(err, CompareError::AmbiguousTable { .. }),
+        matches!(err, ValidationError::AmbiguousTable { .. }),
         "got {err:?}"
     );
 }
@@ -258,7 +258,7 @@ fn unknown_table_name() {
 
     let err = validate_meta(&yaml, &parquet, Some("nope")).1.unwrap_err();
     assert!(
-        matches!(err, CompareError::TableNotFound { .. }),
+        matches!(err, ValidationError::TableNotFound { .. }),
         "got {err:?}"
     );
 }

@@ -10,31 +10,50 @@
 
 use std::path::Path;
 
-use crate::model::Column;
-use crate::{ColumnIssue, CompareError, CompareReport, Diagnostics, IssueKind, Level};
+use crate::model::{Column, DataDict, Table};
+use crate::{ColumnIssue, Diagnostics, IssueKind, Level, ValidationError, ValidationReport};
 
 /// Validate a parquet file's column names and types against a data dictionary.
 ///
-/// Validates the dictionary first (schema check), then — when it is free of
-/// errors — compares the parquet file's column schema against the selected
-/// table, reporting type mismatches, columns described but absent from the data,
-/// and columns in the data the dictionary does not describe. Values are never
-/// read; see [`crate::validate_data::validate_data`] for the level that does.
+/// Validates the spec first, then — when it is free of errors — compares the
+/// parquet file's column schema against the selected table, reporting type
+/// mismatches, columns described but absent from the data, and columns in the
+/// data the dictionary does not describe. Values are never read; see
+/// [`crate::validate_data::validate_data`] for the level that does.
 pub fn validate_meta(
     dict_path: &Path,
     parquet_path: &Path,
     table: Option<&str>,
-) -> (Diagnostics, Result<CompareReport, CompareError>) {
-    crate::compare(dict_path, parquet_path, table, Level::Meta)
+) -> (Diagnostics, Result<ValidationReport, ValidationError>) {
+    let (diagnostics, dict) = crate::validated_dict(dict_path);
+    let result = match dict {
+        Err(err) => Err(err),
+        Ok(None) => Ok(ValidationReport::skipped(Level::Meta)),
+        Ok(Some(dict)) => report(&dict, parquet_path, table),
+    };
+    (diagnostics, result)
+}
+
+/// Build the metadata-level report for one dataset: select the table, read its
+/// column schema, and run the metadata checks.
+fn report(
+    dict: &DataDict,
+    parquet_path: &Path,
+    table: Option<&str>,
+) -> Result<ValidationReport, ValidationError> {
+    let table = crate::select_table(dict, table)?;
+    let actual = data_dict_parquet::column_types(parquet_path)?;
+    Ok(ValidationReport {
+        table: table.name.value.clone(),
+        level: Level::Meta,
+        issues: meta_issues(table, &actual),
+    })
 }
 
 /// Compare the dictionary's `table` against the actual column types read from
 /// the data, returning the metadata-level issues. Reused by the data level,
 /// which appends its value-level issues to the same list.
-pub(crate) fn meta_issues(
-    table: &crate::model::Table,
-    actual: &[(String, String)],
-) -> Vec<ColumnIssue> {
+pub(crate) fn meta_issues(table: &Table, actual: &[(String, String)]) -> Vec<ColumnIssue> {
     let mut issues = Vec::new();
 
     // Columns the dictionary describes: each must exist in the data, and its

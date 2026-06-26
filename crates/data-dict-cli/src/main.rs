@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
-use data_dict::{CompareError, CompareReport, Diagnostics};
+use data_dict::{Diagnostics, ValidationError, ValidationReport};
 
 #[derive(Parser)]
 #[command(name = "data-dict", version, about)]
@@ -16,9 +16,9 @@ enum Command {
     /// Validate a data-dict.yaml file or directory against the spec [default: .]
     ValidateSpec { path: Option<PathBuf> },
     /// Validate a dataset's column names and types against a data dictionary
-    ValidateMeta(CompareArgs),
+    ValidateMeta(ValidateArgs),
     /// Validate a dataset's values against a data dictionary
-    ValidateData(CompareArgs),
+    ValidateData(ValidateArgs),
     /// Print the data-dict.yaml specification
     Spec,
     /// Inspect data types of a data source
@@ -35,7 +35,7 @@ enum Command {
 
 /// Shared arguments for `validate-meta` and `validate-data`.
 #[derive(clap::Args)]
-struct CompareArgs {
+struct ValidateArgs {
     dict: PathBuf,
     parquet: PathBuf,
     #[arg(long)]
@@ -95,8 +95,8 @@ fn main() -> ExitCode {
                 }
             }
         }
-        Command::ValidateMeta(args) => run_compare(args, data_dict::validate_meta),
-        Command::ValidateData(args) => run_compare(args, data_dict::validate_data),
+        Command::ValidateMeta(args) => run_validate(args, data_dict::validate_meta),
+        Command::ValidateData(args) => run_validate(args, data_dict::validate_data),
         Command::Spec => {
             print!("{}", data_dict::SPEC_MD);
             ExitCode::SUCCESS
@@ -182,15 +182,15 @@ fn resolve_dict_path(path: Option<PathBuf>) -> Result<PathBuf, String> {
     }
 }
 
-/// A comparison entry point: `validate_meta` or `validate_data`. Both share the
+/// A validation entry point: `validate_meta` or `validate_data`. Both share the
 /// signature, so `run_compare` is generic over which one it drives.
-type CompareFn =
-    fn(&Path, &Path, Option<&str>) -> (Diagnostics, Result<CompareReport, CompareError>);
+type ValidateFn =
+    fn(&Path, &Path, Option<&str>) -> (Diagnostics, Result<ValidationReport, ValidationError>);
 
-/// Run a meta or data comparison (`validate-meta` / `validate-data`) and turn
+/// Run a meta or data validation (`validate-meta` / `validate-data`) and turn
 /// its outcome into rendered output and an exit code. Both commands share the
 /// same plumbing; they differ only in the `validate` entry point passed in.
-fn run_compare(args: CompareArgs, validate: CompareFn) -> ExitCode {
+fn run_validate(args: ValidateArgs, validate: ValidateFn) -> ExitCode {
     let dict = match resolve_dict_path(Some(args.dict)) {
         Ok(dict) => dict,
         Err(err) => {
@@ -226,7 +226,7 @@ fn run_compare(args: CompareArgs, validate: CompareFn) -> ExitCode {
 
 fn validate_result_to_json(
     diagnostics: &Diagnostics,
-    result: &Result<CompareReport, CompareError>,
+    result: &Result<ValidationReport, ValidationError>,
 ) -> serde_json::Value {
     let mut value = match result {
         Ok(report) => {
@@ -248,23 +248,23 @@ fn validate_result_to_json(
                 })
             }
         }
-        Err(CompareError::Schema(e)) => serde_json::json!({
+        Err(ValidationError::Schema(e)) => serde_json::json!({
             "status": "error",
             "kind": "schema",
             "message": e.to_string(),
         }),
-        Err(CompareError::Parquet(e)) => serde_json::json!({
+        Err(ValidationError::Parquet(e)) => serde_json::json!({
             "status": "error",
             "kind": "parquet",
             "message": e.to_string(),
         }),
-        Err(CompareError::TableNotFound { name, available }) => serde_json::json!({
+        Err(ValidationError::TableNotFound { name, available }) => serde_json::json!({
             "status": "error",
             "kind": "table_not_found",
             "name": name,
             "available": available,
         }),
-        Err(CompareError::AmbiguousTable { available }) => serde_json::json!({
+        Err(ValidationError::AmbiguousTable { available }) => serde_json::json!({
             "status": "error",
             "kind": "ambiguous_table",
             "available": available,
@@ -398,7 +398,7 @@ mod tests {
     #[test]
     fn json_includes_diagnostics_on_success() {
         let diagnostics = warning_diagnostics("json-ok");
-        let report = CompareReport {
+        let report = ValidationReport {
             table: String::new(),
             level: data_dict::Level::Meta,
             issues: Vec::new(),
@@ -418,7 +418,7 @@ mod tests {
     #[test]
     fn json_includes_diagnostics_on_error() {
         let diagnostics = warning_diagnostics("json-err");
-        let err = CompareError::AmbiguousTable {
+        let err = ValidationError::AmbiguousTable {
             available: vec!["a".to_string(), "b".to_string()],
         };
         let json = validate_result_to_json(&diagnostics, &Err(err));

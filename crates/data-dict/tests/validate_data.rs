@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use data_dict::{
-    ColumnIssue, CompareError, CompareReport, IssueKind, validate_data, validate_meta,
+    ColumnIssue, IssueKind, ValidationError, ValidationReport, validate_data, validate_meta,
 };
 use indoc::{formatdoc, indoc};
 use parquet::data_type::DoubleType;
@@ -26,7 +26,7 @@ fn check_column(
     schema_col: &str,
     write: impl FnOnce(&mut SerializedColumnWriter),
     column: &str,
-) -> Result<CompareReport, CompareError> {
+) -> Result<ValidationReport, ValidationError> {
     let (yaml, parquet) = build_column(schema_col, write, column);
     validate_data(&yaml, &parquet, None).1
 }
