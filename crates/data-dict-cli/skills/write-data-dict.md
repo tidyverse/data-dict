@@ -30,7 +30,7 @@ a plausible-sounding description for a column whose meaning you had to guess.
 1.  **Discover the data.** Identify every table (parquet file, database table,
     or data-frame) in scope. For each table, read the schema to get column
     names and physical types. For parquet files, run
-    `data-dict parquet types <file>` to see each column's physical type
+    `data-dict types parquet <file>` to see each column's physical type
     alongside the data-dict type it maps to -- start from that mapping rather
     than guessing.
 
@@ -105,7 +105,7 @@ a plausible-sounding description for a column whose meaning you had to guess.
     -   Run `data-dict validate-schema data-dict.yaml` to confirm it is
         structurally valid and passes the lint rules.
     -   For each parquet table, run
-        `data-dict parquet validate data-dict.yaml <file>` to confirm every
+        `data-dict validate-data data-dict.yaml <file>` to confirm every
         declared type matches the physical data. Fix any mismatch it reports --
         change the `type`, not the data.
     -   Confirm by inspection: do all column names match? Do primary keys

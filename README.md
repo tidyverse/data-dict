@@ -24,14 +24,14 @@ project.
 
 ## The CLI
 
-The `data-dict` CLI validates dictionaries. It can:
+The `data-dict` CLI validates dictionaries at [three levels](https://data-dict.tidyverse.org/validation.html). It can:
 
 * Check that a file is structurally valid and internally consistent
   (`validate-schema`). Pass a file, or a directory containing a
   `data-dict.yaml` (defaults to the current directory).
-* Compare a dictionary against a real Parquet file to confirm the data matches
-  what the dictionary claims (`parquet validate`).
-* Print the column types of a Parquet file (`parquet types`).
+* Compare a dictionary against a real Parquet file's column names and types
+  (`validate-meta`), or against its values too (`validate-data`).
+* Print the column types of a Parquet file (`types parquet`).
 * Print an embedded agent skill for reading or writing data dictionaries
   (`skill read` / `skill write`).
 * Print the full specification (`spec`).
@@ -61,13 +61,14 @@ Run `data-dict` with no arguments to see the usage:
 Usage: data-dict <COMMAND>
 
 Commands:
-  validate-schema   Validate a data-dict.yaml file or directory against the schema [default: .]
-  spec              Print the data-dict.yaml specification
-  parquet types     Print column types for a parquet file
-  parquet validate  Validate a parquet file's columns against a data dictionary
-  skill read        Skill for reading and understanding a data dictionary
-  skill write       Skill for creating or updating a data dictionary
-  help              Print this message or the help of the given subcommand(s)
+  validate-schema  Validate a data-dict.yaml file or directory: the dictionary itself [default: .]
+  validate-meta    Validate a dataset's column names and types against a data dictionary
+  validate-data    Validate a dataset's values against a data dictionary
+  spec             Print the data-dict.yaml specification
+  types parquet    Print column types for a parquet file
+  skill read       Skill for reading and understanding a data dictionary
+  skill write      Skill for creating or updating a data dictionary
+  help             Print this message or the help of the given subcommand(s)
 ```
 
 ## Development

@@ -184,7 +184,8 @@ fn resolve_dict_path(path: Option<PathBuf>) -> Result<PathBuf, String> {
 
 /// A comparison entry point: `validate_meta` or `validate_data`. Both share the
 /// signature, so `run_compare` is generic over which one it drives.
-type CompareFn = fn(&Path, &Path, Option<&str>) -> (Diagnostics, Result<CompareReport, CompareError>);
+type CompareFn =
+    fn(&Path, &Path, Option<&str>) -> (Diagnostics, Result<CompareReport, CompareError>);
 
 /// Run a meta or data comparison (`validate-meta` / `validate-data`) and turn
 /// its outcome into rendered output and an exit code. Both commands share the
