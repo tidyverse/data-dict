@@ -2,7 +2,7 @@
 //!
 //! Lowered from the source YAML by `lower::lower` once the structural schema
 //! has accepted the document, so the lowering code can assume well-formed
-//! input. Each significant node carries a `SourceInfo` so lint diagnostics
+//! input. Each significant node carries a `SourceInfo` so schema-check diagnostics
 //! can point back at the source.
 
 use indexmap::IndexMap;

@@ -37,7 +37,7 @@ cargo build --workspace --all-targets   # includes tests, examples, benches
 # Test
 cargo test --workspace
 cargo test -p data-dict                 # single crate
-cargo test -p data-dict lint            # tests matching "lint" in data-dict crate
+cargo test -p data-dict schema          # tests matching "schema" in data-dict crate
 
 # Format and lint (run before committing Rust changes)
 cargo fmt --all
@@ -53,7 +53,7 @@ To review/accept insta snapshots: `cargo insta review`.
 
 Rust workspace with three crates:
 
-- `crates/data-dict/` — core library: YAML parsing, schema validation, lowering to typed model, and semantic linting. All logic lives here.
+- `crates/data-dict/` — core library: YAML parsing, schema validation, lowering to typed model, and semantic schema checks. All logic lives here.
 - `crates/data-dict-cli/` — thin CLI wrapper (`validate-schema` / `validate-meta` / `validate-data`, plus `types parquet`). Keep it thin.
 - `crates/data-dict-parquet/` — reads Parquet file schemas and maps column types to data-dict types.
 
@@ -64,7 +64,7 @@ YAML file
   → quarto_yaml: parse to AST with source spans
   → structural validation against schema.yaml (embedded via include_str!)
   → lower.rs: AST → typed model (DataDict, Table, Column, Relationship, ...)
-  → lint.rs: semantic rules S01–S08
+  → schema.rs: semantic checks S01–S08
   → Result<(), Vec<Diagnostic>>
 ```
 
@@ -78,7 +78,7 @@ Validation has three levels (see `site/validation.md`), each with its own code p
 
 Each level implies the ones before it. Most checks are errors (fail validation); S09 and M03 are warnings.
 
-**Schema checks (S01–S09)** — in `lint.rs`:
+**Schema checks (S01–S09)** — in `schema.rs`:
 
 | Rule | Description |
 |------|-------------|
@@ -101,7 +101,7 @@ Each level implies the ones before it. Most checks are errors (fail validation);
 | M03 | Column present in the data is undocumented (warning) |
 | D01 | `required` / `primary_key` column contains nulls |
 
-Test fixtures for the schema rules are in `crates/data-dict/tests/fixtures/{valid,invalid,lint}/`. Each fixture has a `# expected: ...` header documenting the intended outcome.
+Test fixtures for the schema rules are in `crates/data-dict/tests/fixtures/{valid,invalid,schema}/`. Each fixture has a `# expected: ...` header documenting the intended outcome.
 
 Diagnostic hints always start with a capital letter.
 

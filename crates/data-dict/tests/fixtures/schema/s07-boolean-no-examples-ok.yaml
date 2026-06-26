@@ -1,4 +1,4 @@
-# expected: lints clean. `boolean` columns need no data representation key, so
+# expected: validates cleanly. `boolean` columns need no data representation key, so
 # `is_active` is valid without `examples` (unlike other non-enum/range types).
 
 $version: "0.1.0"

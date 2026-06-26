@@ -76,7 +76,7 @@ Commands:
 This is a Rust workspace with three crates:
 
 * `crates/data-dict/` — core library: YAML parsing, schema validation, lowering
-  to a typed model, and semantic linting.
+  to a typed model, and semantic schema checks.
 * `crates/data-dict-cli/` — thin CLI wrapper.
 * `crates/data-dict-parquet/` — reads Parquet schemas and maps column types to
   data-dict types.

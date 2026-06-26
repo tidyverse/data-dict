@@ -1,9 +1,9 @@
 ---
 source: crates/data-dict/tests/validate.rs
-expression: "failing_diagnostic(\"lint/s06-cardinality-mismatch.yaml\")"
+expression: "failing_diagnostic(\"schema/s06-cardinality-mismatch.yaml\")"
 ---
 Error: [S07]
-    ╭─[ lint/s06-cardinality-mismatch.yaml:15:15 ]
+    ╭─[ schema/s06-cardinality-mismatch.yaml:15:15 ]
     │
  15 │       - name: id
     │               ─┬  
@@ -11,7 +11,7 @@ Error: [S07]
 ────╯
 
 Error: [S07]
-    ╭─[ lint/s06-cardinality-mismatch.yaml:19:15 ]
+    ╭─[ schema/s06-cardinality-mismatch.yaml:19:15 ]
     │
  19 │       - name: account_id
     │               ─────┬────  
@@ -19,7 +19,7 @@ Error: [S07]
 ────╯
 
 Error: [S07]
-    ╭─[ lint/s06-cardinality-mismatch.yaml:29:15 ]
+    ╭─[ schema/s06-cardinality-mismatch.yaml:29:15 ]
     │
  29 │       - name: account_id
     │               ─────┬────  
@@ -27,7 +27,7 @@ Error: [S07]
 ────╯
 
 Error: [S06]
-    ╭─[ lint/s06-cardinality-mismatch.yaml:36:18 ]
+    ╭─[ schema/s06-cardinality-mismatch.yaml:36:18 ]
     │
  36 │     cardinality: many-to-one
     │                  ─────┬─────  

@@ -1,4 +1,4 @@
-# expected: lints clean. Minimal two-table dict that satisfies every rule.
+# expected: validates cleanly. Minimal two-table dict that satisfies every rule.
 # `food` keeps a table-level description; `food_category` omits it on purpose
 # to exercise that `tables.<name>.description` is optional.
 # `food.id` omits column-level description to exercise that it is optional.

@@ -19,7 +19,7 @@ use crate::{ColumnIssue, CompareError, CompareReport, Diagnostics, IssueKind, Le
 
 /// Validate a parquet file's column names and types against a data dictionary.
 ///
-/// Validates the dictionary first (schema + lint), then — when it is free of
+/// Validates the dictionary first (schema check), then — when it is free of
 /// errors — compares the parquet file's column schema against the selected
 /// table, reporting type mismatches, columns described but absent from the data,
 /// and columns in the data the dictionary does not describe. Values are never

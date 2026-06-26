@@ -77,7 +77,7 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             };
-            match data_dict::validate(&path) {
+            match data_dict::validate_schema(&path) {
                 Ok(diagnostics) => {
                     for line in diagnostics.render() {
                         eprintln!("{line}");
@@ -392,7 +392,7 @@ mod tests {
         let dir = temp_dir(name);
         let dict = dir.join("data-dict.yaml");
         fs::write(&dict, "$version: 0.1.0\n").unwrap();
-        data_dict::validate(&dict).expect("must validate")
+        data_dict::validate_schema(&dict).expect("must validate")
     }
 
     #[test]

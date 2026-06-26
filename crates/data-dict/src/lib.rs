@@ -19,16 +19,16 @@ use std::path::Path;
 use data_dict_parquet::ParquetError;
 
 pub mod data;
+pub mod diagnostic;
 pub mod join_expr;
-pub mod lint;
 pub mod lower;
 pub mod meta;
 pub mod model;
 pub mod schema;
 
-pub use lint::{Diagnostic, Diagnostics, Severity};
+pub use diagnostic::{Diagnostic, Diagnostics, Severity};
 pub use quarto_source_map::SourceContext;
-pub use schema::{validate, validate_and_lower};
+pub use schema::{validate_and_lower, validate_schema};
 
 use model::{DataDict, Table};
 
@@ -37,7 +37,7 @@ use model::{DataDict, Table};
 /// filesystem dependency.
 pub const SPEC_MD: &str = include_str!("../../../site/spec.md");
 
-/// Errors returned by [`schema::validate`].
+/// Errors returned by [`schema::validate_schema`].
 #[derive(Debug)]
 pub enum Error {
     /// I/O failure reading the document.
@@ -295,7 +295,7 @@ impl std::error::Error for CompareError {
 /// Validate the schema, then compare a parquet file against the dictionary at
 /// `level`. Shared by [`meta::validate_meta`] and [`data::validate_data`].
 ///
-/// First validates the dictionary at `dict_path` (schema + lint). The data
+/// First validates the dictionary at `dict_path` (schema check). The data
 /// comparison only runs when the dictionary itself is free of errors; otherwise
 /// the error diagnostics already signal the failure and a skipped report is
 /// returned. Returns the dictionary's [`Diagnostics`] and the comparison result.

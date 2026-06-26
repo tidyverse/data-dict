@@ -4,7 +4,7 @@
 //! The fixtures double as runnable inputs for the CLI:
 //!
 //!     cargo run -p data-dict-cli -- validate-schema \
-//!         crates/data-dict/tests/fixtures/lint/s07-enum-without-values.yaml
+//!         crates/data-dict/tests/fixtures/schema/s07-enum-without-values.yaml
 //!
 //! When adding a new rule, prefer adding a fixture file (with a one-line
 //! `# expected: ...` header) and a one-line test here over inline YAML.
@@ -24,7 +24,7 @@ fn fixture(rel: &str) -> PathBuf {
 /// order. A structural/parse failure ([`data_dict::Error`]) is treated as a
 /// single error-severity diagnostic and ignored when collecting warnings.
 fn diagnostics(path: &Path, severity: Severity) -> Vec<String> {
-    match data_dict::validate(path) {
+    match data_dict::validate_schema(path) {
         Ok(diags) => diags
             .items
             .iter()
@@ -66,7 +66,7 @@ fn assert_invalid(path: PathBuf, expected: &[&str]) {
 
 /// Validate a fixture that must fail, returning the rendered diagnostic with
 /// machine-specific noise stripped so it can be snapshotted. Used for both
-/// schema-`invalid/` and `lint/` fixtures — any document expected to error.
+/// schema-`invalid/` and `schema/` fixtures — any document expected to error.
 ///
 /// The diagnostic carries two unstable bits: terminal styling (ANSI color
 /// escapes and OSC-8 hyperlinks, the latter embedding an absolute `file://`
@@ -271,110 +271,112 @@ fn non_string_glossary_value_errors() {
     );
 }
 
-// --- lint fixtures -------------------------------------------------------
+// --- schema-check fixtures -------------------------------------------------------
 
 #[test]
-fn lint_clean_two_tables() {
-    assert_valid(fixture("lint/clean-two-tables.yaml"));
+fn schema_clean_two_tables() {
+    assert_valid(fixture("schema/clean-two-tables.yaml"));
 }
 
-// Each local lint fixture snapshots its full rendered diagnostic. Snapshotting
+// Each local schema-check fixture snapshots its full rendered diagnostic. Snapshotting
 // the whole output (rather than asserting a single code is present) guards the
 // exact set of findings — e.g. that `s03-missing-column` reports the missing
 // column without *also* checking cardinality against it and emitting a
 // redundant S06.
 
 #[test]
-fn lint_s01_fk_no_relationship() {
-    insta::assert_snapshot!(failing_diagnostic("lint/s01-fk-no-relationship.yaml"));
+fn schema_s01_fk_no_relationship() {
+    insta::assert_snapshot!(failing_diagnostic("schema/s01-fk-no-relationship.yaml"));
 }
 
 #[test]
-fn lint_s02_missing_table() {
-    insta::assert_snapshot!(failing_diagnostic("lint/s02-missing-table.yaml"));
+fn schema_s02_missing_table() {
+    insta::assert_snapshot!(failing_diagnostic("schema/s02-missing-table.yaml"));
 }
 
 #[test]
-fn lint_s03_missing_column() {
-    insta::assert_snapshot!(failing_diagnostic("lint/s03-missing-column.yaml"));
+fn schema_s03_missing_column() {
+    insta::assert_snapshot!(failing_diagnostic("schema/s03-missing-column.yaml"));
 }
 
 #[test]
-fn lint_s04_bad_join() {
-    insta::assert_snapshot!(failing_diagnostic("lint/s04-bad-join.yaml"));
+fn schema_s04_bad_join() {
+    insta::assert_snapshot!(failing_diagnostic("schema/s04-bad-join.yaml"));
 }
 
 #[test]
-fn lint_s05_conflicts_not_on_both_sides() {
+fn schema_s05_conflicts_not_on_both_sides() {
     insta::assert_snapshot!(failing_diagnostic(
-        "lint/s05-conflicts-not-on-both-sides.yaml"
+        "schema/s05-conflicts-not-on-both-sides.yaml"
     ));
 }
 
 // The opposite of the above: `amount` is genuinely a column on both tables (a
 // real conflict) but is not declared in `conflicts`. S05 only checks declared
-// entries, so this must lint clean rather than demanding the conflict be named.
+// entries, so this must validate cleanly rather than demanding the conflict be named.
 #[test]
-fn lint_s05_undeclared_conflict_ok() {
-    assert_valid(fixture("lint/s05-undeclared-conflict-ok.yaml"));
+fn schema_s05_undeclared_conflict_ok() {
+    assert_valid(fixture("schema/s05-undeclared-conflict-ok.yaml"));
 }
 
 #[test]
-fn lint_s06_cardinality_mismatch() {
-    insta::assert_snapshot!(failing_diagnostic("lint/s06-cardinality-mismatch.yaml"));
+fn schema_s06_cardinality_mismatch() {
+    insta::assert_snapshot!(failing_diagnostic("schema/s06-cardinality-mismatch.yaml"));
 }
 
 // Recreated from the bundled `otters` example: a one-to-many self-join whose
 // "one" side is not unique (S06), alongside a string column missing
 // `examples` (S07). Guards that both findings surface together.
 #[test]
-fn lint_s06_self_join_one_to_many() {
-    insta::assert_snapshot!(failing_diagnostic("lint/s06-self-join-one-to-many.yaml"));
+fn schema_s06_self_join_one_to_many() {
+    insta::assert_snapshot!(failing_diagnostic("schema/s06-self-join-one-to-many.yaml"));
 }
 
 #[test]
-fn lint_s07_enum_without_values() {
-    insta::assert_snapshot!(failing_diagnostic("lint/s07-enum-without-values.yaml"));
+fn schema_s07_enum_without_values() {
+    insta::assert_snapshot!(failing_diagnostic("schema/s07-enum-without-values.yaml"));
 }
 
 #[test]
-fn lint_s07_range_type_missing_range() {
-    insta::assert_snapshot!(failing_diagnostic("lint/s07-range-type-missing-range.yaml"));
-}
-
-#[test]
-fn lint_s07_other_type_missing_examples() {
+fn schema_s07_range_type_missing_range() {
     insta::assert_snapshot!(failing_diagnostic(
-        "lint/s07-other-type-missing-examples.yaml"
+        "schema/s07-range-type-missing-range.yaml"
     ));
 }
 
-// A `boolean` column carries no data representation key, so it must lint clean
+#[test]
+fn schema_s07_other_type_missing_examples() {
+    insta::assert_snapshot!(failing_diagnostic(
+        "schema/s07-other-type-missing-examples.yaml"
+    ));
+}
+
+// A `boolean` column carries no data representation key, so it must validate cleanly
 // without `examples` — the one non-enum/range type exempt from S07's
 // missing-`examples` check.
 #[test]
-fn lint_s07_boolean_no_examples_ok() {
-    assert_valid(fixture("lint/s07-boolean-no-examples-ok.yaml"));
+fn schema_s07_boolean_no_examples_ok() {
+    assert_valid(fixture("schema/s07-boolean-no-examples-ok.yaml"));
 }
 
 #[test]
-fn lint_s07_wrong_rep_on_enum() {
-    insta::assert_snapshot!(failing_diagnostic("lint/s07-wrong-rep-on-enum.yaml"));
+fn schema_s07_wrong_rep_on_enum() {
+    insta::assert_snapshot!(failing_diagnostic("schema/s07-wrong-rep-on-enum.yaml"));
 }
 
 #[test]
-fn lint_s08_range_on_string_type() {
-    insta::assert_snapshot!(failing_diagnostic("lint/s08-range-on-string-type.yaml"));
+fn schema_s08_range_on_string_type() {
+    insta::assert_snapshot!(failing_diagnostic("schema/s08-range-on-string-type.yaml"));
 }
 
 // `units` is valid only on `number(quantity)`. A quantity column with units
-// lints clean; units on any other type is S08.
+// validates cleanly; units on any other type is S08.
 #[test]
-fn lint_s08_units_ok_on_quantity() {
-    assert_valid(fixture("lint/s08-units-on-quantity-ok.yaml"));
+fn schema_s08_units_ok_on_quantity() {
+    assert_valid(fixture("schema/s08-units-on-quantity-ok.yaml"));
 }
 
 #[test]
-fn lint_s08_units_on_non_quantity() {
-    insta::assert_snapshot!(failing_diagnostic("lint/s08-units-on-non-quantity.yaml"));
+fn schema_s08_units_on_non_quantity() {
+    insta::assert_snapshot!(failing_diagnostic("schema/s08-units-on-non-quantity.yaml"));
 }

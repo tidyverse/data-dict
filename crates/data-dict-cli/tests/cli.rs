@@ -18,7 +18,7 @@ fn no_args_lists_all_subcommands() {
     insta::assert_snapshot!(stdout);
 }
 
-/// A fixture that lints to two errors (S07, S08) and a warning (S09),
+/// A fixture that fails schema validation with two errors (S07, S08) and a warning (S09),
 /// in that emission order. Validating it against a parquet file skips the data
 /// comparison (the dictionary has errors), so the parquet path is never read.
 fn multi_error_fixture() -> PathBuf {

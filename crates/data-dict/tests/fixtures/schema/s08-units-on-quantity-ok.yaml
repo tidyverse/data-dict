@@ -1,4 +1,4 @@
-# expected: lints clean. `units` is allowed on a `number(quantity)` column.
+# expected: validates cleanly. `units` is allowed on a `number(quantity)` column.
 
 $version: "0.1.0"
 

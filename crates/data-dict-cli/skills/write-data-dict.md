@@ -103,7 +103,7 @@ a plausible-sounding description for a column whose meaning you had to guess.
     that disagrees with the data is actively harmful, so check it:
 
     -   Run `data-dict validate-schema data-dict.yaml` to confirm it is
-        structurally valid and passes the lint rules.
+        structurally valid and passes the schema checks.
     -   For each parquet table, run
         `data-dict validate-data data-dict.yaml <file>` to confirm every
         declared type matches the physical data. Fix any mismatch it reports --

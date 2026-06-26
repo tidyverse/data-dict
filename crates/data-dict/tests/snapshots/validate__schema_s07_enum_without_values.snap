@@ -1,9 +1,9 @@
 ---
 source: crates/data-dict/tests/validate.rs
-expression: "failing_diagnostic(\"lint/s07-enum-without-values.yaml\")"
+expression: "failing_diagnostic(\"schema/s07-enum-without-values.yaml\")"
 ---
 Error: [S07]
-    ╭─[ lint/s07-enum-without-values.yaml:11:15 ]
+    ╭─[ schema/s07-enum-without-values.yaml:11:15 ]
     │
  11 │       - name: c
     │               ┬  
