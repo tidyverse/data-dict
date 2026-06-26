@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use data_dict::Severity;
-use data_dict::data::{ColumnIssue, DataError, DataReport, validate_parquet};
+use data_dict::data::{ColumnIssue, DataError, DataReport, IssueKind, validate_parquet};
 use indoc::{formatdoc, indoc};
 use parquet::data_type::{ByteArray, ByteArrayType, DoubleType};
 use parquet::file::properties::WriterProperties;
@@ -128,7 +128,7 @@ tables:
     assert!(report.has_errors());
     assert!(matches!(
         report.issues.as_slice(),
-        [ColumnIssue::TypeMismatch { column, declared, actual }]
+        [ColumnIssue { column, kind: IssueKind::TypeMismatch { declared, actual }, .. }]
             if column == "weight" && declared == "string" && actual == "number"
     ));
 }
@@ -160,9 +160,8 @@ fn extra_column_in_data_is_warning() {
     assert!(!report.has_errors(), "got {:?}", report.issues);
     assert!(matches!(
         report.issues.as_slice(),
-        [issue @ ColumnIssue::ExtraInData { column, actual }]
-            if column == "weight" && actual == "number"
-                && issue.severity() == Severity::Warning
+        [ColumnIssue { column, severity, kind: IssueKind::ExtraInData { actual } }]
+            if column == "weight" && actual == "number" && *severity == Severity::Warning
     ));
 }
 
@@ -225,7 +224,7 @@ fn ignore_type_still_must_exist_in_data() {
     assert!(report.has_errors());
     assert!(matches!(
         report.issues.as_slice(),
-        [ColumnIssue::MissingInData { column }] if column == "height"
+        [ColumnIssue { column, kind: IssueKind::MissingInData, .. }] if column == "height"
     ));
 }
 
@@ -260,7 +259,7 @@ tables:
     assert!(report.has_errors());
     assert!(matches!(
         report.issues.as_slice(),
-        [ColumnIssue::MissingInData { column }] if column == "height"
+        [ColumnIssue { column, kind: IssueKind::MissingInData, .. }] if column == "height"
     ));
 }
 
@@ -409,7 +408,7 @@ fn nulls_in_required_column_reported() {
     assert!(
         matches!(
             report.issues.as_slice(),
-            [ColumnIssue::NullsInRequired { column, count, rows }]
+            [ColumnIssue { column, kind: IssueKind::NullsInRequired { count, rows }, .. }]
                 if column == "weight" && *count == 1 && rows == &[2]
         ),
         "got {:?}",
@@ -475,7 +474,7 @@ fn primary_key_implies_required_for_nulls() {
     assert!(
         matches!(
             report.issues.as_slice(),
-            [ColumnIssue::NullsInRequired { column, .. }] if column == "weight"
+            [ColumnIssue { column, kind: IssueKind::NullsInRequired { .. }, .. }] if column == "weight"
         ),
         "got {:?}",
         report.issues

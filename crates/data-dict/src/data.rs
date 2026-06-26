@@ -21,59 +21,66 @@ use crate::{DataDict, Diagnostics, Error, Severity};
 /// issue. Issues count every offender but only list this many.
 const SAMPLE_LIMIT: usize = 5;
 
-/// A single way in which a dataset disagrees with its data dictionary.
+/// A single way in which a dataset disagrees with its data dictionary. Every
+/// issue concerns one `column` and carries its own [`Severity`]; `kind` says
+/// what specifically is wrong.
 #[derive(Debug)]
-pub enum ColumnIssue {
-    /// A column present in both, but whose declared type is not compatible
+pub struct ColumnIssue {
+    pub column: String,
+    pub severity: Severity,
+    pub kind: IssueKind,
+}
+
+/// What is wrong with a column — the payload behind a [`ColumnIssue`].
+#[derive(Debug)]
+pub enum IssueKind {
+    /// The column is present in both, but its declared type is not compatible
     /// with the type read from the data.
-    TypeMismatch {
-        column: String,
-        declared: String,
-        actual: String,
-    },
-    /// A column described by the dictionary that is absent from the data.
-    MissingInData { column: String },
-    /// A column in the data that the dictionary does not describe.
-    ExtraInData { column: String, actual: String },
-    /// A column the dictionary marks `required` (or `primary_key`) that
-    /// nonetheless contains null values. `rows` lists the first few offending
-    /// row numbers (1-based); `count` is the true total.
-    NullsInRequired {
-        column: String,
-        count: usize,
-        rows: Vec<usize>,
-    },
+    TypeMismatch { declared: String, actual: String },
+    /// The column is described by the dictionary but absent from the data.
+    MissingInData,
+    /// The column is present in the data but the dictionary does not describe it.
+    ExtraInData { actual: String },
+    /// The column is marked `required` (or `primary_key`) but contains null
+    /// values. `rows` lists the first few offending row numbers (1-based);
+    /// `count` is the true total.
+    NullsInRequired { count: usize, rows: Vec<usize> },
 }
 
 impl ColumnIssue {
-    /// Whether this issue fails validation (`Error`) or is merely advisory
-    /// (`Warning`). An undocumented column is a warning
-    pub fn severity(&self) -> Severity {
-        match self {
-            ColumnIssue::ExtraInData { .. } => Severity::Warning,
-            _ => Severity::Error,
+    /// An error-severity issue: a hard mismatch that fails validation.
+    fn error(column: impl Into<String>, kind: IssueKind) -> Self {
+        ColumnIssue {
+            column: column.into(),
+            severity: Severity::Error,
+            kind,
+        }
+    }
+
+    /// A warning-severity issue: advisory drift that is reported but does not
+    /// fail validation.
+    fn warning(column: impl Into<String>, kind: IssueKind) -> Self {
+        ColumnIssue {
+            column: column.into(),
+            severity: Severity::Warning,
+            kind,
         }
     }
 
     /// The human-readable description of the issue, without any severity prefix.
     fn body(&self) -> String {
-        match self {
-            ColumnIssue::TypeMismatch {
-                column,
-                declared,
-                actual,
-            } => format!("column \"{column}\": declared {declared}, data is {actual}"),
-            ColumnIssue::MissingInData { column } => {
+        let column = &self.column;
+        match &self.kind {
+            IssueKind::TypeMismatch { declared, actual } => {
+                format!("column \"{column}\": declared {declared}, data is {actual}")
+            }
+            IssueKind::MissingInData => {
                 format!("column \"{column}\": described in dictionary but missing from data")
             }
-            ColumnIssue::ExtraInData { column, actual } => {
+            IssueKind::ExtraInData { actual } => {
                 format!("column \"{column}\": present in data ({actual}) but not in dictionary")
             }
-            ColumnIssue::NullsInRequired {
-                column,
-                count,
-                rows,
-            } => format!(
+            IssueKind::NullsInRequired { count, rows } => format!(
                 "column \"{column}\": required but has {count} null value{} ({})",
                 if *count == 1 { "" } else { "s" },
                 format_rows(rows, *count),
@@ -104,7 +111,7 @@ impl DataReport {
     /// Whether any issue is an error. Warning-only reports (e.g. an undocumented
     /// column) do not fail validation.
     pub fn has_errors(&self) -> bool {
-        self.issues.iter().any(|i| i.severity() == Severity::Error)
+        self.issues.iter().any(|i| i.severity == Severity::Error)
     }
 
     /// Whether the dataset matched the dictionary with nothing to report.
@@ -120,7 +127,7 @@ impl std::fmt::Display for DataReport {
         }
         writeln!(f, "data does not match table \"{}\":", self.table)?;
         for issue in &self.issues {
-            let severity = match issue.severity() {
+            let severity = match issue.severity {
                 Severity::Error => "error",
                 Severity::Warning => "warning",
             };
@@ -283,9 +290,10 @@ fn compare_parquet_to_dict(
     let mut issues = Vec::new();
     for col in &table.columns {
         let Some((_, actual_type)) = actual.iter().find(|(n, _)| n == &col.name.value) else {
-            issues.push(ColumnIssue::MissingInData {
-                column: col.name.value.clone(),
-            });
+            issues.push(ColumnIssue::error(
+                col.name.value.clone(),
+                IssueKind::MissingInData,
+            ));
             continue;
         };
         // An `ignore` column must still exist in the data — documenting a column
@@ -305,10 +313,12 @@ fn compare_parquet_to_dict(
     // Columns present in the data that the dictionary does not describe.
     for (name, actual_type) in &actual {
         if table.column(name).is_none() {
-            issues.push(ColumnIssue::ExtraInData {
-                column: name.clone(),
-                actual: actual_type.clone(),
-            });
+            issues.push(ColumnIssue::warning(
+                name.clone(),
+                IssueKind::ExtraInData {
+                    actual: actual_type.clone(),
+                },
+            ));
         }
     }
 
@@ -323,11 +333,13 @@ fn check_type(col: &Column, actual_type: &str, issues: &mut Vec<ColumnIssue>) {
     if let Some(declared) = &col.col_type
         && !types_compatible(&declared.value, actual_type)
     {
-        issues.push(ColumnIssue::TypeMismatch {
-            column: col.name.value.clone(),
-            declared: declared.value.clone(),
-            actual: actual_type.to_string(),
-        });
+        issues.push(ColumnIssue::error(
+            col.name.value.clone(),
+            IssueKind::TypeMismatch {
+                declared: declared.value.clone(),
+                actual: actual_type.to_string(),
+            },
+        ));
     }
 }
 
@@ -363,11 +375,13 @@ impl ColumnCheck for RequiredNotNull {
         // Nulls are only counted when this check requested them (i.e. the column
         // is required), so a positive count is exactly a violation.
         if stats.null_count > 0 {
-            issues.push(ColumnIssue::NullsInRequired {
-                column: col.name.value.clone(),
-                count: stats.null_count,
-                rows: stats.null_rows.clone(),
-            });
+            issues.push(ColumnIssue::error(
+                col.name.value.clone(),
+                IssueKind::NullsInRequired {
+                    count: stats.null_count,
+                    rows: stats.null_rows.clone(),
+                },
+            ));
         }
     }
 }
