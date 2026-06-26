@@ -1,33 +1,33 @@
 //! Cross-table semantic linting for data-dict.yaml documents.
 //!
 //! Most rules run over a lowered [`DataDict`] and emit zero or more
-//! [`Diagnostic`]s. Diagnostics carry a [`Severity`]: rules DD001–DD008 are
-//! errors that fail validation, while DD009 is a warning that is reported but
-//! does not. DD009 inspects the raw document rather than the lowered model,
+//! [`Diagnostic`]s. Diagnostics carry a [`Severity`]: rules S01–S08 are
+//! errors that fail validation, while S09 is a warning that is reported but
+//! does not. S09 inspects the raw document rather than the lowered model,
 //! since it is about a top-level metadata key.
 //!
 //! Rule codes:
 //!
-//! - `DD001`: `foreign_key` column has no matching `relationships` entry
+//! - `S01`: `foreign_key` column has no matching `relationships` entry
 //!   whose other side is a `primary_key` column.
-//! - `DD002`: relationship references a table that does not exist.
-//! - `DD003`: relationship references a column that does not exist on its
+//! - `S02`: relationship references a table that does not exist.
+//! - `S03`: relationship references a column that does not exist on its
 //!   table.
-//! - `DD004`: `join` string fails to parse, or references neither one nor two
+//! - `S04`: `join` string fails to parse, or references neither one nor two
 //!   tables.
-//! - `DD005`: a name in `conflicts` does not appear as a column on both sides
+//! - `S05`: a name in `conflicts` does not appear as a column on both sides
 //!   of the join.
-//! - `DD006`: cardinality is inconsistent with the constraints on the joined
+//! - `S06`: cardinality is inconsistent with the constraints on the joined
 //!   columns (e.g. `one-to-many` whose "one" side lacks `primary_key` /
 //!   `unique`).
-//! - `DD007`: a column's data representation key (`values`, `range`, or
+//! - `S07`: a column's data representation key (`values`, `range`, or
 //!   `examples`) is absent or wrong for its type. Each type expects exactly
 //!   one: `enum` → `values`; `number(ordinal)`, `number(quantity)`, `date`,
 //!   `datetime` → `range`; all others → `examples` (except `boolean`, which
 //!   needs no data representation key). A column with no `type` is exempt.
-//! - `DD008`: a column carries `units` but its type is not `number(quantity)`.
+//! - `S08`: a column carries `units` but its type is not `number(quantity)`.
 //!   Units are only meaningful for quantities.
-//! - `DD009` (warning): the document omits the recommended `$learn_more`
+//! - `S09` (warning): the document omits the recommended `$learn_more`
 //!   top-level key.
 
 use quarto_error_reporting::DiagnosticMessageBuilder;
@@ -136,7 +136,7 @@ pub struct Diagnostic {
 
 impl Diagnostic {
     pub fn to_text(&self, ctx: &SourceContext) -> String {
-        // The header is just the rule code (e.g. "Error: [DD007]"); the message
+        // The header is just the rule code (e.g. "Error: [S07]"); the message
         // is shown once, against the source span. We drop the generic title that
         // added nothing. The code goes in the title rather than via `with_code`,
         // which would append it after an empty title and leave a trailing space.
@@ -160,7 +160,7 @@ impl Diagnostic {
     pub(crate) fn join_parse_error(join_text: &Spanned<String>, err: &ParseError) -> Self {
         let span = subspan(&join_text.span, err.at, err.at.min(join_text.value.len()));
         Diagnostic {
-            code: "DD004",
+            code: "S04",
             message: format!("`join` expression does not parse: {}", err.message),
             span: span.unwrap_or_else(|| join_text.span.clone()),
             related: Vec::new(),
@@ -173,17 +173,17 @@ impl Diagnostic {
 /// Run every rule, pushing any findings into `out`. Rules run in code order;
 /// call [`Diagnostics::sort`] afterwards to put the findings in source order.
 pub fn lint(dict: &DataDict, out: &mut Diagnostics) {
-    check_relationship_table_refs(dict, out); // DD002
-    check_relationship_column_refs(dict, out); // DD003
-    check_join_table_count(dict, out); // DD004
-    check_foreign_keys_resolve(dict, out); // DD001
-    check_conflicts_present_on_both_sides(dict, out); // DD005
-    check_cardinality_consistency(dict, out); // DD006
-    check_column_data_representation(dict, out); // DD007
-    check_units_only_on_quantity(dict, out); // DD008
+    check_relationship_table_refs(dict, out); // S02
+    check_relationship_column_refs(dict, out); // S03
+    check_join_table_count(dict, out); // S04
+    check_foreign_keys_resolve(dict, out); // S01
+    check_conflicts_present_on_both_sides(dict, out); // S05
+    check_cardinality_consistency(dict, out); // S06
+    check_column_data_representation(dict, out); // S07
+    check_units_only_on_quantity(dict, out); // S08
 }
 
-// --- DD002 --------------------------------------------------------------
+// --- S02 --------------------------------------------------------------
 
 fn check_relationship_table_refs(dict: &DataDict, out: &mut Diagnostics) {
     for rel in &dict.relationships {
@@ -193,7 +193,7 @@ fn check_relationship_table_refs(dict: &DataDict, out: &mut Diagnostics) {
                 let span = subspan(&rel.join_text.span, q.start, q.end)
                     .unwrap_or_else(|| rel.join_text.span.clone());
                 out.push(Diagnostic {
-                    code: "DD002",
+                    code: "S02",
                     message: format!(
                         "relationship references table `{}`, which is not defined in `tables`",
                         q.table
@@ -208,13 +208,13 @@ fn check_relationship_table_refs(dict: &DataDict, out: &mut Diagnostics) {
     }
 }
 
-// --- DD003 --------------------------------------------------------------
+// --- S03 --------------------------------------------------------------
 
 fn check_relationship_column_refs(dict: &DataDict, out: &mut Diagnostics) {
     for rel in &dict.relationships {
         if let Some(join) = &rel.join {
             for q in join.qcols() {
-                // Skip if the table doesn't exist — DD002 handles that case
+                // Skip if the table doesn't exist — S02 handles that case
                 // and a column report would be noise.
                 let Some(table) = dict.tables.get(&q.table) else {
                     continue;
@@ -223,7 +223,7 @@ fn check_relationship_column_refs(dict: &DataDict, out: &mut Diagnostics) {
                     let span = subspan(&rel.join_text.span, q.start, q.end)
                         .unwrap_or_else(|| rel.join_text.span.clone());
                     out.push(Diagnostic {
-                        code: "DD003",
+                        code: "S03",
                         message: format!(
                             "column `{}` is not defined in table `{}`",
                             q.column, q.table
@@ -236,13 +236,13 @@ fn check_relationship_column_refs(dict: &DataDict, out: &mut Diagnostics) {
                 }
             }
         }
-        // `conflicts` column references are checked by DD005 alongside the
+        // `conflicts` column references are checked by S05 alongside the
         // "appears on both sides" check, so a missing column there reports
         // the more specific message.
     }
 }
 
-// --- DD004 --------------------------------------------------------------
+// --- S04 --------------------------------------------------------------
 
 fn check_join_table_count(dict: &DataDict, out: &mut Diagnostics) {
     // Parse failures are emitted during lowering. Here we only check the
@@ -252,7 +252,7 @@ fn check_join_table_count(dict: &DataDict, out: &mut Diagnostics) {
         let tables = join.tables();
         if tables.is_empty() || tables.len() > 2 {
             out.push(Diagnostic {
-                code: "DD004",
+                code: "S04",
                 message: format!(
                     "`join` must reference exactly one (self-join) or two tables; found {}",
                     tables.len()
@@ -266,7 +266,7 @@ fn check_join_table_count(dict: &DataDict, out: &mut Diagnostics) {
     }
 }
 
-// --- DD001 --------------------------------------------------------------
+// --- S01 --------------------------------------------------------------
 
 fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Diagnostics) {
     use crate::model::Constraint::*;
@@ -298,7 +298,7 @@ fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Diagnostics) {
             });
             if !satisfied {
                 out.push(Diagnostic {
-                    code: "DD001",
+                    code: "S01",
                     message: format!(
                         "column `{}.{}` is marked `foreign_key` but no `relationships` entry points it at a `primary_key` column",
                         table_name, col.name.value
@@ -313,7 +313,7 @@ fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Diagnostics) {
     }
 }
 
-// --- DD005 --------------------------------------------------------------
+// --- S05 --------------------------------------------------------------
 
 fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut Diagnostics) {
     for rel in &dict.relationships {
@@ -328,7 +328,7 @@ fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut Diagnostics)
             let mut missing_from: Vec<&str> = Vec::new();
             for t_name in &tables {
                 let Some(table) = dict.tables.get(*t_name) else {
-                    // DD002 already flagged the missing table; skip to avoid
+                    // S02 already flagged the missing table; skip to avoid
                     // a cascade of confusing reports.
                     continue;
                 };
@@ -338,7 +338,7 @@ fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut Diagnostics)
             }
             if !missing_from.is_empty() {
                 out.push(Diagnostic {
-                    code: "DD005",
+                    code: "S05",
                     message: format!(
                         "`conflicts` entry `{}` is not a column of {}",
                         c.value,
@@ -366,16 +366,16 @@ fn join_with_commas(items: &[&str]) -> String {
     }
 }
 
-// --- DD006 --------------------------------------------------------------
+// --- S06 --------------------------------------------------------------
 
 fn check_cardinality_consistency(dict: &DataDict, out: &mut Diagnostics) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
 
         // Skip if any join column references a missing table or column. The
-        // missing reference is already reported (DD002 / DD003), and checking
+        // missing reference is already reported (S02 / S03), and checking
         // cardinality against a column that doesn't exist would just produce a
-        // redundant, confusing DD006.
+        // redundant, confusing S06.
         let all_cols_resolve = join.qcols().all(|q| {
             dict.tables
                 .get(&q.table)
@@ -414,7 +414,7 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Diagnostics) {
             Cardinality::OneToOne => {
                 if !lhs_cols_unique || !rhs_cols_unique {
                     out.push(Diagnostic {
-                        code: "DD006",
+                        code: "S06",
                         message: format!(
                             "cardinality is `one-to-one` but the join columns on `{}` or `{}` are not marked `primary_key` or `unique`",
                             lhs_table, rhs_table
@@ -431,7 +431,7 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Diagnostics) {
                 // many on the right, so the left side is the "one" side.
                 if !lhs_cols_unique {
                     out.push(Diagnostic {
-                        code: "DD006",
+                        code: "S06",
                         message: format!(
                             "cardinality is `one-to-many` but the left-side join column on `{}` is not marked `primary_key` or `unique`",
                             lhs_table
@@ -446,7 +446,7 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Diagnostics) {
             Cardinality::ManyToOne => {
                 if !rhs_cols_unique {
                     out.push(Diagnostic {
-                        code: "DD006",
+                        code: "S06",
                         message: format!(
                             "cardinality is `many-to-one` but the right-side join column on `{}` is not marked `primary_key` or `unique`",
                             rhs_table
@@ -482,7 +482,7 @@ fn side_has_unique_implied(
     })
 }
 
-// --- DD007 --------------------------------------------------------------
+// --- S07 --------------------------------------------------------------
 
 const RANGE_TYPES: &[&str] = &["number(ordinal)", "number(quantity)", "date", "datetime"];
 
@@ -498,7 +498,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
             if type_name == "enum" {
                 if !col.has_values {
                     out.push(Diagnostic {
-                        code: "DD007",
+                        code: "S07",
                         message: format!(
                             "column `{}.{}` has type `enum` but is missing the required `values` property",
                             table_name, col.name.value
@@ -511,7 +511,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
                 }
                 if col.has_range {
                     out.push(Diagnostic {
-                        code: "DD007",
+                        code: "S07",
                         message: format!(
                             "column `{}.{}` has type `enum` but uses `range`; \
                              enum columns represent their data with `values`",
@@ -525,7 +525,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
                 }
                 if col.has_examples {
                     out.push(Diagnostic {
-                        code: "DD007",
+                        code: "S07",
                         message: format!(
                             "column `{}.{}` has type `enum` but uses `examples`; \
                              enum columns represent their data with `values`",
@@ -540,7 +540,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
             } else if RANGE_TYPES.contains(&type_name) {
                 if !col.has_range {
                     out.push(Diagnostic {
-                        code: "DD007",
+                        code: "S07",
                         message: format!(
                             "column `{}.{}` has type `{}` but is missing the expected `range` property",
                             table_name, col.name.value, type_name
@@ -553,7 +553,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
                 }
                 if col.has_values {
                     out.push(Diagnostic {
-                        code: "DD007",
+                        code: "S07",
                         message: format!(
                             "column `{}.{}` has type `{}` but uses `values`; \
                              use `range` for ordered numeric and date columns",
@@ -567,7 +567,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
                 }
                 if col.has_examples {
                     out.push(Diagnostic {
-                        code: "DD007",
+                        code: "S07",
                         message: format!(
                             "column `{}.{}` has type `{}` but uses `examples`; \
                              use `range` for ordered numeric and date columns",
@@ -582,7 +582,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
             } else {
                 if !col.has_examples && type_name != "boolean" {
                     out.push(Diagnostic {
-                        code: "DD007",
+                        code: "S07",
                         message: format!(
                             "column `{}.{}` has type `{}` but is missing the expected `examples` property",
                             table_name, col.name.value, type_name
@@ -595,7 +595,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
                 }
                 if col.has_values {
                     out.push(Diagnostic {
-                        code: "DD007",
+                        code: "S07",
                         message: format!(
                             "column `{}.{}` has type `{}` but uses `values`; \
                              only `enum` columns should use `values`",
@@ -609,7 +609,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
                 }
                 if col.has_range {
                     out.push(Diagnostic {
-                        code: "DD007",
+                        code: "S07",
                         message: format!(
                             "column `{}.{}` has type `{}` but uses `range`; \
                              `range` is only valid for `number(ordinal)`, `number(quantity)`, \
@@ -627,7 +627,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
     }
 }
 
-// --- DD008 --------------------------------------------------------------
+// --- S08 --------------------------------------------------------------
 
 fn check_units_only_on_quantity(dict: &DataDict, out: &mut Diagnostics) {
     for (table_name, table) in &dict.tables {
@@ -643,7 +643,7 @@ fn check_units_only_on_quantity(dict: &DataDict, out: &mut Diagnostics) {
                     .as_ref()
                     .map_or_else(|| "no type".to_string(), |t| format!("type `{}`", t.value));
                 out.push(Diagnostic {
-                    code: "DD008",
+                    code: "S08",
                     message: format!(
                         "column `{}.{}` has `units` but {}; `units` is only valid on `number(quantity)` columns",
                         table_name, col.name.value, type_desc
@@ -658,7 +658,7 @@ fn check_units_only_on_quantity(dict: &DataDict, out: &mut Diagnostics) {
     }
 }
 
-// --- DD009 --------------------------------------------------------------
+// --- S09 --------------------------------------------------------------
 
 /// Warn when the document omits the recommended `$learn_more` key. Unlike the
 /// other rules this inspects the raw AST, because `$learn_more` is top-level
@@ -676,7 +676,7 @@ pub fn check_learn_more(root: &YamlWithSourceInfo, out: &mut Diagnostics) {
         .map(|e| e.key_span.clone())
         .unwrap_or_else(|| root.source_info.clone());
     out.push(Diagnostic {
-        code: "DD009",
+        code: "S09",
         message: "document is missing the recommended `$learn_more` key".to_string(),
         severity: Severity::Warning,
         span,

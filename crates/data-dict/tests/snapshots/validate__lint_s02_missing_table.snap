@@ -1,41 +1,41 @@
 ---
 source: crates/data-dict/tests/validate.rs
-expression: "failing_diagnostic(\"lint/dd002-missing-table.yaml\")"
+expression: "failing_diagnostic(\"lint/s02-missing-table.yaml\")"
 ---
-Error: [DD007]
-    ╭─[ lint/dd002-missing-table.yaml:14:15 ]
+Error: [S07]
+    ╭─[ lint/s02-missing-table.yaml:14:15 ]
     │
  14 │       - name: id
     │               ─┬  
     │                ╰── column `food.id` has type `number(id)` but is missing the expected `examples` property
 ────╯
 
-Error: [DD001]
-    ╭─[ lint/dd002-missing-table.yaml:18:15 ]
+Error: [S01]
+    ╭─[ lint/s02-missing-table.yaml:18:15 ]
     │
  18 │       - name: food_category_id
     │               ────────┬───────  
     │                       ╰───────── column `food.food_category_id` is marked `foreign_key` but no `relationships` entry points it at a `primary_key` column
 ────╯
 
-Error: [DD007]
-    ╭─[ lint/dd002-missing-table.yaml:18:15 ]
+Error: [S07]
+    ╭─[ lint/s02-missing-table.yaml:18:15 ]
     │
  18 │       - name: food_category_id
     │               ────────┬───────  
     │                       ╰───────── column `food.food_category_id` has type `number(id)` but is missing the expected `examples` property
 ────╯
 
-Error: [DD007]
-    ╭─[ lint/dd002-missing-table.yaml:28:15 ]
+Error: [S07]
+    ╭─[ lint/s02-missing-table.yaml:28:15 ]
     │
  28 │       - name: id
     │               ─┬  
     │                ╰── column `food_category.id` has type `number(id)` but is missing the expected `examples` property
 ────╯
 
-Error: [DD002]
-    ╭─[ lint/dd002-missing-table.yaml:36:35 ]
+Error: [S02]
+    ╭─[ lint/s02-missing-table.yaml:36:35 ]
     │
  36 │     join: food.food_category_id = category.id
     │                                   ─────┬─────  

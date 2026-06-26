@@ -1,7 +1,7 @@
-# expected: DD006
+# expected: S06
 # `cardinality: many-to-one` requires the right-side join column to be
 # `primary_key` or `unique`. Here `account.account_id` is `required` but
-# neither unique nor PK. No `foreign_key` constraints are set so DD001 does
+# neither unique nor PK. No `foreign_key` constraints are set so S01 does
 # not fire alongside this one.
 
 $version: "0.1.0"
@@ -29,7 +29,7 @@ tables:
       - name: account_id
         type: number(id)
         constraints: [required]
-        description: Account id; intentionally not unique to trigger DD006.
+        description: Account id; intentionally not unique to trigger S06.
 
 relationships:
   - description: Each transaction belongs to one account.

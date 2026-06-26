@@ -1,9 +1,9 @@
 ---
 source: crates/data-dict/tests/validate.rs
-expression: "failing_diagnostic(\"lint/dd008-units-on-non-quantity.yaml\")"
+expression: "failing_diagnostic(\"lint/s08-units-on-non-quantity.yaml\")"
 ---
-Error: [DD008]
-    ╭─[ lint/dd008-units-on-non-quantity.yaml:13:16 ]
+Error: [S08]
+    ╭─[ lint/s08-units-on-non-quantity.yaml:13:16 ]
     │
  13 │         units: place
     │                ──┬──  

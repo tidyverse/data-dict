@@ -1,4 +1,4 @@
-# expected: fails DD007 - an `enum` column must use `values`, not `range` or `examples`.
+# expected: fails S07 - an `enum` column must use `values`, not `range` or `examples`.
 
 $version: 0.1.0
 

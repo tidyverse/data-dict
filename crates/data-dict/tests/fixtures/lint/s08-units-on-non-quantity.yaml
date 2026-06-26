@@ -1,4 +1,4 @@
-# expected: fails DD008 - `units` is only valid on `number(quantity)` columns,
+# expected: fails S08 - `units` is only valid on `number(quantity)` columns,
 # not on `number(ordinal)`.
 
 $version: "0.1.0"

@@ -1,7 +1,6 @@
-# expected: DD002
-# The relationship references `category` but that table doesn't exist; the
-# defined table is `food_category`. DD003 would also fire on `category.id`
-# but DD002 should be present.
+# expected: S03
+# The relationship references `food_category.identifier`, but the column on
+# `food_category` is called `id`.
 
 $version: "0.1.0"
 
@@ -31,6 +30,6 @@ tables:
         description: Category id.
 
 relationships:
-  - description: Each food belongs to a category.
+  - description: Each food belongs to one category.
     cardinality: many-to-one
-    join: food.food_category_id = category.id
+    join: food.food_category_id = food_category.identifier

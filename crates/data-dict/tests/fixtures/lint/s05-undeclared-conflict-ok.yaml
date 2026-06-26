@@ -1,6 +1,7 @@
-# expected: DD005
-# `conflicts: [amount]` claims `amount` appears in both `food` and
-# `food_nutrient`, but `food` has no `amount` column.
+# expected: lints clean. `amount` is a real column on both `food` and
+# `food_nutrient` — a genuine conflict — but it is not listed in `conflicts`.
+# S05 only validates the entries that *are* declared; declaring conflicts is
+# opt-in, so an undeclared shared column is not reported.
 
 $version: "0.1.0"
 
@@ -14,6 +15,11 @@ tables:
         type: number(id)
         constraints: [primary_key]
         description: Food id.
+        examples: [1, 2, 3, 4, 5]
+      - name: amount
+        type: number(quantity)
+        description: Amount.
+        range: [0, 1000]
 
   food_nutrient:
     description: Nutrient values.
@@ -24,16 +30,18 @@ tables:
         type: number(id)
         constraints: [primary_key]
         description: Row id.
+        examples: [1, 2, 3, 4, 5]
       - name: food_id
         type: number(id)
         constraints: [foreign_key]
         description: Food id.
+        examples: [1, 2, 3, 4, 5]
       - name: amount
         type: number(quantity)
         description: Amount.
+        range: [0, 1000]
 
 relationships:
   - description: Each food has many nutrient values.
     cardinality: one-to-many
     join: food.id = food_nutrient.food_id
-    conflicts: [amount]

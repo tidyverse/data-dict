@@ -1,17 +1,17 @@
 ---
 source: crates/data-dict/tests/validate.rs
-expression: "failing_diagnostic(\"lint/dd007-wrong-rep-on-enum.yaml\")"
+expression: "failing_diagnostic(\"lint/s07-wrong-rep-on-enum.yaml\")"
 ---
-Error: [DD007]
-    ╭─[ lint/dd007-wrong-rep-on-enum.yaml:11:15 ]
+Error: [S07]
+    ╭─[ lint/s07-wrong-rep-on-enum.yaml:11:15 ]
     │
  11 │       - name: status
     │               ───┬──  
     │                  ╰──── column `t.status` has type `enum` but is missing the required `values` property
 ────╯
 
-Error: [DD007]
-    ╭─[ lint/dd007-wrong-rep-on-enum.yaml:11:15 ]
+Error: [S07]
+    ╭─[ lint/s07-wrong-rep-on-enum.yaml:11:15 ]
     │
  11 │       - name: status
     │               ───┬──  

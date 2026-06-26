@@ -4,7 +4,7 @@
 //! The fixtures double as runnable inputs for the CLI:
 //!
 //!     cargo run -p data-dict-cli -- validate-schema \
-//!         crates/data-dict/tests/fixtures/lint/dd007-enum-without-values.yaml
+//!         crates/data-dict/tests/fixtures/lint/s07-enum-without-values.yaml
 //!
 //! When adding a new rule, prefer adding a fixture file (with a one-line
 //! `# expected: ...` header) and a one-line test here over inline YAML.
@@ -172,20 +172,20 @@ fn minimal() {
 }
 
 // A column with only a `name` and no `type` is acknowledged but not described,
-// so it is exempt from the DD007 data-representation requirement.
+// so it is exempt from the S07 data-representation requirement.
 #[test]
 fn typeless_column_needs_no_representation() {
     let path = fixture("valid/typeless-column.yaml");
     assert!(
         diagnostics(&path, Severity::Error).is_empty(),
-        "a column with no `type` must not trigger DD007"
+        "a column with no `type` must not trigger S07"
     );
 }
 
 // --- warnings ------------------------------------------------------------
 
 // A document missing the recommended `$learn_more` key validates (it is not an
-// error) but surfaces a DD009 warning.
+// error) but surfaces a S09 warning.
 
 #[test]
 #[cfg(unix)]
@@ -199,8 +199,8 @@ fn warn_missing_learn_more_text() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("DD009") && w.contains("$learn_more")),
-        "expected a DD009 `$learn_more` warning, got: {warnings:?}"
+            .any(|w| w.contains("S09") && w.contains("$learn_more")),
+        "expected a S09 `$learn_more` warning, got: {warnings:?}"
     );
 }
 
@@ -280,103 +280,103 @@ fn lint_clean_two_tables() {
 
 // Each local lint fixture snapshots its full rendered diagnostic. Snapshotting
 // the whole output (rather than asserting a single code is present) guards the
-// exact set of findings — e.g. that `dd003-missing-column` reports the missing
+// exact set of findings — e.g. that `s03-missing-column` reports the missing
 // column without *also* checking cardinality against it and emitting a
-// redundant DD006.
+// redundant S06.
 
 #[test]
-fn lint_dd001_fk_no_relationship() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd001-fk-no-relationship.yaml"));
+fn lint_s01_fk_no_relationship() {
+    insta::assert_snapshot!(failing_diagnostic("lint/s01-fk-no-relationship.yaml"));
 }
 
 #[test]
-fn lint_dd002_missing_table() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd002-missing-table.yaml"));
+fn lint_s02_missing_table() {
+    insta::assert_snapshot!(failing_diagnostic("lint/s02-missing-table.yaml"));
 }
 
 #[test]
-fn lint_dd003_missing_column() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd003-missing-column.yaml"));
+fn lint_s03_missing_column() {
+    insta::assert_snapshot!(failing_diagnostic("lint/s03-missing-column.yaml"));
 }
 
 #[test]
-fn lint_dd004_bad_join() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd004-bad-join.yaml"));
+fn lint_s04_bad_join() {
+    insta::assert_snapshot!(failing_diagnostic("lint/s04-bad-join.yaml"));
 }
 
 #[test]
-fn lint_dd005_conflicts_not_on_both_sides() {
+fn lint_s05_conflicts_not_on_both_sides() {
     insta::assert_snapshot!(failing_diagnostic(
-        "lint/dd005-conflicts-not-on-both-sides.yaml"
+        "lint/s05-conflicts-not-on-both-sides.yaml"
     ));
 }
 
 // The opposite of the above: `amount` is genuinely a column on both tables (a
-// real conflict) but is not declared in `conflicts`. DD005 only checks declared
+// real conflict) but is not declared in `conflicts`. S05 only checks declared
 // entries, so this must lint clean rather than demanding the conflict be named.
 #[test]
-fn lint_dd005_undeclared_conflict_ok() {
-    assert_valid(fixture("lint/dd005-undeclared-conflict-ok.yaml"));
+fn lint_s05_undeclared_conflict_ok() {
+    assert_valid(fixture("lint/s05-undeclared-conflict-ok.yaml"));
 }
 
 #[test]
-fn lint_dd006_cardinality_mismatch() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd006-cardinality-mismatch.yaml"));
+fn lint_s06_cardinality_mismatch() {
+    insta::assert_snapshot!(failing_diagnostic("lint/s06-cardinality-mismatch.yaml"));
 }
 
 // Recreated from the bundled `otters` example: a one-to-many self-join whose
-// "one" side is not unique (DD006), alongside a string column missing
-// `examples` (DD007). Guards that both findings surface together.
+// "one" side is not unique (S06), alongside a string column missing
+// `examples` (S07). Guards that both findings surface together.
 #[test]
-fn lint_dd006_self_join_one_to_many() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd006-self-join-one-to-many.yaml"));
+fn lint_s06_self_join_one_to_many() {
+    insta::assert_snapshot!(failing_diagnostic("lint/s06-self-join-one-to-many.yaml"));
 }
 
 #[test]
-fn lint_dd007_enum_without_values() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd007-enum-without-values.yaml"));
+fn lint_s07_enum_without_values() {
+    insta::assert_snapshot!(failing_diagnostic("lint/s07-enum-without-values.yaml"));
 }
 
 #[test]
-fn lint_dd007_range_type_missing_range() {
+fn lint_s07_range_type_missing_range() {
     insta::assert_snapshot!(failing_diagnostic(
-        "lint/dd007-range-type-missing-range.yaml"
+        "lint/s07-range-type-missing-range.yaml"
     ));
 }
 
 #[test]
-fn lint_dd007_other_type_missing_examples() {
+fn lint_s07_other_type_missing_examples() {
     insta::assert_snapshot!(failing_diagnostic(
-        "lint/dd007-other-type-missing-examples.yaml"
+        "lint/s07-other-type-missing-examples.yaml"
     ));
 }
 
 // A `boolean` column carries no data representation key, so it must lint clean
-// without `examples` — the one non-enum/range type exempt from DD007's
+// without `examples` — the one non-enum/range type exempt from S07's
 // missing-`examples` check.
 #[test]
-fn lint_dd007_boolean_no_examples_ok() {
-    assert_valid(fixture("lint/dd007-boolean-no-examples-ok.yaml"));
+fn lint_s07_boolean_no_examples_ok() {
+    assert_valid(fixture("lint/s07-boolean-no-examples-ok.yaml"));
 }
 
 #[test]
-fn lint_dd007_wrong_rep_on_enum() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd007-wrong-rep-on-enum.yaml"));
+fn lint_s07_wrong_rep_on_enum() {
+    insta::assert_snapshot!(failing_diagnostic("lint/s07-wrong-rep-on-enum.yaml"));
 }
 
 #[test]
-fn lint_dd008_range_on_string_type() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd008-range-on-string-type.yaml"));
+fn lint_s08_range_on_string_type() {
+    insta::assert_snapshot!(failing_diagnostic("lint/s08-range-on-string-type.yaml"));
 }
 
 // `units` is valid only on `number(quantity)`. A quantity column with units
-// lints clean; units on any other type is DD008.
+// lints clean; units on any other type is S08.
 #[test]
-fn lint_dd008_units_ok_on_quantity() {
-    assert_valid(fixture("lint/dd008-units-on-quantity-ok.yaml"));
+fn lint_s08_units_ok_on_quantity() {
+    assert_valid(fixture("lint/s08-units-on-quantity-ok.yaml"));
 }
 
 #[test]
-fn lint_dd008_units_on_non_quantity() {
-    insta::assert_snapshot!(failing_diagnostic("lint/dd008-units-on-non-quantity.yaml"));
+fn lint_s08_units_on_non_quantity() {
+    insta::assert_snapshot!(failing_diagnostic("lint/s08-units-on-non-quantity.yaml"));
 }

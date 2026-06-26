@@ -1,17 +1,17 @@
 ---
 source: crates/data-dict/tests/validate.rs
-expression: "failing_diagnostic(\"lint/dd007-other-type-missing-examples.yaml\")"
+expression: "failing_diagnostic(\"lint/s07-other-type-missing-examples.yaml\")"
 ---
-Error: [DD007]
-    ╭─[ lint/dd007-other-type-missing-examples.yaml:11:15 ]
+Error: [S07]
+    ╭─[ lint/s07-other-type-missing-examples.yaml:11:15 ]
     │
  11 │       - name: label
     │               ──┬──  
     │                 ╰──── column `t.label` has type `string` but is missing the expected `examples` property
 ────╯
 
-Error: [DD007]
-    ╭─[ lint/dd007-other-type-missing-examples.yaml:14:15 ]
+Error: [S07]
+    ╭─[ lint/s07-other-type-missing-examples.yaml:14:15 ]
     │
  14 │       - name: code
     │               ──┬─  

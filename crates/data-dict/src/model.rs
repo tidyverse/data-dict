@@ -97,9 +97,9 @@ pub struct Relationship {
     /// parsed `JoinExpr` so diagnostics about parse failure can refer back to
     /// it.
     pub join_text: Spanned<String>,
-    /// `None` if the join string failed to parse — DD004 is emitted in that
-    /// case and downstream rules that need the parsed form (DD001, DD005,
-    /// DD006) skip the relationship.
+    /// `None` if the join string failed to parse — S04 is emitted in that
+    /// case and downstream rules that need the parsed form (S01, S05,
+    /// S06) skip the relationship.
     pub join: Option<JoinExpr>,
     pub conflicts: Vec<Spanned<String>>,
 }

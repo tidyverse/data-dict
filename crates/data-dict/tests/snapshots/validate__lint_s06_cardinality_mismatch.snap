@@ -1,33 +1,33 @@
 ---
 source: crates/data-dict/tests/validate.rs
-expression: "failing_diagnostic(\"lint/dd006-cardinality-mismatch.yaml\")"
+expression: "failing_diagnostic(\"lint/s06-cardinality-mismatch.yaml\")"
 ---
-Error: [DD007]
-    ╭─[ lint/dd006-cardinality-mismatch.yaml:15:15 ]
+Error: [S07]
+    ╭─[ lint/s06-cardinality-mismatch.yaml:15:15 ]
     │
  15 │       - name: id
     │               ─┬  
     │                ╰── column `transaction.id` has type `number(id)` but is missing the expected `examples` property
 ────╯
 
-Error: [DD007]
-    ╭─[ lint/dd006-cardinality-mismatch.yaml:19:15 ]
+Error: [S07]
+    ╭─[ lint/s06-cardinality-mismatch.yaml:19:15 ]
     │
  19 │       - name: account_id
     │               ─────┬────  
     │                    ╰────── column `transaction.account_id` has type `number(id)` but is missing the expected `examples` property
 ────╯
 
-Error: [DD007]
-    ╭─[ lint/dd006-cardinality-mismatch.yaml:29:15 ]
+Error: [S07]
+    ╭─[ lint/s06-cardinality-mismatch.yaml:29:15 ]
     │
  29 │       - name: account_id
     │               ─────┬────  
     │                    ╰────── column `account.account_id` has type `number(id)` but is missing the expected `examples` property
 ────╯
 
-Error: [DD006]
-    ╭─[ lint/dd006-cardinality-mismatch.yaml:36:18 ]
+Error: [S06]
+    ╭─[ lint/s06-cardinality-mismatch.yaml:36:18 ]
     │
  36 │     cardinality: many-to-one
     │                  ─────┬─────  

@@ -378,7 +378,7 @@ mod tests {
         assert_eq!(resolve_dict_path(Some(path.clone())).unwrap(), path);
     }
 
-    /// Validate a dictionary that is clean apart from a DD009 ($learn_more)
+    /// Validate a dictionary that is clean apart from a S09 ($learn_more)
     /// warning, returning its diagnostics.
     fn warning_diagnostics(name: &str) -> Diagnostics {
         let dir = temp_dir(name);
@@ -396,13 +396,13 @@ mod tests {
         };
         let json = validate_result_to_json(&diagnostics, &Ok(report));
         assert_eq!(json["status"], "ok");
-        assert_eq!(json["diagnostics"][0]["code"], "DD009");
+        assert_eq!(json["diagnostics"][0]["code"], "S09");
         assert_eq!(json["diagnostics"][0]["severity"], "warning");
         assert!(
             json["diagnostics"][0]["hint"]
                 .as_str()
                 .is_some_and(|h| h.contains("$learn_more")),
-            "DD009 hint should be carried in the JSON output"
+            "S09 hint should be carried in the JSON output"
         );
     }
 
@@ -414,6 +414,6 @@ mod tests {
         };
         let json = validate_result_to_json(&diagnostics, &Err(err));
         assert_eq!(json["status"], "error");
-        assert_eq!(json["diagnostics"][0]["code"], "DD009");
+        assert_eq!(json["diagnostics"][0]["code"], "S09");
     }
 }

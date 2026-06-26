@@ -1,4 +1,4 @@
-# expected: fails DD007 - when `type: enum`, the column must also have a `values` key.
+# expected: fails S07 - when `type: enum`, the column must also have a `values` key.
 
 $version: 0.1.0
 

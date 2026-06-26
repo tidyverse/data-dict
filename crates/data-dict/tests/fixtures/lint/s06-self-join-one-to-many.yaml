@@ -1,8 +1,8 @@
-# expected: DD006, DD007
+# expected: S06, S07
 # Recreated from the bundled `otters` example. A `one-to-many` self-join
 # `otters.pup_number = otters.otter_no` makes `pup_number` the "one" side, so
-# it must be `primary_key` or `unique`; it is neither, so DD006 fires. The
-# `comments` column (type: string) also lacks `examples`, so DD007 fires.
+# it must be `primary_key` or `unique`; it is neither, so S06 fires. The
+# `comments` column (type: string) also lacks `examples`, so S07 fires.
 
 $version: "0.1.0"
 
@@ -19,11 +19,11 @@ tables:
         examples: [1, 2, 3]
       - name: pup_number
         type: number(id)
-        description: The otter's mother (intentionally not unique to trigger DD006).
+        description: The otter's mother (intentionally not unique to trigger S06).
         examples: [1, 2]
       - name: comments
         type: string
-        description: Free-text notes (intentionally missing examples to trigger DD007).
+        description: Free-text notes (intentionally missing examples to trigger S07).
 
 relationships:
   - description: Each mother otter has many pups.

@@ -1,4 +1,4 @@
-# expected: fails DD007 - `range` is only allowed on ordered numeric / date / datetime
+# expected: fails S07 - `range` is only allowed on ordered numeric / date / datetime
 # columns, not on strings.
 
 $version: 0.1.0

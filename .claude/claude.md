@@ -54,7 +54,7 @@ To review/accept insta snapshots: `cargo insta review`.
 Rust workspace with three crates:
 
 - `crates/data-dict/` — core library: YAML parsing, schema validation, lowering to typed model, and semantic linting. All logic lives here.
-- `crates/data-dict-cli/` — thin CLI wrapper (`validate-schema`, plus `parquet types` / `parquet validate`). Keep it thin.
+- `crates/data-dict-cli/` — thin CLI wrapper (`validate-schema` / `validate-meta` / `validate-data`, plus `types parquet`). Keep it thin.
 - `crates/data-dict-parquet/` — reads Parquet file schemas and maps column types to data-dict types.
 
 ### Schema validation pipeline
@@ -64,27 +64,44 @@ YAML file
   → quarto_yaml: parse to AST with source spans
   → structural validation against schema.yaml (embedded via include_str!)
   → lower.rs: AST → typed model (DataDict, Table, Column, Relationship, ...)
-  → lint.rs: semantic rules DD001–DD008
+  → lint.rs: semantic rules S01–S08
   → Result<(), Vec<Diagnostic>>
 ```
 
-### Lint rules (DD001–DD009)
+### Validation levels and checks
 
-DD001–DD008 are errors (they fail validation); DD009 is a warning (reported but does not fail validation).
+Validation has three levels (see `site/validation.md`), each with its own code prefix:
+
+- **schema** (`validate-schema`, `S##`): the dictionary itself — well-formed and internally consistent. No data access.
+- **metadata** (`validate-meta`, `M##`): the data's column names and types match the dictionary. Reads only the data's schema.
+- **data** (`validate-data`, `D##`): the data's values match the dictionary. Reads the data.
+
+Each level implies the ones before it. Most checks are errors (fail validation); S09 and M03 are warnings.
+
+**Schema checks (S01–S09)** — in `lint.rs`:
 
 | Rule | Description |
 |------|-------------|
-| DD001 | `foreign_key` column has no matching relationship with `primary_key` |
-| DD002 | Relationship references non-existent table |
-| DD003 | Relationship references non-existent column |
-| DD004 | `join` expression fails to parse or references wrong number of tables |
-| DD005 | Column in `conflicts` doesn't appear on both sides of the join |
-| DD006 | Cardinality inconsistent with column constraints |
-| DD007 | Column missing required representation key (`values`, `range`, or `examples`) |
-| DD008 | Column has `units` but its type is not `number(quantity)` |
-| DD009 | Document omits the recommended `$learn_more` key (warning) |
+| S01 | `foreign_key` column has no matching relationship with `primary_key` |
+| S02 | Relationship references non-existent table |
+| S03 | Relationship references non-existent column |
+| S04 | `join` expression fails to parse or references wrong number of tables |
+| S05 | Column in `conflicts` doesn't appear on both sides of the join |
+| S06 | Cardinality inconsistent with column constraints |
+| S07 | Column missing required representation key (`values`, `range`, or `examples`) |
+| S08 | Column has `units` but its type is not `number(quantity)` |
+| S09 | Document omits the recommended `$learn_more` key (warning) |
 
-Test fixtures for these rules are in `crates/data-dict/tests/fixtures/{valid,invalid,lint}/`. Each fixture has a `# expected: ...` header documenting the intended outcome.
+**Metadata checks (M01–M03)** and **data checks (D01)** — in `meta.rs` / `data.rs`:
+
+| Rule | Description |
+|------|-------------|
+| M01 | Column's declared type is incompatible with the data |
+| M02 | Column described in the dictionary is missing from the data |
+| M03 | Column present in the data is undocumented (warning) |
+| D01 | `required` / `primary_key` column contains nulls |
+
+Test fixtures for the schema rules are in `crates/data-dict/tests/fixtures/{valid,invalid,lint}/`. Each fixture has a `# expected: ...` header documenting the intended outcome.
 
 Diagnostic hints always start with a capital letter.
 

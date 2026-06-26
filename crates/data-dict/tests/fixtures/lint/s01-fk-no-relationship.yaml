@@ -1,6 +1,7 @@
-# expected: DD004
-# `food.food_category_id ~ food_category.id`: `~` is not a valid operator
-# in the join grammar.
+# expected: S01
+# `food.food_category_id` is marked `foreign_key`, but no `relationships`
+# entry points it at a `primary_key`. Removing the `relationships` block
+# entirely is enough to trigger the rule.
 
 $version: "0.1.0"
 
@@ -28,8 +29,3 @@ tables:
         type: number(id)
         constraints: [primary_key]
         description: Category id.
-
-relationships:
-  - description: Each food belongs to one category.
-    cardinality: many-to-one
-    join: food.food_category_id ~ food_category.id

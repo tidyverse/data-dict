@@ -1,4 +1,4 @@
-# expected: fails DD007 - `number(quantity)` and `date` columns must have a `range` property.
+# expected: fails S07 - `number(quantity)` and `date` columns must have a `range` property.
 
 $version: 0.1.0
 

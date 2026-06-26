@@ -1,17 +1,17 @@
 ---
 source: crates/data-dict/tests/validate.rs
-expression: "failing_diagnostic(\"lint/dd008-range-on-string-type.yaml\")"
+expression: "failing_diagnostic(\"lint/s08-range-on-string-type.yaml\")"
 ---
-Error: [DD007]
-    ╭─[ lint/dd008-range-on-string-type.yaml:12:15 ]
+Error: [S07]
+    ╭─[ lint/s08-range-on-string-type.yaml:12:15 ]
     │
  12 │       - name: c
     │               ┬  
     │               ╰── column `t.c` has type `string` but is missing the expected `examples` property
 ────╯
 
-Error: [DD007]
-    ╭─[ lint/dd008-range-on-string-type.yaml:12:15 ]
+Error: [S07]
+    ╭─[ lint/s08-range-on-string-type.yaml:12:15 ]
     │
  12 │       - name: c
     │               ┬  

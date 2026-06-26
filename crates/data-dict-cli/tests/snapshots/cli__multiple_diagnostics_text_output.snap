@@ -2,7 +2,7 @@
 source: crates/data-dict-cli/tests/cli.rs
 expression: "sanitize(&stderr, &fixture.display().to_string())"
 ---
-Warning: [DD009]
+Warning: [S09]
    ╭─[ <fixture>:2:1 ]
    │
  2 │ $version: 0.1.0
@@ -11,7 +11,7 @@ Warning: [DD009]
 ───╯
 ℹ Add `$learn_more: http://data-dict.tidyverse.org/` so readers unfamiliar with the format can find it
 
-Error: [DD007]
+Error: [S07]
    ╭─[ <fixture>:8:15 ]
    │
  8 │       - name: id
@@ -19,7 +19,7 @@ Error: [DD007]
    │                ╰── column `measurements.id` has type `number(id)` but is missing the expected `examples` property
 ───╯
 
-Error: [DD008]
+Error: [S08]
     ╭─[ <fixture>:13:16 ]
     │
  13 │         units: kg
