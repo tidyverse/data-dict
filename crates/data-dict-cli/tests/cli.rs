@@ -31,7 +31,7 @@ fn multi_error_fixture() -> PathBuf {
 fn multiple_diagnostics_text_output() {
     let fixture = multi_error_fixture();
     let output = Command::new(env!("CARGO_BIN_EXE_data-dict"))
-        .args(["parquet", "validate"])
+        .args(["validate-data"])
         .arg(&fixture)
         .arg("ignored.parquet")
         .output()
@@ -47,7 +47,7 @@ fn multiple_diagnostics_text_output() {
 fn multiple_diagnostics_json_output() {
     let fixture = multi_error_fixture();
     let output = Command::new(env!("CARGO_BIN_EXE_data-dict"))
-        .args(["parquet", "validate"])
+        .args(["validate-data"])
         .arg(&fixture)
         .args(["ignored.parquet", "--json"])
         .output()

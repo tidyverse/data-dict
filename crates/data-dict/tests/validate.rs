@@ -339,9 +339,7 @@ fn lint_s07_enum_without_values() {
 
 #[test]
 fn lint_s07_range_type_missing_range() {
-    insta::assert_snapshot!(failing_diagnostic(
-        "lint/s07-range-type-missing-range.yaml"
-    ));
+    insta::assert_snapshot!(failing_diagnostic("lint/s07-range-type-missing-range.yaml"));
 }
 
 #[test]

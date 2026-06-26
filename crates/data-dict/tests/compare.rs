@@ -1,4 +1,5 @@
-//! Integration tests for `data_dict::data::validate_parquet`.
+//! Integration tests for the metadata and data comparison levels
+//! (`data_dict::meta::validate_meta` and `data_dict::data::validate_data`).
 //!
 //! Each test writes a small parquet file (a `string` column `name` and a
 //! `number` column `weight`) and a dictionary YAML to a temp dir, then checks
@@ -9,8 +10,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use data_dict::Severity;
-use data_dict::data::{ColumnIssue, DataError, DataReport, IssueKind, validate_parquet};
+use data_dict::data::validate_data;
+use data_dict::meta::validate_meta;
+use data_dict::{ColumnIssue, CompareError, CompareReport, IssueKind, Severity};
 use indoc::{formatdoc, indoc};
 use parquet::data_type::{ByteArray, ByteArrayType, DoubleType};
 use parquet::file::properties::WriterProperties;
@@ -96,7 +98,7 @@ fn matching_dict_and_parquet() {
         "},
     );
 
-    let report = validate_parquet(&yaml, &parquet, None).1.unwrap();
+    let report = validate_data(&yaml, &parquet, None).1.unwrap();
     assert!(report.is_clean(), "got {:?}", report.issues);
 }
 
@@ -124,7 +126,7 @@ fn type_mismatch_reported() {
         "},
     );
 
-    let report = validate_parquet(&yaml, &parquet, None).1.unwrap();
+    let report = validate_data(&yaml, &parquet, None).1.unwrap();
     assert!(report.has_errors());
     assert!(matches!(
         report.issues.as_slice(),
@@ -156,11 +158,11 @@ fn extra_column_in_data_is_warning() {
 
     // An undocumented column is a warning, not an error: it is reported but does
     // not fail validation.
-    let report = validate_parquet(&yaml, &parquet, None).1.unwrap();
+    let report = validate_data(&yaml, &parquet, None).1.unwrap();
     assert!(!report.has_errors(), "got {:?}", report.issues);
     assert!(matches!(
         report.issues.as_slice(),
-        [ColumnIssue { column, severity, kind: IssueKind::ExtraInData { actual } }]
+        [ColumnIssue { column, severity, kind: IssueKind::ExtraInData { actual }, .. }]
             if column == "weight" && actual == "number" && *severity == Severity::Warning
     ));
 }
@@ -188,7 +190,7 @@ fn typeless_column_skips_type_check_for_present_column() {
         "},
     );
 
-    let report = validate_parquet(&yaml, &parquet, None).1.unwrap();
+    let report = validate_data(&yaml, &parquet, None).1.unwrap();
     assert!(report.is_clean(), "got {:?}", report.issues);
 }
 
@@ -218,7 +220,7 @@ fn typeless_column_still_must_exist_in_data() {
         "},
     );
 
-    let report = validate_parquet(&yaml, &parquet, None).1.unwrap();
+    let report = validate_data(&yaml, &parquet, None).1.unwrap();
     assert!(report.has_errors());
     assert!(matches!(
         report.issues.as_slice(),
@@ -253,7 +255,7 @@ fn missing_column_in_data_reported() {
         "},
     );
 
-    let report = validate_parquet(&yaml, &parquet, None).1.unwrap();
+    let report = validate_data(&yaml, &parquet, None).1.unwrap();
     assert!(report.has_errors());
     assert!(matches!(
         report.issues.as_slice(),
@@ -288,9 +290,9 @@ fn ambiguous_table_without_name() {
         "},
     );
 
-    let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
+    let err = validate_data(&yaml, &parquet, None).1.unwrap_err();
     assert!(
-        matches!(err, DataError::AmbiguousTable { .. }),
+        matches!(err, CompareError::AmbiguousTable { .. }),
         "got {err:?}"
     );
 }
@@ -318,11 +320,9 @@ fn unknown_table_name() {
         "},
     );
 
-    let err = validate_parquet(&yaml, &parquet, Some("nope"))
-        .1
-        .unwrap_err();
+    let err = validate_data(&yaml, &parquet, Some("nope")).1.unwrap_err();
     assert!(
-        matches!(err, DataError::TableNotFound { .. }),
+        matches!(err, CompareError::TableNotFound { .. }),
         "got {err:?}"
     );
 }
@@ -339,7 +339,19 @@ fn check_column(
     schema_col: &str,
     write: impl FnOnce(&mut SerializedColumnWriter),
     column: &str,
-) -> Result<DataReport, DataError> {
+) -> Result<CompareReport, CompareError> {
+    let (yaml, parquet) = build_column(schema_col, write, column);
+    validate_data(&yaml, &parquet, None).1
+}
+
+/// Write the one-column parquet file and dictionary used by [`check_column`],
+/// returning their paths so a test can run more than one validation level
+/// against the same pair.
+fn build_column(
+    schema_col: &str,
+    write: impl FnOnce(&mut SerializedColumnWriter),
+    column: &str,
+) -> (PathBuf, PathBuf) {
     let dir = temp_dir();
     let parquet = dir.join("data.parquet");
 
@@ -375,7 +387,76 @@ fn check_column(
         "},
     );
 
-    validate_parquet(&yaml, &parquet, None).1
+    (yaml, parquet)
+}
+
+// --- metadata level vs data level ----------------------------------------
+
+/// The defining difference between the two levels: a `required` column with
+/// nulls is a *value* problem, so it is invisible to `validate-meta` (which
+/// reads only names and types) but caught by `validate-data` (which scans).
+#[test]
+fn meta_ignores_null_values_that_data_catches() {
+    let (yaml, parquet) = build_column(
+        "OPTIONAL DOUBLE weight",
+        write_double_with_null,
+        indoc! {"
+            - name: weight
+              type: number(quantity)
+              constraints: [required]
+              range: [0, 100]
+        "},
+    );
+
+    // Metadata level: the column exists with a compatible type, so it's clean.
+    let meta = validate_meta(&yaml, &parquet, None).1.unwrap();
+    assert!(meta.is_clean(), "meta got {:?}", meta.issues);
+
+    // Data level: the null in a required column is an error.
+    let data = validate_data(&yaml, &parquet, None).1.unwrap();
+    assert!(data.has_errors());
+    assert!(
+        matches!(
+            data.issues.as_slice(),
+            [ColumnIssue {
+                kind: IssueKind::NullsInRequired { .. },
+                ..
+            }]
+        ),
+        "data got {:?}",
+        data.issues
+    );
+}
+
+/// Type and presence problems are metadata-level, so `validate-meta` reports
+/// them on its own, without reading any values.
+#[test]
+fn meta_reports_type_mismatch() {
+    let (yaml, parquet) = build_column(
+        "REQUIRED DOUBLE weight",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0_f64, 2.0], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: weight
+              type: string
+              examples: ['1', '2']
+        "},
+    );
+
+    let report = validate_meta(&yaml, &parquet, None).1.unwrap();
+    assert!(report.has_errors());
+    assert!(
+        matches!(
+            report.issues.as_slice(),
+            [ColumnIssue { column, code, kind: IssueKind::TypeMismatch { .. }, .. }]
+                if column == "weight" && *code == "M01"
+        ),
+        "got {:?}",
+        report.issues
+    );
 }
 
 /// Write an optional double column whose second row (1-based) is null. Used by

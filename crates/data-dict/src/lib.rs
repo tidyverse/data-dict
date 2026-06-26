@@ -1,55 +1,43 @@
 //! Core library for the `data-dict.yaml` specification.
 //!
-//! [`validate`] runs two passes on a document:
+//! Validation happens at three levels, each a strict superset of the last (see
+//! `site/validation.md`):
 //!
-//! 1. Structural validation against the embedded `schema.yaml` for spec
-//!    version 0.1.0, via the `quarto-yaml-validation` crate.
-//! 2. Cross-table semantic linting (see [`lint`]) — foreign-key targets,
-//!    `join` expression parsing, `conflicts` column resolution, cardinality
-//!    consistency.
+//! 1. [`schema`] (`S##`) — the dictionary itself: well-formed and internally
+//!    consistent. Never looks at the data.
+//! 2. [`meta`] (`M##`) — the data's column names and types match the dictionary.
+//!    Reads only the data's schema (e.g. a parquet footer).
+//! 3. [`data`] (`D##`) — the data's values match the dictionary. Reads the data.
 //!
-//! The second pass only runs if the first succeeds: there is no point
-//! chasing FK references in a document whose `tables` block is malformed.
-//!
-//! Linting can also surface *warnings* (e.g. a missing `$learn_more` key).
-//! Warnings do not fail validation. Errors and warnings are returned together
-//! in a single vector, sorted by their position in the document, so they read
-//! in source order when rendered; the caller decides validity by checking for
-//! any [`Severity::Error`].
+//! Each level validates the schema first, then (for meta/data) compares the
+//! dictionary against a dataset. This module holds the shared comparison
+//! vocabulary ([`Level`], [`ColumnIssue`], [`CompareReport`], [`CompareError`])
+//! and the [`compare`] orchestration the meta and data levels delegate to.
 
 use std::path::Path;
-use std::sync::OnceLock;
 
-use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic};
+use data_dict_parquet::ParquetError;
 
 pub mod data;
 pub mod join_expr;
 pub mod lint;
 pub mod lower;
+pub mod meta;
 pub mod model;
+pub mod schema;
 
 pub use lint::{Diagnostic, Diagnostics, Severity};
 pub use quarto_source_map::SourceContext;
+pub use schema::{validate, validate_and_lower};
 
-use model::DataDict;
-
-const SCHEMA_YAML: &str = include_str!("../../../schema.yaml");
+use model::{DataDict, Table};
 
 /// The full text of the `data-dict.yaml` specification (`site/spec.md`),
 /// embedded at compile time so the CLI can print it without a network or
 /// filesystem dependency.
 pub const SPEC_MD: &str = include_str!("../../../site/spec.md");
 
-fn schema() -> &'static Schema {
-    static SCHEMA: OnceLock<Schema> = OnceLock::new();
-    SCHEMA.get_or_init(|| {
-        let yaml =
-            quarto_yaml::parse(SCHEMA_YAML).expect("embedded schema.yaml must be parseable YAML");
-        Schema::from_yaml(&yaml).expect("embedded schema.yaml must compile to a valid schema")
-    })
-}
-
-/// Errors returned by [`validate`].
+/// Errors returned by [`schema::validate`].
 #[derive(Debug)]
 pub enum Error {
     /// I/O failure reading the document.
@@ -83,47 +71,313 @@ impl std::error::Error for Error {
     }
 }
 
-/// Validate a `data-dict.yaml` file at `path`: structural schema check
-/// followed by cross-table semantic linting. Returns the [`Diagnostics`] —
-/// every lint diagnostic (errors and warnings, in emission order) bundled with
-/// the source context needed to render them. [`Diagnostics::is_ok`] reports
-/// whether the document is valid.
-///
-/// [`Error`] is reserved for failures that prevent linting altogether: I/O,
-/// unparseable YAML, or a structurally invalid document.
-pub fn validate(path: &Path) -> Result<Diagnostics, Error> {
-    validate_and_lower(path).map(|(_, diagnostics)| diagnostics)
+/// Which of the three validation levels a check or report belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Level {
+    Schema,
+    Meta,
+    Data,
 }
 
-/// Validate a `data-dict.yaml` file at `path` and return the lowered
-/// [`DataDict`] model alongside its [`Diagnostics`]. Runs the same two passes
-/// as [`validate`] — structural schema check then cross-table semantic linting.
-/// The model is returned even when the diagnostics contain errors, since
-/// lowering succeeds whenever the document is structurally sound.
-pub fn validate_and_lower(path: &Path) -> Result<(DataDict, Diagnostics), Error> {
-    let content = std::fs::read_to_string(path).map_err(Error::Io)?;
-    let filename = path.display().to_string();
+/// A single way in which a dataset disagrees with its data dictionary. Every
+/// issue concerns one `column`, carries its rule `code` (e.g. `M01`, `D01`) and
+/// a [`Severity`]; `kind` says what specifically is wrong.
+///
+/// The `serde` representation is the tool's JSON wire format: `column`, `code`,
+/// `severity`, and the `kind`'s snake_case tag with its fields flattened
+/// alongside (e.g. `{"column": "x", "code": "M01", "severity": "error", "kind":
+/// "type_mismatch", "declared": ..., "actual": ...}`).
+#[derive(Debug, serde::Serialize)]
+pub struct ColumnIssue {
+    pub column: String,
+    pub code: &'static str,
+    pub severity: Severity,
+    #[serde(flatten)]
+    pub kind: IssueKind,
+}
 
-    let doc =
-        quarto_yaml::parse_file(&content, &filename).map_err(|e| Error::Parse(Box::new(e)))?;
+/// What is wrong with a column — the payload behind a [`ColumnIssue`].
+#[derive(Debug, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum IssueKind {
+    /// The column is present in both, but its declared type is not compatible
+    /// with the type read from the data.
+    TypeMismatch { declared: String, actual: String },
+    /// The column is described by the dictionary but absent from the data.
+    MissingInData,
+    /// The column is present in the data but the dictionary does not describe it.
+    ExtraInData { actual: String },
+    /// The column is marked `required` (or `primary_key`) but contains null
+    /// values. `rows` lists the first few offending row numbers (1-based);
+    /// `count` is the true total.
+    NullsInRequired { count: usize, rows: Vec<usize> },
+}
 
-    let mut source = SourceContext::new();
-    let file_id = quarto_yaml::file_id_for_filename(&filename);
-    source.add_file_with_id(file_id, filename, Some(content));
-
-    let registry = SchemaRegistry::new();
-    if let Err(err) = quarto_yaml_validation::validate(&doc, schema(), &registry, &source) {
-        let diagnostic = ValidationDiagnostic::from_validation_error(&err, &source);
-        return Err(Error::Invalid(diagnostic.to_text(&source)));
+impl IssueKind {
+    /// The rule code for this kind of issue, prefixed by its validation level.
+    pub fn code(&self) -> &'static str {
+        match self {
+            IssueKind::TypeMismatch { .. } => "M01",
+            IssueKind::MissingInData => "M02",
+            IssueKind::ExtraInData { .. } => "M03",
+            IssueKind::NullsInRequired { .. } => "D01",
+        }
     }
 
-    let mut diagnostics = Diagnostics::new(source);
-    let dict = lower::lower(&doc, &mut diagnostics);
-    lint::lint(&dict, &mut diagnostics);
-    lint::check_learn_more(&doc, &mut diagnostics);
-    diagnostics.sort();
+    /// The validation level this issue belongs to. Type and presence checks are
+    /// metadata-level; value checks (e.g. nulls) are data-level.
+    pub fn level(&self) -> Level {
+        match self {
+            IssueKind::NullsInRequired { .. } => Level::Data,
+            _ => Level::Meta,
+        }
+    }
+}
 
-    Ok((dict, diagnostics))
+impl ColumnIssue {
+    /// An error-severity issue: a hard mismatch that fails validation.
+    pub(crate) fn error(column: impl Into<String>, kind: IssueKind) -> Self {
+        ColumnIssue {
+            column: column.into(),
+            code: kind.code(),
+            severity: Severity::Error,
+            kind,
+        }
+    }
+
+    /// A warning-severity issue: advisory drift that is reported but does not
+    /// fail validation.
+    pub(crate) fn warning(column: impl Into<String>, kind: IssueKind) -> Self {
+        ColumnIssue {
+            column: column.into(),
+            code: kind.code(),
+            severity: Severity::Warning,
+            kind,
+        }
+    }
+
+    /// The human-readable description of the issue, without code or severity.
+    fn body(&self) -> String {
+        let column = &self.column;
+        match &self.kind {
+            IssueKind::TypeMismatch { declared, actual } => {
+                format!("column \"{column}\": declared {declared}, data is {actual}")
+            }
+            IssueKind::MissingInData => {
+                format!("column \"{column}\": described in dictionary but missing from data")
+            }
+            IssueKind::ExtraInData { actual } => {
+                format!("column \"{column}\": present in data ({actual}) but not in dictionary")
+            }
+            IssueKind::NullsInRequired { count, rows } => format!(
+                "column \"{column}\": required but has {count} null value{} ({})",
+                if *count == 1 { "" } else { "s" },
+                format_rows(rows, *count),
+            ),
+        }
+    }
+}
+
+/// The outcome of comparing a dataset against one table of a data dictionary at
+/// a given [`Level`]: the table compared and every way the two disagree. Issues
+/// carry their own [`Severity`]; the report fails validation only if some issue
+/// is an error.
+#[derive(Debug)]
+pub struct CompareReport {
+    pub table: String,
+    pub level: Level,
+    pub issues: Vec<ColumnIssue>,
+}
+
+impl CompareReport {
+    /// A report for a comparison that did not run (e.g. the dictionary itself
+    /// failed validation, so comparing data against it is not meaningful).
+    fn skipped(level: Level) -> Self {
+        CompareReport {
+            table: String::new(),
+            level,
+            issues: Vec::new(),
+        }
+    }
+
+    /// Whether any issue is an error. Warning-only reports (e.g. an undocumented
+    /// column) do not fail validation.
+    pub fn has_errors(&self) -> bool {
+        self.issues.iter().any(|i| i.severity == Severity::Error)
+    }
+
+    /// Whether the dataset matched the dictionary with nothing to report.
+    pub fn is_clean(&self) -> bool {
+        self.issues.is_empty()
+    }
+}
+
+impl std::fmt::Display for CompareReport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.issues.is_empty() {
+            return Ok(());
+        }
+        writeln!(f, "data does not match table \"{}\":", self.table)?;
+        for issue in &self.issues {
+            let severity = match issue.severity {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+            };
+            writeln!(f, "  {severity} [{}]: {}", issue.code, issue.body())?;
+        }
+        Ok(())
+    }
+}
+
+/// Errors returned by the meta/data comparison entry points.
+#[derive(Debug)]
+pub enum CompareError {
+    /// The dictionary itself failed schema/semantic validation.
+    Schema(Error),
+    /// The parquet file could not be read.
+    Parquet(ParquetError),
+    /// A table name was given but no such table exists in the dictionary.
+    TableNotFound {
+        name: String,
+        available: Vec<String>,
+    },
+    /// No table name was given and the dictionary describes more than one, so
+    /// the target is ambiguous.
+    AmbiguousTable { available: Vec<String> },
+}
+
+impl From<Error> for CompareError {
+    fn from(e: Error) -> Self {
+        CompareError::Schema(e)
+    }
+}
+
+impl From<ParquetError> for CompareError {
+    fn from(e: ParquetError) -> Self {
+        CompareError::Parquet(e)
+    }
+}
+
+impl std::fmt::Display for CompareError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CompareError::Schema(e) => write!(f, "{e}"),
+            CompareError::Parquet(e) => write!(f, "{e}"),
+            CompareError::TableNotFound { name, available } => {
+                write!(
+                    f,
+                    "table \"{name}\" is not in the data dictionary (available: {})",
+                    available.join(", ")
+                )
+            }
+            CompareError::AmbiguousTable { available } => {
+                write!(
+                    f,
+                    "the data dictionary describes multiple tables ({}); specify which one to validate against",
+                    available.join(", ")
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for CompareError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            CompareError::Schema(e) => Some(e),
+            CompareError::Parquet(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+/// Validate the schema, then compare a parquet file against the dictionary at
+/// `level`. Shared by [`meta::validate_meta`] and [`data::validate_data`].
+///
+/// First validates the dictionary at `dict_path` (schema + lint). The data
+/// comparison only runs when the dictionary itself is free of errors; otherwise
+/// the error diagnostics already signal the failure and a skipped report is
+/// returned. Returns the dictionary's [`Diagnostics`] and the comparison result.
+pub(crate) fn compare(
+    dict_path: &Path,
+    parquet_path: &Path,
+    table: Option<&str>,
+    level: Level,
+) -> (Diagnostics, Result<CompareReport, CompareError>) {
+    let (dict, diagnostics) = match schema::validate_and_lower(dict_path) {
+        Ok(parsed) => parsed,
+        Err(err) => return (Diagnostics::empty(), Err(err.into())),
+    };
+    let result = if diagnostics.has_errors() {
+        Ok(CompareReport::skipped(level))
+    } else {
+        compare_dataset(&dict, parquet_path, table, level)
+    };
+    (diagnostics, result)
+}
+
+fn compare_dataset(
+    dict: &DataDict,
+    parquet_path: &Path,
+    table: Option<&str>,
+    level: Level,
+) -> Result<CompareReport, CompareError> {
+    let table = select_table(dict, table)?;
+
+    // Metadata level: column names and types, from the parquet schema only.
+    let actual = data_dict_parquet::column_types(parquet_path)?;
+    let mut issues = meta::meta_issues(table, &actual);
+
+    // Data level adds value checks, which scan the data.
+    if level == Level::Data {
+        data::value_issues(table, parquet_path, &actual, &mut issues)?;
+    }
+
+    Ok(CompareReport {
+        table: table.name.value.clone(),
+        level,
+        issues,
+    })
+}
+
+/// Resolve which table to compare against: `table` if given, otherwise the sole
+/// table when the dictionary describes exactly one.
+fn select_table<'a>(dict: &'a DataDict, table: Option<&str>) -> Result<&'a Table, CompareError> {
+    let available = || dict.tables.keys().cloned().collect::<Vec<_>>();
+    match table {
+        Some(name) => dict
+            .tables
+            .get(name)
+            .ok_or_else(|| CompareError::TableNotFound {
+                name: name.to_string(),
+                available: available(),
+            }),
+        None => {
+            if dict.tables.len() == 1 {
+                Ok(dict.tables.values().next().expect("len == 1"))
+            } else {
+                Err(CompareError::AmbiguousTable {
+                    available: available(),
+                })
+            }
+        }
+    }
+}
+
+/// Format offending row numbers for display: `rows: 3, 7, 12`, with a trailing
+/// `, …` when there were more nulls than the recorded sample.
+fn format_rows(rows: &[usize], count: usize) -> String {
+    let listed = rows
+        .iter()
+        .map(|r| r.to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    if count > rows.len() {
+        format!("rows: {listed}, …")
+    } else {
+        format!("rows: {listed}")
+    }
 }
 
 #[cfg(test)]
@@ -131,7 +385,64 @@ mod tests {
     use super::*;
 
     #[test]
-    fn embedded_schema_compiles() {
-        let _ = schema();
+    fn issue_json_flattens_kind_with_column_code_and_severity() {
+        let issue = ColumnIssue::error(
+            "weight",
+            IssueKind::TypeMismatch {
+                declared: "string".into(),
+                actual: "number".into(),
+            },
+        );
+        assert_eq!(
+            serde_json::to_value(&issue).unwrap(),
+            serde_json::json!({
+                "column": "weight",
+                "code": "M01",
+                "severity": "error",
+                "kind": "type_mismatch",
+                "declared": "string",
+                "actual": "number",
+            })
+        );
+
+        // A unit kind carries no extra fields beyond column/code/severity/kind.
+        let extra = ColumnIssue::warning(
+            "notes",
+            IssueKind::ExtraInData {
+                actual: "string".into(),
+            },
+        );
+        assert_eq!(
+            serde_json::to_value(&extra).unwrap(),
+            serde_json::json!({
+                "column": "notes",
+                "code": "M03",
+                "severity": "warning",
+                "kind": "extra_in_data",
+                "actual": "string",
+            })
+        );
+    }
+
+    #[test]
+    fn issue_codes_and_levels() {
+        assert_eq!(IssueKind::MissingInData.code(), "M02");
+        assert_eq!(IssueKind::MissingInData.level(), Level::Meta);
+        assert_eq!(
+            IssueKind::NullsInRequired {
+                count: 1,
+                rows: vec![2]
+            }
+            .level(),
+            Level::Data
+        );
+    }
+
+    #[test]
+    fn row_formatting() {
+        assert_eq!(format_rows(&[2], 1), "rows: 2");
+        assert_eq!(format_rows(&[2, 5, 9], 3), "rows: 2, 5, 9");
+        // More nulls than the recorded sample gets an ellipsis.
+        assert_eq!(format_rows(&[1, 2, 3, 4, 5], 8), "rows: 1, 2, 3, 4, 5, …");
     }
 }

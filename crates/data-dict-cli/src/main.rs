@@ -1,9 +1,8 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
-use data_dict::Diagnostics;
-use data_dict::data::{DataError, DataReport};
+use data_dict::{CompareError, CompareReport, Diagnostics};
 
 #[derive(Parser)]
 #[command(name = "data-dict", version, about)]
@@ -14,20 +13,36 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Validate a data-dict.yaml file or directory against the schema [default: .]
+    /// Validate a data-dict.yaml file or directory: the dictionary itself [default: .]
     ValidateSchema { path: Option<PathBuf> },
+    /// Validate a dataset's column names and types against a data dictionary
+    ValidateMeta(CompareArgs),
+    /// Validate a dataset's values against a data dictionary
+    ValidateData(CompareArgs),
     /// Print the data-dict.yaml specification
     Spec,
-    /// Work with parquet files
-    Parquet {
+    /// Inspect data types of a data source
+    Types {
         #[command(subcommand)]
-        command: ParquetCommand,
+        command: TypesCommand,
     },
     /// Agents: read these skills to learn how to work with data-dict files
     Skill {
         #[command(subcommand)]
         command: SkillCommand,
     },
+}
+
+/// Shared arguments for `validate-meta` and `validate-data`.
+#[derive(clap::Args)]
+struct CompareArgs {
+    dict: PathBuf,
+    parquet: PathBuf,
+    #[arg(long)]
+    table: Option<String>,
+    /// Emit results as JSON
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Subcommand)]
@@ -42,19 +57,9 @@ const READ_SKILL: &str = include_str!("../skills/read-data-dict.md");
 const WRITE_SKILL: &str = include_str!("../skills/write-data-dict.md");
 
 #[derive(Subcommand)]
-enum ParquetCommand {
+enum TypesCommand {
     /// Print column types for a parquet file
-    Types { path: PathBuf },
-    /// Validate a parquet file's columns against a data dictionary
-    Validate {
-        dict: PathBuf,
-        parquet: PathBuf,
-        #[arg(long)]
-        table: Option<String>,
-        /// Emit results as JSON
-        #[arg(long)]
-        json: bool,
-    },
+    Parquet { path: PathBuf },
 }
 
 fn main() -> ExitCode {
@@ -90,12 +95,14 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Command::ValidateMeta(args) => run_compare(args, data_dict::meta::validate_meta),
+        Command::ValidateData(args) => run_compare(args, data_dict::data::validate_data),
         Command::Spec => {
             print!("{}", data_dict::SPEC_MD);
             ExitCode::SUCCESS
         }
-        Command::Parquet {
-            command: ParquetCommand::Types { path },
+        Command::Types {
+            command: TypesCommand::Parquet { path },
         } => match data_dict_parquet::column_type_info(&path) {
             Ok(cols) => {
                 print_types_table(&cols);
@@ -106,48 +113,6 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
-        Command::Parquet {
-            command:
-                ParquetCommand::Validate {
-                    dict,
-                    parquet,
-                    table,
-                    json,
-                },
-        } => {
-            let dict = match resolve_dict_path(Some(dict)) {
-                Ok(dict) => dict,
-                Err(err) => {
-                    eprintln!("{err}");
-                    return ExitCode::FAILURE;
-                }
-            };
-            let (diagnostics, result) =
-                data_dict::data::validate_parquet(&dict, &parquet, table.as_deref());
-            if json {
-                println!("{}", validate_result_to_json(&diagnostics, &result));
-            } else {
-                for line in diagnostics.render() {
-                    eprintln!("{line}");
-                }
-                match &result {
-                    Ok(report) if report.is_clean() && diagnostics.is_ok() => {
-                        println!("{}: ok", parquet.display())
-                    }
-                    Ok(report) => eprint!("{report}"),
-                    Err(err) => eprintln!("{err}"),
-                }
-            }
-            let data_failed = match &result {
-                Ok(report) => report.has_errors(),
-                Err(_) => true,
-            };
-            if diagnostics.has_errors() || data_failed {
-                ExitCode::FAILURE
-            } else {
-                ExitCode::SUCCESS
-            }
-        }
         Command::Skill { command } => {
             let skill = match command {
                 SkillCommand::Read => READ_SKILL,
@@ -217,9 +182,50 @@ fn resolve_dict_path(path: Option<PathBuf>) -> Result<PathBuf, String> {
     }
 }
 
+/// A comparison entry point: `validate_meta` or `validate_data`. Both share the
+/// signature, so `run_compare` is generic over which one it drives.
+type CompareFn = fn(&Path, &Path, Option<&str>) -> (Diagnostics, Result<CompareReport, CompareError>);
+
+/// Run a meta or data comparison (`validate-meta` / `validate-data`) and turn
+/// its outcome into rendered output and an exit code. Both commands share the
+/// same plumbing; they differ only in the `validate` entry point passed in.
+fn run_compare(args: CompareArgs, validate: CompareFn) -> ExitCode {
+    let dict = match resolve_dict_path(Some(args.dict)) {
+        Ok(dict) => dict,
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let (diagnostics, result) = validate(&dict, &args.parquet, args.table.as_deref());
+    if args.json {
+        println!("{}", validate_result_to_json(&diagnostics, &result));
+    } else {
+        for line in diagnostics.render() {
+            eprintln!("{line}");
+        }
+        match &result {
+            Ok(report) if report.is_clean() && diagnostics.is_ok() => {
+                println!("{}: ok", args.parquet.display())
+            }
+            Ok(report) => eprint!("{report}"),
+            Err(err) => eprintln!("{err}"),
+        }
+    }
+    let data_failed = match &result {
+        Ok(report) => report.has_errors(),
+        Err(_) => true,
+    };
+    if diagnostics.has_errors() || data_failed {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
 fn validate_result_to_json(
     diagnostics: &Diagnostics,
-    result: &Result<DataReport, DataError>,
+    result: &Result<CompareReport, CompareError>,
 ) -> serde_json::Value {
     let mut value = match result {
         Ok(report) => {
@@ -230,33 +236,34 @@ fn validate_result_to_json(
                 // is invalid; the diagnostics array carries the details.
                 serde_json::json!({"status": status, "kind": "dictionary"})
             } else if report.is_clean() {
-                serde_json::json!({"status": status})
+                serde_json::json!({"status": status, "level": report.level})
             } else {
                 serde_json::json!({
                     "status": status,
                     "kind": "mismatch",
+                    "level": report.level,
                     "table": report.table,
                     "issues": report.issues,
                 })
             }
         }
-        Err(DataError::Schema(e)) => serde_json::json!({
+        Err(CompareError::Schema(e)) => serde_json::json!({
             "status": "error",
             "kind": "schema",
             "message": e.to_string(),
         }),
-        Err(DataError::Parquet(e)) => serde_json::json!({
+        Err(CompareError::Parquet(e)) => serde_json::json!({
             "status": "error",
             "kind": "parquet",
             "message": e.to_string(),
         }),
-        Err(DataError::TableNotFound { name, available }) => serde_json::json!({
+        Err(CompareError::TableNotFound { name, available }) => serde_json::json!({
             "status": "error",
             "kind": "table_not_found",
             "name": name,
             "available": available,
         }),
-        Err(DataError::AmbiguousTable { available }) => serde_json::json!({
+        Err(CompareError::AmbiguousTable { available }) => serde_json::json!({
             "status": "error",
             "kind": "ambiguous_table",
             "available": available,
@@ -390,8 +397,9 @@ mod tests {
     #[test]
     fn json_includes_diagnostics_on_success() {
         let diagnostics = warning_diagnostics("json-ok");
-        let report = DataReport {
+        let report = CompareReport {
             table: String::new(),
+            level: data_dict::Level::Meta,
             issues: Vec::new(),
         };
         let json = validate_result_to_json(&diagnostics, &Ok(report));
@@ -409,7 +417,7 @@ mod tests {
     #[test]
     fn json_includes_diagnostics_on_error() {
         let diagnostics = warning_diagnostics("json-err");
-        let err = DataError::AmbiguousTable {
+        let err = CompareError::AmbiguousTable {
             available: vec!["a".to_string(), "b".to_string()],
         };
         let json = validate_result_to_json(&diagnostics, &Err(err));
