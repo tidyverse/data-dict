@@ -36,9 +36,6 @@ pub struct Problem {
     /// The YAML span this problem points at (spec problems only). Display-only.
     #[serde(skip)]
     pub span: Option<SourceInfo>,
-    /// Secondary labelled spans, rendered as detail bullets (spec problems only).
-    #[serde(skip)]
-    pub related: Vec<(SourceInfo, String)>,
     #[serde(flatten)]
     pub kind: ProblemKind,
 }
@@ -119,7 +116,6 @@ impl Problem {
             column: None,
             hint: None,
             span: Some(span),
-            related: Vec::new(),
             kind: ProblemKind::Spec,
         }
     }
@@ -135,7 +131,6 @@ impl Problem {
             column: Some(column),
             hint: None,
             span: None,
-            related: Vec::new(),
             kind,
         }
     }
@@ -149,7 +144,6 @@ impl Problem {
             column: None,
             hint: None,
             span: None,
-            related: Vec::new(),
             kind,
         }
     }
@@ -157,12 +151,6 @@ impl Problem {
     /// Attach an advisory hint (rendered as an info bullet).
     pub(crate) fn with_hint(mut self, hint: impl Into<String>) -> Self {
         self.hint = Some(hint.into());
-        self
-    }
-
-    /// Attach secondary labelled spans (rendered as detail bullets).
-    pub(crate) fn with_related(mut self, related: Vec<(SourceInfo, String)>) -> Self {
-        self.related = related;
         self
     }
 
@@ -185,9 +173,6 @@ impl Problem {
         builder = builder
             .problem(self.message.clone())
             .with_location(span.clone());
-        for (s, label) in &self.related {
-            builder = builder.add_detail_at(label.clone(), s.clone());
-        }
         if let Some(hint) = &self.hint {
             builder = builder.add_info(hint.clone());
         }
