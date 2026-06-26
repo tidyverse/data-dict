@@ -1,5 +1,5 @@
 ---
-source: crates/data-dict/tests/validate.rs
+source: crates/data-dict/tests/validate_schema.rs
 expression: "invalid_diagnostic(\"invalid/non-string-glossary-value.yaml\")"
 ---
 Error: [Q-1-11] YAML Validation Failed

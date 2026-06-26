@@ -274,7 +274,7 @@ fn non_string_glossary_value_errors() {
 // --- schema-check fixtures -------------------------------------------------------
 
 #[test]
-fn schema_clean_two_tables() {
+fn clean_two_tables() {
     assert_valid(fixture("schema/clean-two-tables.yaml"));
 }
 
@@ -285,27 +285,27 @@ fn schema_clean_two_tables() {
 // redundant S06.
 
 #[test]
-fn schema_s01_fk_no_relationship() {
+fn s01_fk_no_relationship() {
     insta::assert_snapshot!(failing_diagnostic("schema/s01-fk-no-relationship.yaml"));
 }
 
 #[test]
-fn schema_s02_missing_table() {
+fn s02_missing_table() {
     insta::assert_snapshot!(failing_diagnostic("schema/s02-missing-table.yaml"));
 }
 
 #[test]
-fn schema_s03_missing_column() {
+fn s03_missing_column() {
     insta::assert_snapshot!(failing_diagnostic("schema/s03-missing-column.yaml"));
 }
 
 #[test]
-fn schema_s04_bad_join() {
+fn s04_bad_join() {
     insta::assert_snapshot!(failing_diagnostic("schema/s04-bad-join.yaml"));
 }
 
 #[test]
-fn schema_s05_conflicts_not_on_both_sides() {
+fn s05_conflicts_not_on_both_sides() {
     insta::assert_snapshot!(failing_diagnostic(
         "schema/s05-conflicts-not-on-both-sides.yaml"
     ));
@@ -315,12 +315,12 @@ fn schema_s05_conflicts_not_on_both_sides() {
 // real conflict) but is not declared in `conflicts`. S05 only checks declared
 // entries, so this must validate cleanly rather than demanding the conflict be named.
 #[test]
-fn schema_s05_undeclared_conflict_ok() {
+fn s05_undeclared_conflict_ok() {
     assert_valid(fixture("schema/s05-undeclared-conflict-ok.yaml"));
 }
 
 #[test]
-fn schema_s06_cardinality_mismatch() {
+fn s06_cardinality_mismatch() {
     insta::assert_snapshot!(failing_diagnostic("schema/s06-cardinality-mismatch.yaml"));
 }
 
@@ -328,24 +328,24 @@ fn schema_s06_cardinality_mismatch() {
 // "one" side is not unique (S06), alongside a string column missing
 // `examples` (S07). Guards that both findings surface together.
 #[test]
-fn schema_s06_self_join_one_to_many() {
+fn s06_self_join_one_to_many() {
     insta::assert_snapshot!(failing_diagnostic("schema/s06-self-join-one-to-many.yaml"));
 }
 
 #[test]
-fn schema_s07_enum_without_values() {
+fn s07_enum_without_values() {
     insta::assert_snapshot!(failing_diagnostic("schema/s07-enum-without-values.yaml"));
 }
 
 #[test]
-fn schema_s07_range_type_missing_range() {
+fn s07_range_type_missing_range() {
     insta::assert_snapshot!(failing_diagnostic(
         "schema/s07-range-type-missing-range.yaml"
     ));
 }
 
 #[test]
-fn schema_s07_other_type_missing_examples() {
+fn s07_other_type_missing_examples() {
     insta::assert_snapshot!(failing_diagnostic(
         "schema/s07-other-type-missing-examples.yaml"
     ));
@@ -355,28 +355,28 @@ fn schema_s07_other_type_missing_examples() {
 // without `examples` — the one non-enum/range type exempt from S07's
 // missing-`examples` check.
 #[test]
-fn schema_s07_boolean_no_examples_ok() {
+fn s07_boolean_no_examples_ok() {
     assert_valid(fixture("schema/s07-boolean-no-examples-ok.yaml"));
 }
 
 #[test]
-fn schema_s07_wrong_rep_on_enum() {
+fn s07_wrong_rep_on_enum() {
     insta::assert_snapshot!(failing_diagnostic("schema/s07-wrong-rep-on-enum.yaml"));
 }
 
 #[test]
-fn schema_s08_range_on_string_type() {
+fn s08_range_on_string_type() {
     insta::assert_snapshot!(failing_diagnostic("schema/s08-range-on-string-type.yaml"));
 }
 
 // `units` is valid only on `number(quantity)`. A quantity column with units
 // validates cleanly; units on any other type is S08.
 #[test]
-fn schema_s08_units_ok_on_quantity() {
+fn s08_units_ok_on_quantity() {
     assert_valid(fixture("schema/s08-units-on-quantity-ok.yaml"));
 }
 
 #[test]
-fn schema_s08_units_on_non_quantity() {
+fn s08_units_on_non_quantity() {
     insta::assert_snapshot!(failing_diagnostic("schema/s08-units-on-non-quantity.yaml"));
 }

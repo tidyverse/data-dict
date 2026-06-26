@@ -1,5 +1,5 @@
 ---
-source: crates/data-dict/tests/validate.rs
+source: crates/data-dict/tests/validate_schema.rs
 expression: "failing_diagnostic(\"schema/s03-missing-column.yaml\")"
 ---
 Error: [S07]

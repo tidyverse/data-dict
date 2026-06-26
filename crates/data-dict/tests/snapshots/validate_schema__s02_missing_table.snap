@@ -1,9 +1,9 @@
 ---
-source: crates/data-dict/tests/validate.rs
-expression: "failing_diagnostic(\"schema/s01-fk-no-relationship.yaml\")"
+source: crates/data-dict/tests/validate_schema.rs
+expression: "failing_diagnostic(\"schema/s02-missing-table.yaml\")"
 ---
 Error: [S07]
-    ╭─[ schema/s01-fk-no-relationship.yaml:14:15 ]
+    ╭─[ schema/s02-missing-table.yaml:14:15 ]
     │
  14 │       - name: id
     │               ─┬  
@@ -11,7 +11,7 @@ Error: [S07]
 ────╯
 
 Error: [S01]
-    ╭─[ schema/s01-fk-no-relationship.yaml:18:15 ]
+    ╭─[ schema/s02-missing-table.yaml:18:15 ]
     │
  18 │       - name: food_category_id
     │               ────────┬───────  
@@ -19,7 +19,7 @@ Error: [S01]
 ────╯
 
 Error: [S07]
-    ╭─[ schema/s01-fk-no-relationship.yaml:18:15 ]
+    ╭─[ schema/s02-missing-table.yaml:18:15 ]
     │
  18 │       - name: food_category_id
     │               ────────┬───────  
@@ -27,9 +27,17 @@ Error: [S07]
 ────╯
 
 Error: [S07]
-    ╭─[ schema/s01-fk-no-relationship.yaml:28:15 ]
+    ╭─[ schema/s02-missing-table.yaml:28:15 ]
     │
  28 │       - name: id
     │               ─┬  
     │                ╰── column `food_category.id` has type `number(id)` but is missing the expected `examples` property
+────╯
+
+Error: [S02]
+    ╭─[ schema/s02-missing-table.yaml:36:35 ]
+    │
+ 36 │     join: food.food_category_id = category.id
+    │                                   ─────┬─────  
+    │                                        ╰─────── relationship references table `category`, which is not defined in `tables`
 ────╯
