@@ -12,7 +12,7 @@ use std::fs::File;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use data_dict::{Problem, ProblemKind, ProblemSet, validate_data, validate_meta};
+use data_dict::{Problem, ProblemKind, ProblemSet, Status, validate_data, validate_meta};
 use indoc::{formatdoc, indoc};
 use parquet::data_type::DoubleType;
 use parquet::file::properties::WriterProperties;
@@ -105,11 +105,11 @@ fn meta_ignores_null_values_that_data_catches() {
 
     // Metadata level: the column exists with a compatible type, so it's clean.
     let meta = validate_meta(&yaml, &parquet, None);
-    assert!(meta.is_empty(), "meta got {:?}", meta.items);
+    assert_eq!(meta.status(), Status::Ok, "meta got {:?}", meta.items);
 
     // Data level: the null in a required column is an error.
     let data = validate_data(&yaml, &parquet, None);
-    assert!(data.has_errors());
+    assert_eq!(data.status(), Status::Error);
     assert!(
         matches!(
             data.items.as_slice(),
@@ -137,7 +137,7 @@ fn nulls_in_required_column_reported() {
         "},
     );
 
-    assert!(result.has_errors());
+    assert_eq!(result.status(), Status::Error);
     assert!(
         matches!(
             result.items.as_slice(),
@@ -168,7 +168,7 @@ fn required_column_without_nulls_ok() {
         "},
     );
 
-    assert!(result.is_empty());
+    assert_eq!(result.status(), Status::Ok);
 }
 
 #[test]
@@ -184,7 +184,7 @@ fn nulls_in_optional_column_ok() {
         "},
     );
 
-    assert!(result.is_empty());
+    assert_eq!(result.status(), Status::Ok);
 }
 
 #[test]
@@ -202,7 +202,7 @@ fn primary_key_implies_required_for_nulls() {
         "},
     );
 
-    assert!(result.has_errors());
+    assert_eq!(result.status(), Status::Error);
     assert!(
         matches!(
             result.items.as_slice(),

@@ -47,7 +47,7 @@ fn schema() -> &'static Schema {
 /// Validate a `data-dict.yaml` file at `path`: structural schema check followed
 /// by the cross-table semantic checks. Returns a [`ProblemSet`] — every problem
 /// (errors and warnings, in source order) bundled with the source context needed
-/// to render them. [`ProblemSet::is_ok`] reports whether the document is valid.
+/// to render them. [`ProblemSet::status`] reports whether the document is valid.
 ///
 /// Failures that prevent checking altogether — I/O, unparseable YAML, a
 /// structurally invalid document — are themselves reported as pre-flight

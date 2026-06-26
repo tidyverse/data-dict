@@ -8,7 +8,7 @@
 mod common;
 use common::{temp_dir, write_parquet, write_yaml};
 
-use data_dict::{Problem, ProblemKind, Severity, validate_meta};
+use data_dict::{Problem, ProblemKind, Severity, Status, validate_meta};
 use indoc::indoc;
 
 #[test]
@@ -36,7 +36,7 @@ fn matching_dict_and_parquet() {
     );
 
     let problems = validate_meta(&yaml, &parquet, None);
-    assert!(problems.is_empty(), "got {:?}", problems.items);
+    assert_eq!(problems.status(), Status::Ok, "got {:?}", problems.items);
 }
 
 #[test]
@@ -65,7 +65,7 @@ fn type_mismatch_reported() {
     );
 
     let problems = validate_meta(&yaml, &parquet, None);
-    assert!(problems.has_errors());
+    assert_eq!(problems.status(), Status::Error);
     assert!(matches!(
         problems.items.as_slice(),
         [Problem { column: Some(column), code: Some(code), kind: ProblemKind::TypeMismatch { declared, actual }, .. }]
@@ -98,7 +98,12 @@ fn extra_column_in_data_is_warning() {
     // An undocumented column is a warning, not an error: it is reported but does
     // not fail validation.
     let problems = validate_meta(&yaml, &parquet, None);
-    assert!(!problems.has_errors(), "got {:?}", problems.items);
+    assert_eq!(
+        problems.status(),
+        Status::Warning,
+        "got {:?}",
+        problems.items
+    );
     assert!(matches!(
         problems.items.as_slice(),
         [Problem { column: Some(column), code: Some(code), severity, kind: ProblemKind::ExtraInData { actual }, .. }]
@@ -131,7 +136,7 @@ fn typeless_column_skips_type_check_for_present_column() {
     );
 
     let problems = validate_meta(&yaml, &parquet, None);
-    assert!(problems.is_empty(), "got {:?}", problems.items);
+    assert_eq!(problems.status(), Status::Ok, "got {:?}", problems.items);
 }
 
 #[test]
@@ -162,7 +167,7 @@ fn typeless_column_still_must_exist_in_data() {
     );
 
     let problems = validate_meta(&yaml, &parquet, None);
-    assert!(problems.has_errors());
+    assert_eq!(problems.status(), Status::Error);
     assert!(matches!(
         problems.items.as_slice(),
         [Problem { column: Some(column), kind: ProblemKind::MissingInData, .. }] if column == "height"
@@ -198,7 +203,7 @@ fn missing_column_in_data_reported() {
     );
 
     let problems = validate_meta(&yaml, &parquet, None);
-    assert!(problems.has_errors());
+    assert_eq!(problems.status(), Status::Error);
     assert!(matches!(
         problems.items.as_slice(),
         [Problem { column: Some(column), kind: ProblemKind::MissingInData, .. }] if column == "height"

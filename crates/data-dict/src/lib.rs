@@ -27,7 +27,7 @@ pub mod validate_data;
 pub mod validate_meta;
 pub mod validate_spec;
 
-pub use problem::{Problem, ProblemKind, ProblemSet, Severity};
+pub use problem::{Problem, ProblemKind, ProblemSet, Severity, Status};
 pub use quarto_source_map::SourceContext;
 pub use validate_data::validate_data;
 pub use validate_meta::validate_meta;

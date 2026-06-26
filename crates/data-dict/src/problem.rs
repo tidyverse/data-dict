@@ -10,7 +10,7 @@
 //!
 //! There is no `fatal` field by design: a problem that must stop the run is the
 //! last thing a level pushes before returning, and a problem that blocks the
-//! next level is caught by the driver checking [`ProblemSet::has_errors`] before
+//! next level is caught by the driver checking [`ProblemSet::status`] before
 //! descending. Fatality is control flow, not data.
 
 use quarto_error_reporting::DiagnosticMessageBuilder;
@@ -26,6 +26,24 @@ use crate::Level;
 pub enum Severity {
     Error,
     Warning,
+}
+
+/// The overall verdict for a [`ProblemSet`]: the worst severity present, or
+/// `Ok` when there is nothing to report. Only `Error` fails validation; `Ok`
+/// and `Warning` both pass.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Status {
+    Ok,
+    Warning,
+    Error,
+}
+
+impl Status {
+    /// Whether this verdict fails validation (i.e. is an error).
+    pub fn failed(self) -> bool {
+        self == Status::Error
+    }
 }
 
 /// One problem found while validating, at any level. `code` and `column` are
@@ -228,10 +246,10 @@ fn column_message(column: &str, kind: &ProblemKind) -> String {
 
 /// Every problem found while validating a document, with the [`SourceContext`]
 /// needed to render the span-located ones. Levels push into a `ProblemSet` as
-/// they run; the driver descends to the next level only while [`has_errors`]
-/// stays false.
+/// they run; the driver descends to the next level only while [`status`] is not
+/// [`Status::Error`].
 ///
-/// [`has_errors`]: ProblemSet::has_errors
+/// [`status`]: ProblemSet::status
 #[derive(Debug)]
 pub struct ProblemSet {
     pub items: Vec<Problem>,
@@ -274,20 +292,18 @@ impl ProblemSet {
         });
     }
 
-    /// Whether any problem is an error. Warnings alone do not fail validation.
-    pub fn has_errors(&self) -> bool {
-        self.items.iter().any(|p| p.severity == Severity::Error)
-    }
-
-    /// Whether validation passed: no error-severity problems (warnings may
-    /// remain).
-    pub fn is_ok(&self) -> bool {
-        !self.has_errors()
-    }
-
-    /// Whether there is nothing to report at all — no errors and no warnings.
-    pub fn is_empty(&self) -> bool {
-        self.items.is_empty()
+    /// The overall verdict: [`Status::Error`] if anything is an error,
+    /// [`Status::Warning`] if there are only warnings, [`Status::Ok`] if there
+    /// is nothing to report.
+    pub fn status(&self) -> Status {
+        let mut status = Status::Ok;
+        for p in &self.items {
+            match p.severity {
+                Severity::Error => return Status::Error,
+                Severity::Warning => status = Status::Warning,
+            }
+        }
+        status
     }
 
     /// Render every problem to display text, in their current order.

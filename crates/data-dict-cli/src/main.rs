@@ -81,7 +81,7 @@ fn main() -> ExitCode {
             for line in problems.render() {
                 eprintln!("{line}");
             }
-            if problems.has_errors() {
+            if problems.status().failed() {
                 ExitCode::FAILURE
             } else {
                 println!("{}: ok", path.display());
@@ -191,17 +191,18 @@ fn run_validate(args: ValidateArgs, validate: ValidateFn) -> ExitCode {
         }
     };
     let problems = validate(&dict, &args.parquet, args.table.as_deref());
+    let status = problems.status();
     if args.json {
         println!("{}", problems_to_json(&problems));
     } else {
         for line in problems.render() {
             eprintln!("{line}");
         }
-        if problems.is_ok() {
+        if !status.failed() {
             println!("{}: ok", args.parquet.display());
         }
     }
-    if problems.has_errors() {
+    if status.failed() {
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
@@ -209,9 +210,8 @@ fn run_validate(args: ValidateArgs, validate: ValidateFn) -> ExitCode {
 }
 
 fn problems_to_json(problems: &ProblemSet) -> serde_json::Value {
-    let status = if problems.has_errors() { "error" } else { "ok" };
     serde_json::json!({
-        "status": status,
+        "status": problems.status(),
         "problems": problems.items,
     })
 }
@@ -339,9 +339,9 @@ mod tests {
 
     #[test]
     fn json_carries_problems_on_success() {
-        // A warning-only set still passes (status ok) but reports the warning.
+        // A warning-only set still passes, but its status reflects the warning.
         let json = problems_to_json(&warning_problems("json-ok"));
-        assert_eq!(json["status"], "ok");
+        assert_eq!(json["status"], "warning");
         assert_eq!(json["problems"][0]["code"], "S09");
         assert_eq!(json["problems"][0]["severity"], "warning");
         assert_eq!(json["problems"][0]["kind"], "spec");

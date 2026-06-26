@@ -28,9 +28,10 @@ const SAMPLE_LIMIT: usize = 5;
 /// example, nulls in a required column.
 pub fn validate_data(dict_path: &Path, parquet_path: &Path, table: Option<&str>) -> ProblemSet {
     let (dict, mut problems) = crate::validate_and_lower(dict_path);
-    if let Some(dict) = dict.filter(|_| problems.is_ok()) {
-        compare(&dict, parquet_path, table, &mut problems);
-    }
+    let Some(dict) = dict.filter(|_| !problems.status().failed()) else {
+        return problems;
+    };
+    compare(&dict, parquet_path, table, &mut problems);
     problems
 }
 
