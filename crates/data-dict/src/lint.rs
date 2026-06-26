@@ -114,17 +114,23 @@ impl Diagnostics {
     }
 }
 
-#[derive(Debug, Clone)]
+/// The `serde` representation is the tool's JSON wire format: `code`,
+/// `message`, `severity` (lowercase), and `hint` (omitted when absent). The
+/// source spans are display-only and are not serialized.
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Diagnostic {
     pub code: &'static str,
     pub message: String,
     pub severity: Severity,
+    #[serde(skip)]
     pub span: SourceInfo,
     /// Secondary spans with explanatory labels. Rendered as bulleted details
     /// below the primary location.
+    #[serde(skip)]
     pub related: Vec<(SourceInfo, String)>,
     /// Advisory follow-up rendered as an info bullet, e.g. how to resolve a
     /// warning.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hint: Option<String>,
 }
 

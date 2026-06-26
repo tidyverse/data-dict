@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
+use data_dict::Diagnostics;
 use data_dict::data::{DataError, DataReport};
-use data_dict::{Diagnostic, Diagnostics, Severity};
 
 #[derive(Parser)]
 #[command(name = "data-dict", version, about)]
@@ -262,29 +262,7 @@ fn validate_result_to_json(
             "available": available,
         }),
     };
-    value["diagnostics"] = serde_json::json!(
-        diagnostics
-            .items
-            .iter()
-            .map(diagnostic_to_json)
-            .collect::<Vec<_>>()
-    );
-    value
-}
-
-fn diagnostic_to_json(diagnostic: &Diagnostic) -> serde_json::Value {
-    let severity = match diagnostic.severity {
-        Severity::Error => "error",
-        Severity::Warning => "warning",
-    };
-    let mut value = serde_json::json!({
-        "severity": severity,
-        "code": diagnostic.code,
-        "message": diagnostic.message,
-    });
-    if let Some(hint) = &diagnostic.hint {
-        value["hint"] = serde_json::json!(hint);
-    }
+    value["diagnostics"] = serde_json::json!(diagnostics.items);
     value
 }
 
