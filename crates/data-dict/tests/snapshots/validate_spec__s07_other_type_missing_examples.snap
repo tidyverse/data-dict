@@ -1,0 +1,19 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s07-other-type-missing-examples.yaml\")"
+---
+Error: [S07]
+    ╭─[ spec/s07-other-type-missing-examples.yaml:11:15 ]
+    │
+ 11 │       - name: label
+    │               ──┬──  
+    │                 ╰──── column `t.label` has type `string` but is missing the expected `examples` property
+────╯
+
+Error: [S07]
+    ╭─[ spec/s07-other-type-missing-examples.yaml:14:15 ]
+    │
+ 14 │       - name: code
+    │               ──┬─  
+    │                 ╰─── column `t.code` has type `number(id)` but is missing the expected `examples` property
+────╯

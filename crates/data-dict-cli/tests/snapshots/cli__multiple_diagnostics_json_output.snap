@@ -5,18 +5,18 @@ expression: "serde_json::to_string_pretty(&value).unwrap()"
 {
   "diagnostics": [
     {
-      "code": "DD009",
+      "code": "S09",
       "hint": "Add `$learn_more: http://data-dict.tidyverse.org/` so readers unfamiliar with the format can find it",
       "message": "document is missing the recommended `$learn_more` key",
       "severity": "warning"
     },
     {
-      "code": "DD007",
+      "code": "S07",
       "message": "column `measurements.id` has type `number(id)` but is missing the expected `examples` property",
       "severity": "error"
     },
     {
-      "code": "DD008",
+      "code": "S08",
       "message": "column `measurements.name` has `units` but type `string`; `units` is only valid on `number(quantity)` columns",
       "severity": "error"
     }

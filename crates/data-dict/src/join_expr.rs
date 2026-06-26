@@ -262,7 +262,7 @@ mod tests {
     #[test]
     fn accepts_double_equals() {
         // `==` is an alternate spelling of `=`. Useful because most
-        // programming languages spell equality that way and the linter
+        // programming languages spell equality that way and the validator
         // shouldn't punish that habit.
         let j = parse("food.fdc_id == food_nutrient.fdc_id");
         assert_eq!(j.conjuncts.len(), 1);

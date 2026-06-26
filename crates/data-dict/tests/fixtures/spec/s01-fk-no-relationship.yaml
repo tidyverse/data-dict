@@ -1,0 +1,31 @@
+# expected: S01
+# `food.food_category_id` is marked `foreign_key`, but no `relationships`
+# entry points it at a `primary_key`. Removing the `relationships` block
+# entirely is enough to trigger the rule.
+
+$version: "0.1.0"
+
+tables:
+  food:
+    description: Foods.
+    source:
+      parquet: food.parquet
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        description: Food id.
+      - name: food_category_id
+        type: number(id)
+        constraints: [foreign_key]
+        description: Category id.
+
+  food_category:
+    description: Food categories.
+    source:
+      parquet: food_category.parquet
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        description: Category id.

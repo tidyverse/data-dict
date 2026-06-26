@@ -1,4 +1,4 @@
-# expected: two errors (DD007, DD008) and a warning (DD009), in emission order.
+# expected: two errors (S07, S08) and a warning (S09), in emission order.
 $version: 0.1.0
 tables:
   measurements:

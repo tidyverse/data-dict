@@ -1,0 +1,14 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: "invalid_diagnostic(\"invalid/non-string-glossary-value.yaml\")"
+---
+Error: [Q-1-11] YAML Validation Failed
+   ╭─[ invalid/non-string-glossary-value.yaml:6:9 ]
+   │
+ 6 │   term: 42
+   │         ─┬  
+   │          ╰── Expected string, got integer
+───╯
+✖ At document path: `glossary.term`
+ℹ Schema constraint: object > object > string
+ℹ Ensure the value is a string (quoted if it contains special characters)?

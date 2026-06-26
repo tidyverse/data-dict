@@ -18,7 +18,7 @@ fn no_args_lists_all_subcommands() {
     insta::assert_snapshot!(stdout);
 }
 
-/// A fixture that lints to two errors (DD007, DD008) and a warning (DD009),
+/// A fixture that fails schema validation with two errors (S07, S08) and a warning (S09),
 /// in that emission order. Validating it against a parquet file skips the data
 /// comparison (the dictionary has errors), so the parquet path is never read.
 fn multi_error_fixture() -> PathBuf {
@@ -31,7 +31,7 @@ fn multi_error_fixture() -> PathBuf {
 fn multiple_diagnostics_text_output() {
     let fixture = multi_error_fixture();
     let output = Command::new(env!("CARGO_BIN_EXE_data-dict"))
-        .args(["parquet", "validate"])
+        .args(["validate-data"])
         .arg(&fixture)
         .arg("ignored.parquet")
         .output()
@@ -47,7 +47,7 @@ fn multiple_diagnostics_text_output() {
 fn multiple_diagnostics_json_output() {
     let fixture = multi_error_fixture();
     let output = Command::new(env!("CARGO_BIN_EXE_data-dict"))
-        .args(["parquet", "validate"])
+        .args(["validate-data"])
         .arg(&fixture)
         .args(["ignored.parquet", "--json"])
         .output()

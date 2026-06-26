@@ -1,0 +1,19 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s07-wrong-rep-on-enum.yaml\")"
+---
+Error: [S07]
+    ╭─[ spec/s07-wrong-rep-on-enum.yaml:11:15 ]
+    │
+ 11 │       - name: status
+    │               ───┬──  
+    │                  ╰──── column `t.status` has type `enum` but is missing the required `values` property
+────╯
+
+Error: [S07]
+    ╭─[ spec/s07-wrong-rep-on-enum.yaml:11:15 ]
+    │
+ 11 │       - name: status
+    │               ───┬──  
+    │                  ╰──── column `t.status` has type `enum` but uses `range`; enum columns represent their data with `values`
+────╯

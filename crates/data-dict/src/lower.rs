@@ -8,11 +8,11 @@
 use quarto_source_map::SourceInfo;
 use quarto_yaml::YamlWithSourceInfo;
 
+use crate::diagnostic::{Diagnostic, Diagnostics};
 use crate::join_expr::JoinExpr;
-use crate::lint::{Diagnostic, Diagnostics};
 use crate::model::{Cardinality, Column, Constraint, DataDict, Relationship, Spanned, Table};
 
-/// Lower an AST, collecting any lowering diagnostics (currently only DD004
+/// Lower an AST, collecting any lowering diagnostics (currently only S04
 /// for unparseable join expressions).
 pub fn lower(root: &YamlWithSourceInfo, diagnostics: &mut Diagnostics) -> DataDict {
     let mut tables = indexmap::IndexMap::new();

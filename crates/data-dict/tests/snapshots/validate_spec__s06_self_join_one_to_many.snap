@@ -1,0 +1,19 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s06-self-join-one-to-many.yaml\")"
+---
+Error: [S07]
+    ╭─[ spec/s06-self-join-one-to-many.yaml:24:15 ]
+    │
+ 24 │       - name: comments
+    │               ────┬───  
+    │                   ╰───── column `otters.comments` has type `string` but is missing the expected `examples` property
+────╯
+
+Error: [S06]
+    ╭─[ spec/s06-self-join-one-to-many.yaml:30:18 ]
+    │
+ 30 │     cardinality: one-to-many
+    │                  ─────┬─────  
+    │                       ╰─────── cardinality is `one-to-many` but the left-side join column on `otters` is not marked `primary_key` or `unique`
+────╯

@@ -2,7 +2,7 @@
 //!
 //! Lowered from the source YAML by `lower::lower` once the structural schema
 //! has accepted the document, so the lowering code can assume well-formed
-//! input. Each significant node carries a `SourceInfo` so lint diagnostics
+//! input. Each significant node carries a `SourceInfo` so schema-check diagnostics
 //! can point back at the source.
 
 use indexmap::IndexMap;
@@ -97,9 +97,9 @@ pub struct Relationship {
     /// parsed `JoinExpr` so diagnostics about parse failure can refer back to
     /// it.
     pub join_text: Spanned<String>,
-    /// `None` if the join string failed to parse — DD004 is emitted in that
-    /// case and downstream rules that need the parsed form (DD001, DD005,
-    /// DD006) skip the relationship.
+    /// `None` if the join string failed to parse — S04 is emitted in that
+    /// case and downstream rules that need the parsed form (S01, S05,
+    /// S06) skip the relationship.
     pub join: Option<JoinExpr>,
     pub conflicts: Vec<Spanned<String>>,
 }
