@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
-use data_dict::{Diagnostics, ValidationError, ValidationReport};
+use data_dict::ProblemSet;
 
 #[derive(Parser)]
 #[command(name = "data-dict", version, about)]
@@ -77,22 +77,15 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             };
-            match data_dict::validate_spec(&path) {
-                Ok(diagnostics) => {
-                    for line in diagnostics.render() {
-                        eprintln!("{line}");
-                    }
-                    if diagnostics.has_errors() {
-                        ExitCode::FAILURE
-                    } else {
-                        println!("{}: ok", path.display());
-                        ExitCode::SUCCESS
-                    }
-                }
-                Err(err) => {
-                    eprintln!("{err}");
-                    ExitCode::FAILURE
-                }
+            let problems = data_dict::validate_spec(&path);
+            for line in problems.render() {
+                eprintln!("{line}");
+            }
+            if problems.has_errors() {
+                ExitCode::FAILURE
+            } else {
+                println!("{}: ok", path.display());
+                ExitCode::SUCCESS
             }
         }
         Command::ValidateMeta(args) => run_validate(args, data_dict::validate_meta),
@@ -183,9 +176,8 @@ fn resolve_dict_path(path: Option<PathBuf>) -> Result<PathBuf, String> {
 }
 
 /// A validation entry point: `validate_meta` or `validate_data`. Both share the
-/// signature, so `run_compare` is generic over which one it drives.
-type ValidateFn =
-    fn(&Path, &Path, Option<&str>) -> (Diagnostics, Result<ValidationReport, ValidationError>);
+/// signature, so `run_validate` is generic over which one it drives.
+type ValidateFn = fn(&Path, &Path, Option<&str>) -> ProblemSet;
 
 /// Run a meta or data validation (`validate-meta` / `validate-data`) and turn
 /// its outcome into rendered output and an exit code. Both commands share the
@@ -198,80 +190,30 @@ fn run_validate(args: ValidateArgs, validate: ValidateFn) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let (diagnostics, result) = validate(&dict, &args.parquet, args.table.as_deref());
+    let problems = validate(&dict, &args.parquet, args.table.as_deref());
     if args.json {
-        println!("{}", validate_result_to_json(&diagnostics, &result));
+        println!("{}", problems_to_json(&problems));
     } else {
-        for line in diagnostics.render() {
+        for line in problems.render() {
             eprintln!("{line}");
         }
-        match &result {
-            Ok(report) if report.is_clean() && diagnostics.is_ok() => {
-                println!("{}: ok", args.parquet.display())
-            }
-            Ok(report) => eprint!("{report}"),
-            Err(err) => eprintln!("{err}"),
+        if problems.is_ok() {
+            println!("{}: ok", args.parquet.display());
         }
     }
-    let data_failed = match &result {
-        Ok(report) => report.has_errors(),
-        Err(_) => true,
-    };
-    if diagnostics.has_errors() || data_failed {
+    if problems.has_errors() {
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
     }
 }
 
-fn validate_result_to_json(
-    diagnostics: &Diagnostics,
-    result: &Result<ValidationReport, ValidationError>,
-) -> serde_json::Value {
-    let mut value = match result {
-        Ok(report) => {
-            let failed = diagnostics.has_errors() || report.has_errors();
-            let status = if failed { "error" } else { "ok" };
-            if diagnostics.has_errors() && report.is_clean() {
-                // The data comparison was skipped because the dictionary itself
-                // is invalid; the diagnostics array carries the details.
-                serde_json::json!({"status": status, "kind": "dictionary"})
-            } else if report.is_clean() {
-                serde_json::json!({"status": status, "level": report.level})
-            } else {
-                serde_json::json!({
-                    "status": status,
-                    "kind": "mismatch",
-                    "level": report.level,
-                    "table": report.table,
-                    "issues": report.issues,
-                })
-            }
-        }
-        Err(ValidationError::Schema(e)) => serde_json::json!({
-            "status": "error",
-            "kind": "schema",
-            "message": e.to_string(),
-        }),
-        Err(ValidationError::Parquet(e)) => serde_json::json!({
-            "status": "error",
-            "kind": "parquet",
-            "message": e.to_string(),
-        }),
-        Err(ValidationError::TableNotFound { name, available }) => serde_json::json!({
-            "status": "error",
-            "kind": "table_not_found",
-            "name": name,
-            "available": available,
-        }),
-        Err(ValidationError::AmbiguousTable { available }) => serde_json::json!({
-            "status": "error",
-            "kind": "ambiguous_table",
-            "available": available,
-        }),
-    };
-    value["diagnostics"] = serde_json::json!(diagnostics.items);
-    value
+fn problems_to_json(problems: &ProblemSet) -> serde_json::Value {
+    let status = if problems.has_errors() { "error" } else { "ok" };
+    serde_json::json!({
+        "status": status,
+        "problems": problems.items,
+    })
 }
 
 fn print_types_table(cols: &[data_dict_parquet::ColumnTypeInfo]) {
@@ -387,28 +329,24 @@ mod tests {
     }
 
     /// Validate a dictionary that is clean apart from a S09 ($learn_more)
-    /// warning, returning its diagnostics.
-    fn warning_diagnostics(name: &str) -> Diagnostics {
+    /// warning, returning its problems.
+    fn warning_problems(name: &str) -> ProblemSet {
         let dir = temp_dir(name);
         let dict = dir.join("data-dict.yaml");
         fs::write(&dict, "$version: 0.1.0\n").unwrap();
-        data_dict::validate_spec(&dict).expect("must validate")
+        data_dict::validate_spec(&dict)
     }
 
     #[test]
-    fn json_includes_diagnostics_on_success() {
-        let diagnostics = warning_diagnostics("json-ok");
-        let report = ValidationReport {
-            table: String::new(),
-            level: data_dict::Level::Meta,
-            issues: Vec::new(),
-        };
-        let json = validate_result_to_json(&diagnostics, &Ok(report));
+    fn json_carries_problems_on_success() {
+        // A warning-only set still passes (status ok) but reports the warning.
+        let json = problems_to_json(&warning_problems("json-ok"));
         assert_eq!(json["status"], "ok");
-        assert_eq!(json["diagnostics"][0]["code"], "S09");
-        assert_eq!(json["diagnostics"][0]["severity"], "warning");
+        assert_eq!(json["problems"][0]["code"], "S09");
+        assert_eq!(json["problems"][0]["severity"], "warning");
+        assert_eq!(json["problems"][0]["kind"], "spec");
         assert!(
-            json["diagnostics"][0]["hint"]
+            json["problems"][0]["hint"]
                 .as_str()
                 .is_some_and(|h| h.contains("$learn_more")),
             "S09 hint should be carried in the JSON output"
@@ -416,13 +354,16 @@ mod tests {
     }
 
     #[test]
-    fn json_includes_diagnostics_on_error() {
-        let diagnostics = warning_diagnostics("json-err");
-        let err = ValidationError::AmbiguousTable {
-            available: vec!["a".to_string(), "b".to_string()],
-        };
-        let json = validate_result_to_json(&diagnostics, &Err(err));
+    fn json_reports_error_status() {
+        let problems = ProblemSet::from_preflight(
+            data_dict::ProblemKind::AmbiguousTable {
+                available: vec!["a".to_string(), "b".to_string()],
+            },
+            "the data dictionary describes multiple tables",
+        );
+        let json = problems_to_json(&problems);
         assert_eq!(json["status"], "error");
-        assert_eq!(json["diagnostics"][0]["code"], "S09");
+        assert_eq!(json["problems"][0]["kind"], "ambiguous_table");
+        assert_eq!(json["problems"][0]["available"][1], "b");
     }
 }

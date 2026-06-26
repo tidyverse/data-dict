@@ -12,9 +12,7 @@ use std::fs::File;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use data_dict::{
-    ColumnIssue, IssueKind, ValidationError, ValidationReport, validate_data, validate_meta,
-};
+use data_dict::{Problem, ProblemKind, ProblemSet, validate_data, validate_meta};
 use indoc::{formatdoc, indoc};
 use parquet::data_type::DoubleType;
 use parquet::file::properties::WriterProperties;
@@ -26,9 +24,9 @@ fn check_column(
     schema_col: &str,
     write: impl FnOnce(&mut SerializedColumnWriter),
     column: &str,
-) -> Result<ValidationReport, ValidationError> {
+) -> ProblemSet {
     let (yaml, parquet) = build_column(schema_col, write, column);
-    validate_data(&yaml, &parquet, None).1
+    validate_data(&yaml, &parquet, None)
 }
 
 /// Write a one-column parquet file (`schema_col` is that column's line in a
@@ -67,6 +65,7 @@ fn build_column(
         &dir,
         &formatdoc! {"
             $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
             tables:
               t:
                 source:
@@ -105,23 +104,23 @@ fn meta_ignores_null_values_that_data_catches() {
     );
 
     // Metadata level: the column exists with a compatible type, so it's clean.
-    let meta = validate_meta(&yaml, &parquet, None).1.unwrap();
-    assert!(meta.is_clean(), "meta got {:?}", meta.issues);
+    let meta = validate_meta(&yaml, &parquet, None);
+    assert!(meta.is_empty(), "meta got {:?}", meta.items);
 
     // Data level: the null in a required column is an error.
-    let data = validate_data(&yaml, &parquet, None).1.unwrap();
+    let data = validate_data(&yaml, &parquet, None);
     assert!(data.has_errors());
     assert!(
         matches!(
-            data.issues.as_slice(),
-            [ColumnIssue {
-                code,
-                kind: IssueKind::NullsInRequired { .. },
+            data.items.as_slice(),
+            [Problem {
+                code: Some(code),
+                kind: ProblemKind::NullsInRequired { .. },
                 ..
             }] if *code == "D01"
         ),
         "data got {:?}",
-        data.issues
+        data.items
     );
 }
 
@@ -138,16 +137,15 @@ fn nulls_in_required_column_reported() {
         "},
     );
 
-    let report = result.unwrap();
-    assert!(report.has_errors());
+    assert!(result.has_errors());
     assert!(
         matches!(
-            report.issues.as_slice(),
-            [ColumnIssue { column, kind: IssueKind::NullsInRequired { count, rows }, .. }]
+            result.items.as_slice(),
+            [Problem { column: Some(column), kind: ProblemKind::NullsInRequired { count, rows }, .. }]
                 if column == "weight" && *count == 1 && rows == &[2]
         ),
         "got {:?}",
-        report.issues
+        result.items
     );
 }
 
@@ -170,7 +168,7 @@ fn required_column_without_nulls_ok() {
         "},
     );
 
-    assert!(result.unwrap().is_clean());
+    assert!(result.is_empty());
 }
 
 #[test]
@@ -186,7 +184,7 @@ fn nulls_in_optional_column_ok() {
         "},
     );
 
-    assert!(result.unwrap().is_clean());
+    assert!(result.is_empty());
 }
 
 #[test]
@@ -204,14 +202,13 @@ fn primary_key_implies_required_for_nulls() {
         "},
     );
 
-    let report = result.unwrap();
-    assert!(report.has_errors());
+    assert!(result.has_errors());
     assert!(
         matches!(
-            report.issues.as_slice(),
-            [ColumnIssue { column, kind: IssueKind::NullsInRequired { .. }, .. }] if column == "weight"
+            result.items.as_slice(),
+            [Problem { column: Some(column), kind: ProblemKind::NullsInRequired { .. }, .. }] if column == "weight"
         ),
         "got {:?}",
-        report.issues
+        result.items
     );
 }

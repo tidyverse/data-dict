@@ -20,20 +20,18 @@ fn fixture(rel: &str) -> PathBuf {
         .join(rel)
 }
 
-/// Render the diagnostics of the given `severity` for a fixture, in emission
-/// order. A structural/parse failure ([`data_dict::Error`]) is treated as a
-/// single error-severity diagnostic and ignored when collecting warnings.
+/// Render the problems of the given `severity` for a fixture, in source order.
+/// Pre-flight failures (I/O, unparseable YAML, structural schema errors) are
+/// error-severity problems like any other, so they surface here when collecting
+/// errors and are skipped when collecting warnings.
 fn diagnostics(path: &Path, severity: Severity) -> Vec<String> {
-    match data_dict::validate_spec(path) {
-        Ok(diags) => diags
-            .items
-            .iter()
-            .filter(|d| d.severity == severity)
-            .map(|d| d.to_text(&diags.source))
-            .collect(),
-        Err(e) if severity == Severity::Error => vec![e.to_string()],
-        Err(_) => Vec::new(),
-    }
+    let problems = data_dict::validate_spec(path);
+    problems
+        .items
+        .iter()
+        .filter(|p| p.severity == severity)
+        .map(|p| p.to_text(&problems.source))
+        .collect()
 }
 
 fn assert_valid(path: PathBuf) {

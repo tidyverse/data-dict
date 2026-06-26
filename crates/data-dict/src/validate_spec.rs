@@ -25,10 +25,10 @@ use std::sync::OnceLock;
 use quarto_yaml::YamlWithSourceInfo;
 use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic};
 
-use crate::diagnostic::subspan;
 use crate::join_expr::{JoinExpr, QCol};
 use crate::model::{Cardinality, DataDict};
-use crate::{Diagnostic, Diagnostics, Error, Severity, SourceContext, lower};
+use crate::problem::{Problem, ProblemKind, ProblemSet, Severity, subspan};
+use crate::{SourceContext, lower};
 
 /// The canonical documentation URL suggested for `$learn_more`.
 pub const LEARN_MORE_URL: &str = "http://data-dict.tidyverse.org/";
@@ -45,28 +45,47 @@ fn schema() -> &'static Schema {
 }
 
 /// Validate a `data-dict.yaml` file at `path`: structural schema check followed
-/// by the cross-table semantic checks. Returns the [`Diagnostics`] — every
-/// diagnostic (errors and warnings, in emission order) bundled with the source
-/// context needed to render them. [`Diagnostics::is_ok`] reports whether the
-/// document is valid.
+/// by the cross-table semantic checks. Returns a [`ProblemSet`] — every problem
+/// (errors and warnings, in source order) bundled with the source context needed
+/// to render them. [`ProblemSet::is_ok`] reports whether the document is valid.
 ///
-/// [`Error`] is reserved for failures that prevent checking altogether: I/O,
-/// unparseable YAML, or a structurally invalid document.
-pub fn validate_spec(path: &Path) -> Result<Diagnostics, Error> {
-    validate_and_lower(path).map(|(_, diagnostics)| diagnostics)
+/// Failures that prevent checking altogether — I/O, unparseable YAML, a
+/// structurally invalid document — are themselves reported as pre-flight
+/// [`Problem`]s in the set.
+pub fn validate_spec(path: &Path) -> ProblemSet {
+    validate_and_lower(path).1
 }
 
 /// Validate a `data-dict.yaml` file at `path` and return the lowered
-/// [`DataDict`] model alongside its [`Diagnostics`]. Runs the same two passes as
-/// [`validate_spec`] — structural schema check then the semantic checks. The
-/// model is returned even when the diagnostics contain errors, since lowering
-/// succeeds whenever the document is structurally sound.
-pub fn validate_and_lower(path: &Path) -> Result<(DataDict, Diagnostics), Error> {
-    let content = std::fs::read_to_string(path).map_err(Error::Io)?;
+/// [`DataDict`] alongside its [`ProblemSet`]. Runs the same two passes as
+/// [`validate_spec`] — structural schema check then the semantic checks.
+///
+/// The model is `Some` whenever the document is structurally sound (lowering
+/// succeeds even when the semantic checks find errors), and `None` when
+/// validation could not get that far: an I/O failure, unparseable YAML, or a
+/// document the schema rejected. In every case the returned set carries the
+/// problems that explain the outcome.
+pub fn validate_and_lower(path: &Path) -> (Option<DataDict>, ProblemSet) {
+    let content = match std::fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(e) => {
+            return (
+                None,
+                ProblemSet::from_preflight(ProblemKind::Io, e.to_string()),
+            );
+        }
+    };
     let filename = path.display().to_string();
 
-    let doc =
-        quarto_yaml::parse_file(&content, &filename).map_err(|e| Error::Parse(Box::new(e)))?;
+    let doc = match quarto_yaml::parse_file(&content, &filename) {
+        Ok(doc) => doc,
+        Err(e) => {
+            return (
+                None,
+                ProblemSet::from_preflight(ProblemKind::Parse, e.to_string()),
+            );
+        }
+    };
 
     let mut source = SourceContext::new();
     let file_id = quarto_yaml::file_id_for_filename(&filename);
@@ -75,21 +94,26 @@ pub fn validate_and_lower(path: &Path) -> Result<(DataDict, Diagnostics), Error>
     let registry = SchemaRegistry::new();
     if let Err(err) = quarto_yaml_validation::validate(&doc, schema(), &registry, &source) {
         let diagnostic = ValidationDiagnostic::from_validation_error(&err, &source);
-        return Err(Error::Invalid(diagnostic.to_text(&source)));
+        // The structural diagnostic is already rendered (with source
+        // highlighting) into its message; the pre-flight problem carries it as-is.
+        let message = diagnostic.to_text(&source);
+        let mut set = ProblemSet::new(source);
+        set.push(Problem::preflight(ProblemKind::Schema, message));
+        return (None, set);
     }
 
-    let mut diagnostics = Diagnostics::new(source);
-    let dict = lower::lower(&doc, &mut diagnostics);
-    check_spec(&dict, &mut diagnostics);
-    check_learn_more(&doc, &mut diagnostics);
-    diagnostics.sort();
+    let mut problems = ProblemSet::new(source);
+    let dict = lower::lower(&doc, &mut problems);
+    check_spec(&dict, &mut problems);
+    check_learn_more(&doc, &mut problems);
+    problems.sort();
 
-    Ok((dict, diagnostics))
+    (Some(dict), problems)
 }
 
 /// Run every rule, pushing any findings into `out`. Rules run in code order;
-/// call [`Diagnostics::sort`] afterwards to put the findings in source order.
-fn check_spec(dict: &DataDict, out: &mut Diagnostics) {
+/// call [`ProblemSet::sort`] afterwards to put the findings in source order.
+fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
     check_relationship_table_refs(dict, out); // S02
     check_relationship_column_refs(dict, out); // S03
     check_join_table_count(dict, out); // S04
@@ -102,24 +126,22 @@ fn check_spec(dict: &DataDict, out: &mut Diagnostics) {
 
 // --- S02 --------------------------------------------------------------
 
-fn check_relationship_table_refs(dict: &DataDict, out: &mut Diagnostics) {
+fn check_relationship_table_refs(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
         for q in join.qcols() {
             if !dict.tables.contains_key(&q.table) {
                 let span = subspan(&rel.join_text.span, q.start, q.end)
                     .unwrap_or_else(|| rel.join_text.span.clone());
-                out.push(Diagnostic {
-                    code: "S02",
-                    message: format!(
+                out.push(Problem::spec(
+                    "S02",
+                    Severity::Error,
+                    format!(
                         "relationship references table `{}`, which is not defined in `tables`",
                         q.table
                     ),
                     span,
-                    related: Vec::new(),
-                    severity: Severity::Error,
-                    hint: None,
-                });
+                ));
             }
         }
     }
@@ -127,7 +149,7 @@ fn check_relationship_table_refs(dict: &DataDict, out: &mut Diagnostics) {
 
 // --- S03 --------------------------------------------------------------
 
-fn check_relationship_column_refs(dict: &DataDict, out: &mut Diagnostics) {
+fn check_relationship_column_refs(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         if let Some(join) = &rel.join {
             for q in join.qcols() {
@@ -139,17 +161,15 @@ fn check_relationship_column_refs(dict: &DataDict, out: &mut Diagnostics) {
                 if table.column(&q.column).is_none() {
                     let span = subspan(&rel.join_text.span, q.start, q.end)
                         .unwrap_or_else(|| rel.join_text.span.clone());
-                    out.push(Diagnostic {
-                        code: "S03",
-                        message: format!(
+                    out.push(Problem::spec(
+                        "S03",
+                        Severity::Error,
+                        format!(
                             "column `{}` is not defined in table `{}`",
                             q.column, q.table
                         ),
                         span,
-                        related: Vec::new(),
-                        severity: Severity::Error,
-                        hint: None,
-                    });
+                    ));
                 }
             }
         }
@@ -161,31 +181,29 @@ fn check_relationship_column_refs(dict: &DataDict, out: &mut Diagnostics) {
 
 // --- S04 --------------------------------------------------------------
 
-fn check_join_table_count(dict: &DataDict, out: &mut Diagnostics) {
+fn check_join_table_count(dict: &DataDict, out: &mut ProblemSet) {
     // Parse failures are emitted during lowering. Here we only check the
     // table-count invariant on successfully parsed joins.
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
         let tables = join.tables();
         if tables.is_empty() || tables.len() > 2 {
-            out.push(Diagnostic {
-                code: "S04",
-                message: format!(
+            out.push(Problem::spec(
+                "S04",
+                Severity::Error,
+                format!(
                     "`join` must reference exactly one (self-join) or two tables; found {}",
                     tables.len()
                 ),
-                span: rel.join_text.span.clone(),
-                related: Vec::new(),
-                severity: Severity::Error,
-                hint: None,
-            });
+                rel.join_text.span.clone(),
+            ));
         }
     }
 }
 
 // --- S01 --------------------------------------------------------------
 
-fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Diagnostics) {
+fn check_foreign_keys_resolve(dict: &DataDict, out: &mut ProblemSet) {
     use crate::model::Constraint::*;
 
     for (table_name, table) in &dict.tables {
@@ -214,17 +232,17 @@ fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Diagnostics) {
                 })
             });
             if !satisfied {
-                out.push(Diagnostic {
-                    code: "S01",
-                    message: format!(
+                out.push(
+                    Problem::spec(
+                        "S01",
+                        Severity::Error,
+                        format!(
                         "column `{}.{}` is marked `foreign_key` but no `relationships` entry points it at a `primary_key` column",
                         table_name, col.name.value
                     ),
-                    span: col.name.span.clone(),
-                    related: Vec::new(),
-                    severity: Severity::Error,
-                    hint: None,
-                });
+                        col.name.span.clone(),
+                    ),
+                );
             }
         }
     }
@@ -232,7 +250,7 @@ fn check_foreign_keys_resolve(dict: &DataDict, out: &mut Diagnostics) {
 
 // --- S05 --------------------------------------------------------------
 
-fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut Diagnostics) {
+fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         if rel.conflicts.is_empty() {
             continue;
@@ -254,18 +272,16 @@ fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut Diagnostics)
                 }
             }
             if !missing_from.is_empty() {
-                out.push(Diagnostic {
-                    code: "S05",
-                    message: format!(
+                out.push(Problem::spec(
+                    "S05",
+                    Severity::Error,
+                    format!(
                         "`conflicts` entry `{}` is not a column of {}",
                         c.value,
                         join_with_commas(&missing_from)
                     ),
-                    span: c.span.clone(),
-                    related: Vec::new(),
-                    severity: Severity::Error,
-                    hint: None,
-                });
+                    c.span.clone(),
+                ));
             }
         }
     }
@@ -285,7 +301,7 @@ fn join_with_commas(items: &[&str]) -> String {
 
 // --- S06 --------------------------------------------------------------
 
-fn check_cardinality_consistency(dict: &DataDict, out: &mut Diagnostics) {
+fn check_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
 
@@ -330,49 +346,49 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut Diagnostics) {
         match rel.cardinality.value {
             Cardinality::OneToOne => {
                 if !lhs_cols_unique || !rhs_cols_unique {
-                    out.push(Diagnostic {
-                        code: "S06",
-                        message: format!(
+                    out.push(
+                        Problem::spec(
+                            "S06",
+                            Severity::Error,
+                            format!(
                             "cardinality is `one-to-one` but the join columns on `{}` or `{}` are not marked `primary_key` or `unique`",
                             lhs_table, rhs_table
                         ),
-                        span: card_span,
-                        related: Vec::new(),
-                        severity: Severity::Error,
-                        hint: None,
-                    });
+                            card_span,
+                        ),
+                    );
                 }
             }
             Cardinality::OneToMany => {
                 // Spec: "from left to right" — one row on the left maps to
                 // many on the right, so the left side is the "one" side.
                 if !lhs_cols_unique {
-                    out.push(Diagnostic {
-                        code: "S06",
-                        message: format!(
+                    out.push(
+                        Problem::spec(
+                            "S06",
+                            Severity::Error,
+                            format!(
                             "cardinality is `one-to-many` but the left-side join column on `{}` is not marked `primary_key` or `unique`",
                             lhs_table
                         ),
-                        span: card_span,
-                        related: Vec::new(),
-                        severity: Severity::Error,
-                        hint: None,
-                    });
+                            card_span,
+                        ),
+                    );
                 }
             }
             Cardinality::ManyToOne => {
                 if !rhs_cols_unique {
-                    out.push(Diagnostic {
-                        code: "S06",
-                        message: format!(
+                    out.push(
+                        Problem::spec(
+                            "S06",
+                            Severity::Error,
+                            format!(
                             "cardinality is `many-to-one` but the right-side join column on `{}` is not marked `primary_key` or `unique`",
                             rhs_table
                         ),
-                        span: card_span,
-                        related: Vec::new(),
-                        severity: Severity::Error,
-                        hint: None,
-                    });
+                            card_span,
+                        ),
+                    );
                 }
             }
         }
@@ -403,7 +419,7 @@ fn side_has_unique_implied(
 
 const RANGE_TYPES: &[&str] = &["number(ordinal)", "number(quantity)", "date", "datetime"];
 
-fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
+fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
     for (table_name, table) in &dict.tables {
         for col in &table.columns {
             let Some(col_type) = &col.col_type else {
@@ -414,130 +430,118 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
 
             if type_name == "enum" {
                 if !col.has_values {
-                    out.push(Diagnostic {
-                        code: "S07",
-                        message: format!(
+                    out.push(
+                        Problem::spec(
+                            "S07",
+                            Severity::Error,
+                            format!(
                             "column `{}.{}` has type `enum` but is missing the required `values` property",
                             table_name, col.name.value
                         ),
-                        span,
-                        related: Vec::new(),
-                        severity: Severity::Error,
-                        hint: None,
-                    });
+                            span,
+                        ),
+                    );
                 }
                 if col.has_range {
-                    out.push(Diagnostic {
-                        code: "S07",
-                        message: format!(
+                    out.push(Problem::spec(
+                        "S07",
+                        Severity::Error,
+                        format!(
                             "column `{}.{}` has type `enum` but uses `range`; \
                              enum columns represent their data with `values`",
                             table_name, col.name.value
                         ),
-                        span: col.name.span.clone(),
-                        related: Vec::new(),
-                        severity: Severity::Error,
-                        hint: None,
-                    });
+                        col.name.span.clone(),
+                    ));
                 }
                 if col.has_examples {
-                    out.push(Diagnostic {
-                        code: "S07",
-                        message: format!(
+                    out.push(Problem::spec(
+                        "S07",
+                        Severity::Error,
+                        format!(
                             "column `{}.{}` has type `enum` but uses `examples`; \
                              enum columns represent their data with `values`",
                             table_name, col.name.value
                         ),
-                        span: col.name.span.clone(),
-                        related: Vec::new(),
-                        severity: Severity::Error,
-                        hint: None,
-                    });
+                        col.name.span.clone(),
+                    ));
                 }
             } else if RANGE_TYPES.contains(&type_name) {
                 if !col.has_range {
-                    out.push(Diagnostic {
-                        code: "S07",
-                        message: format!(
+                    out.push(
+                        Problem::spec(
+                            "S07",
+                            Severity::Error,
+                            format!(
                             "column `{}.{}` has type `{}` but is missing the expected `range` property",
                             table_name, col.name.value, type_name
                         ),
-                        span,
-                        related: Vec::new(),
-                        severity: Severity::Error,
-                        hint: None,
-                    });
+                            span,
+                        ),
+                    );
                 }
                 if col.has_values {
-                    out.push(Diagnostic {
-                        code: "S07",
-                        message: format!(
+                    out.push(Problem::spec(
+                        "S07",
+                        Severity::Error,
+                        format!(
                             "column `{}.{}` has type `{}` but uses `values`; \
                              use `range` for ordered numeric and date columns",
                             table_name, col.name.value, type_name
                         ),
-                        span: col.name.span.clone(),
-                        related: Vec::new(),
-                        severity: Severity::Error,
-                        hint: None,
-                    });
+                        col.name.span.clone(),
+                    ));
                 }
                 if col.has_examples {
-                    out.push(Diagnostic {
-                        code: "S07",
-                        message: format!(
+                    out.push(Problem::spec(
+                        "S07",
+                        Severity::Error,
+                        format!(
                             "column `{}.{}` has type `{}` but uses `examples`; \
                              use `range` for ordered numeric and date columns",
                             table_name, col.name.value, type_name
                         ),
-                        span: col.name.span.clone(),
-                        related: Vec::new(),
-                        severity: Severity::Error,
-                        hint: None,
-                    });
+                        col.name.span.clone(),
+                    ));
                 }
             } else {
                 if !col.has_examples && type_name != "boolean" {
-                    out.push(Diagnostic {
-                        code: "S07",
-                        message: format!(
+                    out.push(
+                        Problem::spec(
+                            "S07",
+                            Severity::Error,
+                            format!(
                             "column `{}.{}` has type `{}` but is missing the expected `examples` property",
                             table_name, col.name.value, type_name
                         ),
-                        span,
-                        related: Vec::new(),
-                        severity: Severity::Error,
-                        hint: None,
-                    });
+                            span,
+                        ),
+                    );
                 }
                 if col.has_values {
-                    out.push(Diagnostic {
-                        code: "S07",
-                        message: format!(
+                    out.push(Problem::spec(
+                        "S07",
+                        Severity::Error,
+                        format!(
                             "column `{}.{}` has type `{}` but uses `values`; \
                              only `enum` columns should use `values`",
                             table_name, col.name.value, type_name
                         ),
-                        span: col.name.span.clone(),
-                        related: Vec::new(),
-                        severity: Severity::Error,
-                        hint: None,
-                    });
+                        col.name.span.clone(),
+                    ));
                 }
                 if col.has_range {
-                    out.push(Diagnostic {
-                        code: "S07",
-                        message: format!(
+                    out.push(Problem::spec(
+                        "S07",
+                        Severity::Error,
+                        format!(
                             "column `{}.{}` has type `{}` but uses `range`; \
                              `range` is only valid for `number(ordinal)`, `number(quantity)`, \
                              `date`, and `datetime`",
                             table_name, col.name.value, type_name
                         ),
-                        span: col.name.span.clone(),
-                        related: Vec::new(),
-                        severity: Severity::Error,
-                        hint: None,
-                    });
+                        col.name.span.clone(),
+                    ));
                 }
             }
         }
@@ -546,7 +550,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut Diagnostics) {
 
 // --- S08 --------------------------------------------------------------
 
-fn check_units_only_on_quantity(dict: &DataDict, out: &mut Diagnostics) {
+fn check_units_only_on_quantity(dict: &DataDict, out: &mut ProblemSet) {
     for (table_name, table) in &dict.tables {
         for col in &table.columns {
             let Some(units) = &col.units else { continue };
@@ -559,17 +563,17 @@ fn check_units_only_on_quantity(dict: &DataDict, out: &mut Diagnostics) {
                     .col_type
                     .as_ref()
                     .map_or_else(|| "no type".to_string(), |t| format!("type `{}`", t.value));
-                out.push(Diagnostic {
-                    code: "S08",
-                    message: format!(
+                out.push(
+                    Problem::spec(
+                        "S08",
+                        Severity::Error,
+                        format!(
                         "column `{}.{}` has `units` but {}; `units` is only valid on `number(quantity)` columns",
                         table_name, col.name.value, type_desc
                     ),
-                    span: units.span.clone(),
-                    related: Vec::new(),
-                    severity: Severity::Error,
-                    hint: None,
-                });
+                        units.span.clone(),
+                    ),
+                );
             }
         }
     }
@@ -581,7 +585,7 @@ fn check_units_only_on_quantity(dict: &DataDict, out: &mut Diagnostics) {
 /// other rules this inspects the raw AST, because `$learn_more` is top-level
 /// metadata that the lowered [`DataDict`] does not carry. The warning is
 /// anchored at the `$version` key, which the schema guarantees is present.
-fn check_learn_more(root: &YamlWithSourceInfo, out: &mut Diagnostics) {
+fn check_learn_more(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
     let Some(entries) = root.as_hash() else {
         return;
     };
@@ -592,16 +596,17 @@ fn check_learn_more(root: &YamlWithSourceInfo, out: &mut Diagnostics) {
     let span = has("$version")
         .map(|e| e.key_span.clone())
         .unwrap_or_else(|| root.source_info.clone());
-    out.push(Diagnostic {
-        code: "S09",
-        message: "document is missing the recommended `$learn_more` key".to_string(),
-        severity: Severity::Warning,
-        span,
-        related: Vec::new(),
-        hint: Some(format!(
+    out.push(
+        Problem::spec(
+            "S09",
+            Severity::Warning,
+            "document is missing the recommended `$learn_more` key".to_string(),
+            span,
+        )
+        .with_hint(format!(
             "Add `$learn_more: {LEARN_MORE_URL}` so readers unfamiliar with the format can find it"
         )),
-    })
+    )
 }
 
 #[cfg(test)]

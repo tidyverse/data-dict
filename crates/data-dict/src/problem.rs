@@ -17,7 +17,16 @@ use quarto_error_reporting::DiagnosticMessageBuilder;
 use quarto_source_map::{SourceContext, SourceInfo};
 
 use crate::Level;
-use crate::diagnostic::Severity;
+
+/// Whether a problem blocks validation (`Error`) or is purely advisory
+/// (`Warning`). Errors fail validation; warnings are reported alongside a
+/// successful result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Severity {
+    Error,
+    Warning,
+}
 
 /// One problem found while validating, at any level. `code` and `column` are
 /// present only when meaningful (spec problems have a code but no column;
@@ -217,6 +226,85 @@ fn column_message(column: &str, kind: &ProblemKind) -> String {
     }
 }
 
+/// Every problem found while validating a document, with the [`SourceContext`]
+/// needed to render the span-located ones. Levels push into a `ProblemSet` as
+/// they run; the driver descends to the next level only while [`has_errors`]
+/// stays false.
+///
+/// [`has_errors`]: ProblemSet::has_errors
+#[derive(Debug)]
+pub struct ProblemSet {
+    pub items: Vec<Problem>,
+    pub source: SourceContext,
+}
+
+impl ProblemSet {
+    /// An empty set tied to a source context, ready for checks to push into.
+    pub fn new(source: SourceContext) -> Self {
+        ProblemSet {
+            items: Vec::new(),
+            source,
+        }
+    }
+
+    /// A set holding a single pre-flight failure, with no source. Used when
+    /// validation could not begin (unreadable or unparseable document).
+    pub fn from_preflight(kind: ProblemKind, message: impl Into<String>) -> Self {
+        let mut set = ProblemSet::new(SourceContext::new());
+        set.push(Problem::preflight(kind, message));
+        set
+    }
+
+    /// Record a problem found by a check.
+    pub fn push(&mut self, problem: Problem) {
+        self.items.push(problem);
+    }
+
+    /// Order span-located problems by their position in the document. Checks
+    /// emit in their own order, but readers expect source order; the sort is
+    /// stable, and problems without a resolvable span (column/pre-flight) sort
+    /// last.
+    pub fn sort(&mut self) {
+        self.items.sort_by_key(|p| {
+            p.span
+                .as_ref()
+                .and_then(|s| s.resolve_byte_range())
+                .map(|(file, start, _)| (file, start))
+                .unwrap_or((usize::MAX, usize::MAX))
+        });
+    }
+
+    /// Whether any problem is an error. Warnings alone do not fail validation.
+    pub fn has_errors(&self) -> bool {
+        self.items.iter().any(|p| p.severity == Severity::Error)
+    }
+
+    /// Whether validation passed: no error-severity problems (warnings may
+    /// remain).
+    pub fn is_ok(&self) -> bool {
+        !self.has_errors()
+    }
+
+    /// Whether there is nothing to report at all — no errors and no warnings.
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    /// Render every problem to display text, in their current order.
+    pub fn render(&self) -> Vec<String> {
+        self.items.iter().map(|p| p.to_text(&self.source)).collect()
+    }
+}
+
+/// Build a sub-span pointing at `[start, end)` byte offsets within `parent`.
+/// Returns `None` if `parent` does not resolve to a single contiguous byte
+/// range (Concat / FilterProvenance variants, which YAML scalar literals
+/// shouldn't produce in practice).
+pub(crate) fn subspan(parent: &SourceInfo, start: usize, end: usize) -> Option<SourceInfo> {
+    parent.resolve_byte_range()?;
+    Some(SourceInfo::substring(parent.clone(), start, end))
+}
+
 /// Format offending row numbers for display: `rows: 3, 7, 12`, with a trailing
 /// `, …` when there were more offenders than the recorded sample.
 fn format_rows(rows: &[usize], count: usize) -> String {
@@ -262,7 +350,7 @@ mod tests {
 
     #[test]
     fn spec_problem_json_carries_code_and_message_no_column() {
-        let p = Problem::spec("S07", Severity::Error, "bad column", SourceInfo::default())
+        let p = Problem::spec("S07", Severity::Error, "bad column", SourceInfo::for_test())
             .with_hint("fix it");
         let v = serde_json::to_value(&p).unwrap();
         assert_eq!(v["code"], "S07");

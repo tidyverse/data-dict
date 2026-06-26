@@ -8,13 +8,13 @@
 use quarto_source_map::SourceInfo;
 use quarto_yaml::YamlWithSourceInfo;
 
-use crate::diagnostic::{Diagnostic, Diagnostics};
 use crate::join_expr::JoinExpr;
 use crate::model::{Cardinality, Column, Constraint, DataDict, Relationship, Spanned, Table};
+use crate::problem::{Problem, ProblemSet, Severity};
 
-/// Lower an AST, collecting any lowering diagnostics (currently only S04
+/// Lower an AST, collecting any lowering problems (currently only S04
 /// for unparseable join expressions).
-pub fn lower(root: &YamlWithSourceInfo, diagnostics: &mut Diagnostics) -> DataDict {
+pub fn lower(root: &YamlWithSourceInfo, problems: &mut ProblemSet) -> DataDict {
     let mut tables = indexmap::IndexMap::new();
     if let Some(t_node) = root.get_hash_value("tables")
         && let Some(entries) = t_node.as_hash()
@@ -33,7 +33,7 @@ pub fn lower(root: &YamlWithSourceInfo, diagnostics: &mut Diagnostics) -> DataDi
         && let Some(items) = r_node.as_array()
     {
         for item in items {
-            relationships.push(lower_relationship(item, diagnostics));
+            relationships.push(lower_relationship(item, problems));
         }
     }
 
@@ -117,7 +117,7 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
     })
 }
 
-fn lower_relationship(node: &YamlWithSourceInfo, diagnostics: &mut Diagnostics) -> Relationship {
+fn lower_relationship(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Relationship {
     let entries = node.as_hash().expect("schema guarantees mapping");
     let mut cardinality: Option<Spanned<Cardinality>> = None;
     let mut join_text: Option<Spanned<String>> = None;
@@ -159,7 +159,15 @@ fn lower_relationship(node: &YamlWithSourceInfo, diagnostics: &mut Diagnostics) 
     let join = match JoinExpr::parse(&join_text.value) {
         Ok(expr) => Some(expr),
         Err(err) => {
-            diagnostics.push(Diagnostic::join_parse_error(&join_text, &err));
+            let span =
+                crate::problem::subspan(&join_text.span, err.at, err.at.min(join_text.value.len()))
+                    .unwrap_or_else(|| join_text.span.clone());
+            problems.push(Problem::spec(
+                "S04",
+                Severity::Error,
+                format!("`join` expression does not parse: {}", err.message),
+                span,
+            ));
             None
         }
     };

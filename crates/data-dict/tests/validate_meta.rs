@@ -8,7 +8,7 @@
 mod common;
 use common::{temp_dir, write_parquet, write_yaml};
 
-use data_dict::{ColumnIssue, IssueKind, Severity, ValidationError, validate_meta};
+use data_dict::{Problem, ProblemKind, Severity, validate_meta};
 use indoc::indoc;
 
 #[test]
@@ -20,6 +20,7 @@ fn matching_dict_and_parquet() {
         &dir,
         indoc! {"
             $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -34,8 +35,8 @@ fn matching_dict_and_parquet() {
         "},
     );
 
-    let report = validate_meta(&yaml, &parquet, None).1.unwrap();
-    assert!(report.is_clean(), "got {:?}", report.issues);
+    let problems = validate_meta(&yaml, &parquet, None);
+    assert!(problems.is_empty(), "got {:?}", problems.items);
 }
 
 #[test]
@@ -48,6 +49,7 @@ fn type_mismatch_reported() {
         &dir,
         indoc! {"
             $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -62,11 +64,11 @@ fn type_mismatch_reported() {
         "},
     );
 
-    let report = validate_meta(&yaml, &parquet, None).1.unwrap();
-    assert!(report.has_errors());
+    let problems = validate_meta(&yaml, &parquet, None);
+    assert!(problems.has_errors());
     assert!(matches!(
-        report.issues.as_slice(),
-        [ColumnIssue { column, code, kind: IssueKind::TypeMismatch { declared, actual }, .. }]
+        problems.items.as_slice(),
+        [Problem { column: Some(column), code: Some(code), kind: ProblemKind::TypeMismatch { declared, actual }, .. }]
             if column == "weight" && *code == "M01" && declared == "string" && actual == "number"
     ));
 }
@@ -81,6 +83,7 @@ fn extra_column_in_data_is_warning() {
         &dir,
         indoc! {"
             $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -94,11 +97,11 @@ fn extra_column_in_data_is_warning() {
 
     // An undocumented column is a warning, not an error: it is reported but does
     // not fail validation.
-    let report = validate_meta(&yaml, &parquet, None).1.unwrap();
-    assert!(!report.has_errors(), "got {:?}", report.issues);
+    let problems = validate_meta(&yaml, &parquet, None);
+    assert!(!problems.has_errors(), "got {:?}", problems.items);
     assert!(matches!(
-        report.issues.as_slice(),
-        [ColumnIssue { column, code, severity, kind: IssueKind::ExtraInData { actual } }]
+        problems.items.as_slice(),
+        [Problem { column: Some(column), code: Some(code), severity, kind: ProblemKind::ExtraInData { actual }, .. }]
             if column == "weight" && *code == "M03" && actual == "number" && *severity == Severity::Warning
     ));
 }
@@ -114,6 +117,7 @@ fn typeless_column_skips_type_check_for_present_column() {
         &dir,
         indoc! {"
             $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -126,8 +130,8 @@ fn typeless_column_skips_type_check_for_present_column() {
         "},
     );
 
-    let report = validate_meta(&yaml, &parquet, None).1.unwrap();
-    assert!(report.is_clean(), "got {:?}", report.issues);
+    let problems = validate_meta(&yaml, &parquet, None);
+    assert!(problems.is_empty(), "got {:?}", problems.items);
 }
 
 #[test]
@@ -141,6 +145,7 @@ fn typeless_column_still_must_exist_in_data() {
         &dir,
         indoc! {"
             $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -156,11 +161,11 @@ fn typeless_column_still_must_exist_in_data() {
         "},
     );
 
-    let report = validate_meta(&yaml, &parquet, None).1.unwrap();
-    assert!(report.has_errors());
+    let problems = validate_meta(&yaml, &parquet, None);
+    assert!(problems.has_errors());
     assert!(matches!(
-        report.issues.as_slice(),
-        [ColumnIssue { column, kind: IssueKind::MissingInData, .. }] if column == "height"
+        problems.items.as_slice(),
+        [Problem { column: Some(column), kind: ProblemKind::MissingInData, .. }] if column == "height"
     ));
 }
 
@@ -174,6 +179,7 @@ fn missing_column_in_data_reported() {
         &dir,
         indoc! {"
             $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -191,11 +197,11 @@ fn missing_column_in_data_reported() {
         "},
     );
 
-    let report = validate_meta(&yaml, &parquet, None).1.unwrap();
-    assert!(report.has_errors());
+    let problems = validate_meta(&yaml, &parquet, None);
+    assert!(problems.has_errors());
     assert!(matches!(
-        report.issues.as_slice(),
-        [ColumnIssue { column, kind: IssueKind::MissingInData, .. }] if column == "height"
+        problems.items.as_slice(),
+        [Problem { column: Some(column), kind: ProblemKind::MissingInData, .. }] if column == "height"
     ));
 }
 
@@ -208,6 +214,7 @@ fn ambiguous_table_without_name() {
         &dir,
         indoc! {"
             $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -226,10 +233,17 @@ fn ambiguous_table_without_name() {
         "},
     );
 
-    let err = validate_meta(&yaml, &parquet, None).1.unwrap_err();
+    let problems = validate_meta(&yaml, &parquet, None);
     assert!(
-        matches!(err, ValidationError::AmbiguousTable { .. }),
-        "got {err:?}"
+        matches!(
+            problems.items.as_slice(),
+            [Problem {
+                kind: ProblemKind::AmbiguousTable { .. },
+                ..
+            }]
+        ),
+        "got {:?}",
+        problems.items
     );
 }
 
@@ -242,6 +256,7 @@ fn unknown_table_name() {
         &dir,
         indoc! {"
             $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -256,9 +271,16 @@ fn unknown_table_name() {
         "},
     );
 
-    let err = validate_meta(&yaml, &parquet, Some("nope")).1.unwrap_err();
+    let problems = validate_meta(&yaml, &parquet, Some("nope"));
     assert!(
-        matches!(err, ValidationError::TableNotFound { .. }),
-        "got {err:?}"
+        matches!(
+            problems.items.as_slice(),
+            [Problem {
+                kind: ProblemKind::TableNotFound { .. },
+                ..
+            }]
+        ),
+        "got {:?}",
+        problems.items
     );
 }

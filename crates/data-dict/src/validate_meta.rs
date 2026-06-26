@@ -11,7 +11,7 @@
 use std::path::Path;
 
 use crate::model::{Column, DataDict, Table};
-use crate::{ColumnIssue, Diagnostics, IssueKind, Level, ValidationError, ValidationReport};
+use crate::problem::{Problem, ProblemKind, ProblemSet, Severity};
 
 /// Validate a parquet file's column names and types against a data dictionary.
 ///
@@ -20,79 +20,70 @@ use crate::{ColumnIssue, Diagnostics, IssueKind, Level, ValidationError, Validat
 /// mismatches, columns described but absent from the data, and columns in the
 /// data the dictionary does not describe. Values are never read; see
 /// [`crate::validate_data::validate_data`] for the level that does.
-pub fn validate_meta(
-    dict_path: &Path,
-    parquet_path: &Path,
-    table: Option<&str>,
-) -> (Diagnostics, Result<ValidationReport, ValidationError>) {
-    let (diagnostics, dict) = crate::validated_dict(dict_path);
-    let result = match dict {
-        Err(err) => Err(err),
-        Ok(None) => Ok(ValidationReport::skipped(Level::Meta)),
-        Ok(Some(dict)) => report(&dict, parquet_path, table),
-    };
-    (diagnostics, result)
+pub fn validate_meta(dict_path: &Path, parquet_path: &Path, table: Option<&str>) -> ProblemSet {
+    let (dict, mut problems) = crate::validate_and_lower(dict_path);
+    if let Some(dict) = dict.filter(|_| problems.is_ok()) {
+        compare(&dict, parquet_path, table, &mut problems);
+    }
+    problems
 }
 
-/// Build the metadata-level report for one dataset: select the table, read its
-/// column schema, and run the metadata checks.
-fn report(
-    dict: &DataDict,
-    parquet_path: &Path,
-    table: Option<&str>,
-) -> Result<ValidationReport, ValidationError> {
-    let table = crate::select_table(dict, table)?;
-    let actual = data_dict_parquet::column_types(parquet_path)?;
-    Ok(ValidationReport {
-        table: table.name.value.clone(),
-        level: Level::Meta,
-        issues: meta_issues(table, &actual),
-    })
+/// Compare one dataset against the dictionary at the metadata level: select the
+/// table, read its column schema, and run the metadata checks, pushing any
+/// problems into `out`.
+fn compare(dict: &DataDict, parquet_path: &Path, table: Option<&str>, out: &mut ProblemSet) {
+    let Some(table) = crate::select_table(dict, table, out) else {
+        return;
+    };
+    let actual = match data_dict_parquet::column_types(parquet_path) {
+        Ok(actual) => actual,
+        Err(e) => return out.push(Problem::preflight(ProblemKind::Parquet, e.to_string())),
+    };
+    meta_issues(table, &actual, out);
 }
 
 /// Compare the dictionary's `table` against the actual column types read from
-/// the data, returning the metadata-level issues. Reused by the data level,
-/// which appends its value-level issues to the same list.
-pub(crate) fn meta_issues(table: &Table, actual: &[(String, String)]) -> Vec<ColumnIssue> {
-    let mut issues = Vec::new();
-
+/// the data, pushing the metadata-level problems into `out`. Reused by the data
+/// level, which appends its value-level problems to the same set.
+pub(crate) fn meta_issues(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {
     // Columns the dictionary describes: each must exist in the data, and its
     // declared type (if any) must be compatible.
     for col in &table.columns {
         match actual.iter().find(|(n, _)| n == &col.name.value) {
-            None => issues.push(ColumnIssue::error(
+            None => out.push(Problem::column(
+                Severity::Error,
                 col.name.value.clone(),
-                IssueKind::MissingInData,
+                ProblemKind::MissingInData,
             )),
             // A column with no `type` makes no claims about its contents, so
             // `check_type` is naturally a no-op; only its existence is required.
-            Some((_, actual_type)) => check_type(col, actual_type, &mut issues),
+            Some((_, actual_type)) => check_type(col, actual_type, out),
         }
     }
 
     // Columns present in the data that the dictionary does not describe.
     for (name, actual_type) in actual {
         if table.column(name).is_none() {
-            issues.push(ColumnIssue::warning(
+            out.push(Problem::column(
+                Severity::Warning,
                 name.clone(),
-                IssueKind::ExtraInData {
+                ProblemKind::ExtraInData {
                     actual: actual_type.clone(),
                 },
             ));
         }
     }
-
-    issues
 }
 
 /// A column's declared type must be compatible with the type read from the data.
-fn check_type(col: &Column, actual_type: &str, issues: &mut Vec<ColumnIssue>) {
+fn check_type(col: &Column, actual_type: &str, out: &mut ProblemSet) {
     if let Some(declared) = &col.col_type
         && !types_compatible(&declared.value, actual_type)
     {
-        issues.push(ColumnIssue::error(
+        out.push(Problem::column(
+            Severity::Error,
             col.name.value.clone(),
-            IssueKind::TypeMismatch {
+            ProblemKind::TypeMismatch {
                 declared: declared.value.clone(),
                 actual: actual_type.to_string(),
             },
