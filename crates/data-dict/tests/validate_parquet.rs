@@ -34,12 +34,12 @@ fn temp_dir() -> PathBuf {
 /// Write a parquet file with a string `name` column and a double `weight`
 /// column.
 fn write_parquet(path: &Path) {
-    let message = "
+    let message = indoc! {"
         message schema {
             REQUIRED BYTE_ARRAY name (UTF8);
             REQUIRED DOUBLE weight;
         }
-    ";
+    "};
     let schema = Arc::new(parse_message_type(message).unwrap());
     let props = Arc::new(WriterProperties::builder().build());
     let file = File::create(path).unwrap();
@@ -80,20 +80,20 @@ fn matching_dict_and_parquet() {
     write_parquet(&parquet);
     let yaml = write_yaml(
         &dir,
-        "
-$version: 0.1.0
-tables:
-  animals:
-    source:
-      parquet: data.parquet
-    columns:
-      - name: name
-        type: string
-        examples: [otter, seal]
-      - name: weight
-        type: number(quantity)
-        range: [0, 100]
-",
+        indoc! {"
+            $version: 0.1.0
+            tables:
+              animals:
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: name
+                    type: string
+                    examples: [otter, seal]
+                  - name: weight
+                    type: number(quantity)
+                    range: [0, 100]
+        "},
     );
 
     let report = validate_parquet(&yaml, &parquet, None).1.unwrap();
@@ -108,20 +108,20 @@ fn type_mismatch_reported() {
     // `weight` is a double in the data but declared as a string here.
     let yaml = write_yaml(
         &dir,
-        "
-$version: 0.1.0
-tables:
-  animals:
-    source:
-      parquet: data.parquet
-    columns:
-      - name: name
-        type: string
-        examples: [otter, seal]
-      - name: weight
-        type: string
-        examples: ['1', '2']
-",
+        indoc! {"
+            $version: 0.1.0
+            tables:
+              animals:
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: name
+                    type: string
+                    examples: [otter, seal]
+                  - name: weight
+                    type: string
+                    examples: ['1', '2']
+        "},
     );
 
     let report = validate_parquet(&yaml, &parquet, None).1.unwrap();
@@ -234,23 +234,23 @@ fn missing_column_in_data_reported() {
     // Dictionary describes `height`, which is absent from the parquet file.
     let yaml = write_yaml(
         &dir,
-        "
-$version: 0.1.0
-tables:
-  animals:
-    source:
-      parquet: data.parquet
-    columns:
-      - name: name
-        type: string
-        examples: [otter, seal]
-      - name: weight
-        type: number(quantity)
-        range: [0, 100]
-      - name: height
-        type: number(quantity)
-        range: [0, 100]
-",
+        indoc! {"
+            $version: 0.1.0
+            tables:
+              animals:
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: name
+                    type: string
+                    examples: [otter, seal]
+                  - name: weight
+                    type: number(quantity)
+                    range: [0, 100]
+                  - name: height
+                    type: number(quantity)
+                    range: [0, 100]
+        "},
     );
 
     let report = validate_parquet(&yaml, &parquet, None).1.unwrap();
@@ -268,24 +268,24 @@ fn ambiguous_table_without_name() {
     write_parquet(&parquet);
     let yaml = write_yaml(
         &dir,
-        "
-$version: 0.1.0
-tables:
-  animals:
-    source:
-      parquet: data.parquet
-    columns:
-      - name: name
-        type: string
-        examples: [otter, seal]
-  other:
-    source:
-      parquet: other.parquet
-    columns:
-      - name: id
-        type: number(id)
-        examples: [1, 2]
-",
+        indoc! {"
+            $version: 0.1.0
+            tables:
+              animals:
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: name
+                    type: string
+                    examples: [otter, seal]
+              other:
+                source:
+                  parquet: other.parquet
+                columns:
+                  - name: id
+                    type: number(id)
+                    examples: [1, 2]
+        "},
     );
 
     let err = validate_parquet(&yaml, &parquet, None).1.unwrap_err();
@@ -302,20 +302,20 @@ fn unknown_table_name() {
     write_parquet(&parquet);
     let yaml = write_yaml(
         &dir,
-        "
-$version: 0.1.0
-tables:
-  animals:
-    source:
-      parquet: data.parquet
-    columns:
-      - name: name
-        type: string
-        examples: [otter, seal]
-      - name: weight
-        type: number(quantity)
-        range: [0, 100]
-",
+        indoc! {"
+            $version: 0.1.0
+            tables:
+              animals:
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: name
+                    type: string
+                    examples: [otter, seal]
+                  - name: weight
+                    type: number(quantity)
+                    range: [0, 100]
+        "},
     );
 
     let err = validate_parquet(&yaml, &parquet, Some("nope"))
