@@ -53,64 +53,34 @@ fn schema() -> &'static Schema {
 /// structurally invalid document — are themselves reported as pre-flight
 /// [`Problem`]s in the set.
 pub fn validate_spec(path: &Path) -> ProblemSet {
-    // The dictionary is only of interest to the meta/data levels; here we want
-    // the problems whether or not the spec turned out to be usable.
-    match validate_and_lower(path) {
-        Ok((_, problems)) | Err(problems) => problems,
-    }
-}
-
-/// Validate a `data-dict.yaml` file at `path` and return the lowered
-/// [`DataDict`] alongside its [`ProblemSet`]. Initialises the run with [`load`],
-/// then steps through the spec-level checks.
-///
-/// `Ok((dict, problems))` when the spec is usable — the document lowered and the
-/// semantic checks found no errors (`problems` may still hold warnings). `Err`
-/// when it is not: a pre-flight failure (I/O, unparseable YAML, a document the
-/// schema rejected) for which no dictionary was ever built, or semantic errors
-/// that make comparing data against the dictionary meaningless. Either way the
-/// `Err` set carries the problems that explain the outcome.
-pub fn validate_and_lower(path: &Path) -> Result<(DataDict, ProblemSet), ProblemSet> {
-    let (mut problems, doc) = load(path);
-    let Some(doc) = doc else {
-        return Err(problems);
+    let (mut problems, doc) = match load(path) {
+        Ok(loaded) => loaded,
+        Err(problems) => return problems,
     };
-    let dict = lower::lower(&doc, &mut problems);
-    check_spec(&dict, &mut problems);
-    check_learn_more(&doc, &mut problems);
-    problems.sort();
-
-    if problems.status().failed() {
-        Err(problems)
-    } else {
-        Ok((dict, problems))
-    }
+    // We only want the problems here, not the lowered dictionary.
+    validate_and_lower(&doc, &mut problems);
+    problems
 }
 
 /// Read, parse, and schema-check the document at `path`, creating the run's
 /// [`ProblemSet`] with the document's source — this is where every level starts.
-/// Returns the parsed AST when the document is structurally sound; on a
-/// pre-flight failure (I/O, unparseable YAML, or a document the schema rejects)
-/// the failure is recorded in the set and `None` is returned.
-fn load(path: &Path) -> (ProblemSet, Option<YamlWithSourceInfo>) {
+/// `Ok((problems, doc))` hands back the fresh set and the parsed AST to validate;
+/// `Err(problems)` carries a pre-flight failure (I/O, unparseable YAML, or a
+/// document the schema rejects) for which no document could be produced.
+pub(crate) fn load(path: &Path) -> Result<(ProblemSet, YamlWithSourceInfo), ProblemSet> {
     let content = match std::fs::read_to_string(path) {
         Ok(content) => content,
-        Err(e) => {
-            return (
-                ProblemSet::from_preflight(ProblemKind::Io, e.to_string()),
-                None,
-            );
-        }
+        Err(e) => return Err(ProblemSet::from_preflight(ProblemKind::Io, e.to_string())),
     };
     let filename = path.display().to_string();
 
     let doc = match quarto_yaml::parse_file(&content, &filename) {
         Ok(doc) => doc,
         Err(e) => {
-            return (
-                ProblemSet::from_preflight(ProblemKind::Parse, e.to_string()),
-                None,
-            );
+            return Err(ProblemSet::from_preflight(
+                ProblemKind::Parse,
+                e.to_string(),
+            ));
         }
     };
 
@@ -126,10 +96,29 @@ fn load(path: &Path) -> (ProblemSet, Option<YamlWithSourceInfo>) {
         let message = diagnostic.to_text(&source);
         let mut problems = ProblemSet::new(source);
         problems.push(Problem::preflight(ProblemKind::Schema, message));
-        return (problems, None);
+        return Err(problems);
     }
 
-    (ProblemSet::new(source), Some(doc))
+    Ok((ProblemSet::new(source), doc))
+}
+
+/// Lower the parsed document `doc` and run the S## semantic checks, pushing any
+/// findings into `out`. Returns the lowered dictionary when the spec validates,
+/// or `None` when it has errors (which `out` then carries).
+pub(crate) fn validate_and_lower(
+    doc: &YamlWithSourceInfo,
+    out: &mut ProblemSet,
+) -> Option<DataDict> {
+    let dict = lower::lower(doc, out);
+    check_spec(&dict, out);
+    check_learn_more(doc, out);
+    out.sort();
+
+    if out.status().failed() {
+        None
+    } else {
+        Some(dict)
+    }
 }
 
 /// Run every rule, pushing any findings into `out`. Rules run in code order;

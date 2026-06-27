@@ -27,28 +27,13 @@ const SAMPLE_LIMIT: usize = 5;
 /// below: reading the columns and pages the checks imply and reporting, for
 /// example, nulls in a required column.
 pub fn validate_data(dict_path: &Path, parquet_path: &Path, table: Option<&str>) -> ProblemSet {
-    // An unusable spec (errors or a pre-flight failure) means there is nothing
-    // to compare against, so report only those problems.
-    let (dict, mut problems) = match crate::validate_and_lower(dict_path) {
-        Ok(pair) => pair,
-        Err(problems) => return problems,
-    };
-    let Some(table) = crate::select_table(&dict, table, &mut problems) else {
-        return problems;
-    };
-    let actual = match data_dict_parquet::column_types(parquet_path) {
-        Ok(actual) => actual,
-        Err(e) => {
+    crate::compare_dataset(dict_path, parquet_path, table, |table, actual, problems| {
+        // The data level runs the metadata checks first, then its own value checks.
+        crate::validate_meta::meta_issues(table, actual, problems);
+        if let Err(e) = value_issues(table, parquet_path, actual, problems) {
             problems.push(Problem::preflight(ProblemKind::Parquet, e.to_string()));
-            return problems;
         }
-    };
-    // The data level runs the metadata checks first, then its own value checks.
-    crate::validate_meta::meta_issues(table, &actual, &mut problems);
-    if let Err(e) = value_issues(table, parquet_path, &actual, &mut problems) {
-        problems.push(Problem::preflight(ProblemKind::Parquet, e.to_string()));
-    }
-    problems
+    })
 }
 
 /// Run the value-level checks for the dictionary's `table` against the data,

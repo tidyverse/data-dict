@@ -21,24 +21,9 @@ use crate::problem::{Problem, ProblemKind, ProblemSet, Severity};
 /// data the dictionary does not describe. Values are never read; see
 /// [`crate::validate_data::validate_data`] for the level that does.
 pub fn validate_meta(dict_path: &Path, parquet_path: &Path, table: Option<&str>) -> ProblemSet {
-    // An unusable spec (errors or a pre-flight failure) means there is nothing
-    // to compare against, so report only those problems.
-    let (dict, mut problems) = match crate::validate_and_lower(dict_path) {
-        Ok(pair) => pair,
-        Err(problems) => return problems,
-    };
-    let Some(table) = crate::select_table(&dict, table, &mut problems) else {
-        return problems;
-    };
-    let actual = match data_dict_parquet::column_types(parquet_path) {
-        Ok(actual) => actual,
-        Err(e) => {
-            problems.push(Problem::preflight(ProblemKind::Parquet, e.to_string()));
-            return problems;
-        }
-    };
-    meta_issues(table, &actual, &mut problems);
-    problems
+    crate::compare_dataset(dict_path, parquet_path, table, |table, actual, problems| {
+        meta_issues(table, actual, problems);
+    })
 }
 
 /// Compare the dictionary's `table` against the actual column types read from

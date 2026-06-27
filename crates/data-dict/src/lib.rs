@@ -16,8 +16,10 @@
 //! metadata or data mismatch). A level pushes its problems and stops the run
 //! short by returning early; the meta and data levels validate the spec first
 //! and compare against a dataset only when it is free of errors. This module
-//! holds the shared [`Level`] and the [`select_table`] helper the meta and data
-//! levels build on.
+//! holds the shared [`Level`], the [`select_table`] helper, and the
+//! `compare_dataset` driver the meta and data levels build on.
+
+use std::path::Path;
 
 pub mod join_expr;
 pub mod lower;
@@ -31,7 +33,8 @@ pub use problem::{Problem, ProblemKind, ProblemSet, Severity, Status};
 pub use quarto_source_map::SourceContext;
 pub use validate_data::validate_data;
 pub use validate_meta::validate_meta;
-pub use validate_spec::{validate_and_lower, validate_spec};
+pub use validate_spec::validate_spec;
+pub(crate) use validate_spec::{load, validate_and_lower};
 
 use model::{DataDict, Table};
 
@@ -47,6 +50,40 @@ pub enum Level {
     Spec,
     Meta,
     Data,
+}
+
+/// Drive a metadata- or data-level comparison: initialise the run from
+/// `dict_path`, validate the spec, select the table, read its column schema, then
+/// run `checks` — the level-specific work — against the table and that schema.
+///
+/// The shared prologue (which every step bails out of on failure, reporting only
+/// what it has) lives here so `validate_meta` and `validate_data` differ only in
+/// the `checks` they pass.
+pub(crate) fn compare_dataset(
+    dict_path: &Path,
+    parquet_path: &Path,
+    table: Option<&str>,
+    checks: impl FnOnce(&Table, &[(String, String)], &mut ProblemSet),
+) -> ProblemSet {
+    let (mut problems, doc) = match load(dict_path) {
+        Ok(loaded) => loaded,
+        Err(problems) => return problems,
+    };
+    let Some(dict) = validate_and_lower(&doc, &mut problems) else {
+        return problems;
+    };
+    let Some(table) = select_table(&dict, table, &mut problems) else {
+        return problems;
+    };
+    let actual = match data_dict_parquet::column_types(parquet_path) {
+        Ok(actual) => actual,
+        Err(e) => {
+            problems.push(Problem::preflight(ProblemKind::Parquet, e.to_string()));
+            return problems;
+        }
+    };
+    checks(table, &actual, &mut problems);
+    problems
 }
 
 /// Resolve which table to validate against: `table` if given, otherwise the sole
