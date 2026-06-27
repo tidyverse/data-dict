@@ -1,0 +1,11 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s11-empty-table-name.yaml\")"
+---
+Error: [S11]
+   ╭─[ spec/s11-empty-table-name.yaml:7:3 ]
+   │
+ 7 │   "":
+   │   │ 
+   │   ╰─ table name is empty
+───╯

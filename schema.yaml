@@ -60,7 +60,13 @@ object:
                     closed: true
                     required: [name]
                     properties:
-                      name: string
+                      # `anyOf: [string, null]` lets an empty/null name through
+                      # to the semantic layer, where S11 reports it with a clear
+                      # message; the YAML parser collapses `""` to null.
+                      name:
+                        anyOf:
+                          - string
+                          - null
                       description: string
                       details: string
                       units: string

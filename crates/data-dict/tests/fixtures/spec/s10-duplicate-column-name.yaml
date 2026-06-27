@@ -1,0 +1,17 @@
+# expected: fails S10 - two columns in the same table share the name `id`.
+
+$version: 0.1.0
+$learn_more: http://data-dict.tidyverse.org/
+
+tables:
+  t:
+    description: A table.
+    source:
+      parquet: t.parquet
+    columns:
+      - name: id
+        type: number(id)
+        examples: [1, 2, 3]
+      - name: id
+        type: string
+        examples: [a, b, c]

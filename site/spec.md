@@ -19,7 +19,7 @@ The content keys all hold the actual information about the data:
 
 ## Tables
 
-`tables` is a named list that describes each table in the dataset. Each table represents a rectangle of data with observations in the rows and variables in the columns. Each table has the following properties:
+`tables` is a named list that describes each table in the dataset. Each key is the table's name, which must be non-empty and unique. Each table represents a rectangle of data with observations in the rows and variables in the columns. Each table has the following properties:
 
 * `description`: a human-readable description of the table. May contain markdown, and is usually a few sentences or a paragraph. A good description answers two questions:
     * **What's the grain?** What does a row represent? (e.g. "each row is a food item", "each row is one patient visit").
@@ -79,7 +79,7 @@ Each entry in the `columns` list is a column descriptor. Columns are matched to 
 
 Each descriptor has the following properties:
 
-* `name` (required, unique): column name. Used to match the descriptor to a column in the underlying data.
+* `name` (required): column name. Used to match the descriptor to a column in the underlying data. Must be non-empty and unique within a table.
 * `type`: the column's data type (see [Types](#types)). Should match (approximately) the underlying data type. Optional — see below.
 * `constraints`: a list of column-level constraints (see [Column constraints](#column-constraints)).
 * `description`: a human-readable description of the column. Can use markdown.

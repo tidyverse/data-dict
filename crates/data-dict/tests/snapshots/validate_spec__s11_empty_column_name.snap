@@ -1,0 +1,11 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s11-empty-column-name.yaml\")"
+---
+Error: [S11]
+    ╭─[ spec/s11-empty-column-name.yaml:12:15 ]
+    │
+ 12 │       - name: ""
+    │               │ 
+    │               ╰─ a column in table `t` has an empty `name`
+────╯

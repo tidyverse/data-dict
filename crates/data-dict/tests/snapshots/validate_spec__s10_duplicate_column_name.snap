@@ -1,0 +1,11 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s10-duplicate-column-name.yaml\")"
+---
+Error: [S10]
+    ╭─[ spec/s10-duplicate-column-name.yaml:15:15 ]
+    │
+ 15 │       - name: id
+    │               ─┬  
+    │                ╰── table `t` has more than one column named `id`
+────╯

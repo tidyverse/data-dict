@@ -20,9 +20,9 @@ pub fn lower(root: &YamlWithSourceInfo, problems: &mut ProblemSet) -> DataDict {
         && let Some(entries) = t_node.as_hash()
     {
         for entry in entries {
-            let Some(name) = entry.key.yaml.as_str() else {
-                continue;
-            };
+            // An empty/null key is kept (as "") so S11 can report it; the
+            // parser collapses an empty table name to a null key.
+            let name = entry.key.yaml.as_str().unwrap_or("");
             let table = lower_table(name, &entry.key_span, &entry.value);
             tables.insert(name.to_string(), table);
         }
@@ -75,9 +75,10 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
         };
         match key {
             "name" => {
-                if let Some(s) = entry.value.yaml.as_str() {
-                    name = Some(Spanned::new(s.to_string(), entry.value_span.clone()));
-                }
+                // An empty/null name is kept (as "") so S11 can report it; the
+                // parser collapses an empty name to null.
+                let s = entry.value.yaml.as_str().unwrap_or("");
+                name = Some(Spanned::new(s.to_string(), entry.value_span.clone()));
             }
             "type" => {
                 if let Some(s) = entry.value.yaml.as_str() {

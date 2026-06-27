@@ -376,3 +376,45 @@ fn s08_units_ok_on_quantity() {
 fn s08_units_on_non_quantity() {
     insta::assert_snapshot!(failing_diagnostic("spec/s08-units-on-non-quantity.yaml"));
 }
+
+#[test]
+#[cfg(unix)]
+fn s10_duplicate_column_name() {
+    insta::assert_snapshot!(failing_diagnostic("spec/s10-duplicate-column-name.yaml"));
+}
+
+#[test]
+fn s10_duplicate_column_name_errors() {
+    assert_invalid(
+        fixture("spec/s10-duplicate-column-name.yaml"),
+        &["S10", "more than one column named `id`"],
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn s11_empty_table_name() {
+    insta::assert_snapshot!(failing_diagnostic("spec/s11-empty-table-name.yaml"));
+}
+
+#[test]
+fn s11_empty_table_name_errors() {
+    assert_invalid(
+        fixture("spec/s11-empty-table-name.yaml"),
+        &["S11", "table name is empty"],
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn s11_empty_column_name() {
+    insta::assert_snapshot!(failing_diagnostic("spec/s11-empty-column-name.yaml"));
+}
+
+#[test]
+fn s11_empty_column_name_errors() {
+    assert_invalid(
+        fixture("spec/s11-empty-column-name.yaml"),
+        &["S11", "empty `name`"],
+    );
+}

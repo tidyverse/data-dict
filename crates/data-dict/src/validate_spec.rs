@@ -121,6 +121,8 @@ fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
     check_cardinality_consistency(dict, out); // S06
     check_column_data_representation(dict, out); // S07
     check_units_only_on_quantity(dict, out); // S08
+    check_unique_column_names(dict, out); // S10
+    check_non_empty_names(dict, out); // S11
 }
 
 // --- S02 --------------------------------------------------------------
@@ -573,6 +575,57 @@ fn check_units_only_on_quantity(dict: &DataDict, out: &mut ProblemSet) {
                         units.span.clone(),
                     ),
                 );
+            }
+        }
+    }
+}
+
+// --- S10 --------------------------------------------------------------
+
+fn check_unique_column_names(dict: &DataDict, out: &mut ProblemSet) {
+    for (table_name, table) in &dict.tables {
+        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for col in &table.columns {
+            // Empty names are S11's concern; reporting them as duplicates too
+            // would just be noise.
+            if col.name.value.is_empty() {
+                continue;
+            }
+            if !seen.insert(col.name.value.as_str()) {
+                out.push(Problem::spec(
+                    "S10",
+                    Severity::Error,
+                    format!(
+                        "table `{}` has more than one column named `{}`",
+                        table_name, col.name.value
+                    ),
+                    col.name.span.clone(),
+                ));
+            }
+        }
+    }
+}
+
+// --- S11 --------------------------------------------------------------
+
+fn check_non_empty_names(dict: &DataDict, out: &mut ProblemSet) {
+    for (table_name, table) in &dict.tables {
+        if table.name.value.is_empty() {
+            out.push(Problem::spec(
+                "S11",
+                Severity::Error,
+                "table name is empty".to_string(),
+                table.name.span.clone(),
+            ));
+        }
+        for col in &table.columns {
+            if col.name.value.is_empty() {
+                out.push(Problem::spec(
+                    "S11",
+                    Severity::Error,
+                    format!("a column in table `{table_name}` has an empty `name`"),
+                    col.name.span.clone(),
+                ));
             }
         }
     }

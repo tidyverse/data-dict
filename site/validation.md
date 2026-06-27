@@ -37,6 +37,8 @@ When validating the spec, each problem with the dictionary is one of:
 * **Wrong representation key** (S07, error): a column's data representation key is absent or wrong for its type (`enum` → `values`; `number(ordinal)`, `number(quantity)`, `date`, `datetime` → `range`; otherwise → `examples`, except `boolean`, which needs none).
 * **Units without quantity** (S08, error): a column has `units` but its type is not `number(quantity)`.
 * **Missing `$learn_more`** (S09, warning): the document omits the recommended `$learn_more` key.
+* **Duplicate column name** (S10, error): two column descriptors within the same table share a `name`.
+* **Empty name** (S11, error): a table name or a column `name` is empty.
 
 ## Metadata-validation checks
 
