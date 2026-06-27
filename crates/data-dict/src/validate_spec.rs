@@ -53,25 +53,52 @@ fn schema() -> &'static Schema {
 /// structurally invalid document — are themselves reported as pre-flight
 /// [`Problem`]s in the set.
 pub fn validate_spec(path: &Path) -> ProblemSet {
-    validate_and_lower(path).1
+    // The dictionary is only of interest to the meta/data levels; here we want
+    // the problems whether or not the spec turned out to be usable.
+    match validate_and_lower(path) {
+        Ok((_, problems)) | Err(problems) => problems,
+    }
 }
 
 /// Validate a `data-dict.yaml` file at `path` and return the lowered
-/// [`DataDict`] alongside its [`ProblemSet`]. Runs the same two passes as
-/// [`validate_spec`] — structural schema check then the semantic checks.
+/// [`DataDict`] alongside its [`ProblemSet`]. Initialises the run with [`load`],
+/// then steps through the spec-level checks.
 ///
-/// The model is `Some` whenever the document is structurally sound (lowering
-/// succeeds even when the semantic checks find errors), and `None` when
-/// validation could not get that far: an I/O failure, unparseable YAML, or a
-/// document the schema rejected. In every case the returned set carries the
-/// problems that explain the outcome.
-pub fn validate_and_lower(path: &Path) -> (Option<DataDict>, ProblemSet) {
+/// `Ok((dict, problems))` when the spec is usable — the document lowered and the
+/// semantic checks found no errors (`problems` may still hold warnings). `Err`
+/// when it is not: a pre-flight failure (I/O, unparseable YAML, a document the
+/// schema rejected) for which no dictionary was ever built, or semantic errors
+/// that make comparing data against the dictionary meaningless. Either way the
+/// `Err` set carries the problems that explain the outcome.
+pub fn validate_and_lower(path: &Path) -> Result<(DataDict, ProblemSet), ProblemSet> {
+    let (mut problems, doc) = load(path);
+    let Some(doc) = doc else {
+        return Err(problems);
+    };
+    let dict = lower::lower(&doc, &mut problems);
+    check_spec(&dict, &mut problems);
+    check_learn_more(&doc, &mut problems);
+    problems.sort();
+
+    if problems.status().failed() {
+        Err(problems)
+    } else {
+        Ok((dict, problems))
+    }
+}
+
+/// Read, parse, and schema-check the document at `path`, creating the run's
+/// [`ProblemSet`] with the document's source — this is where every level starts.
+/// Returns the parsed AST when the document is structurally sound; on a
+/// pre-flight failure (I/O, unparseable YAML, or a document the schema rejects)
+/// the failure is recorded in the set and `None` is returned.
+fn load(path: &Path) -> (ProblemSet, Option<YamlWithSourceInfo>) {
     let content = match std::fs::read_to_string(path) {
         Ok(content) => content,
         Err(e) => {
             return (
-                None,
                 ProblemSet::from_preflight(ProblemKind::Io, e.to_string()),
+                None,
             );
         }
     };
@@ -81,8 +108,8 @@ pub fn validate_and_lower(path: &Path) -> (Option<DataDict>, ProblemSet) {
         Ok(doc) => doc,
         Err(e) => {
             return (
-                None,
                 ProblemSet::from_preflight(ProblemKind::Parse, e.to_string()),
+                None,
             );
         }
     };
@@ -97,18 +124,12 @@ pub fn validate_and_lower(path: &Path) -> (Option<DataDict>, ProblemSet) {
         // The structural diagnostic is already rendered (with source
         // highlighting) into its message; the pre-flight problem carries it as-is.
         let message = diagnostic.to_text(&source);
-        let mut set = ProblemSet::new(source);
-        set.push(Problem::preflight(ProblemKind::Schema, message));
-        return (None, set);
+        let mut problems = ProblemSet::new(source);
+        problems.push(Problem::preflight(ProblemKind::Schema, message));
+        return (problems, None);
     }
 
-    let mut problems = ProblemSet::new(source);
-    let dict = lower::lower(&doc, &mut problems);
-    check_spec(&dict, &mut problems);
-    check_learn_more(&doc, &mut problems);
-    problems.sort();
-
-    (Some(dict), problems)
+    (ProblemSet::new(source), Some(doc))
 }
 
 /// Run every rule, pushing any findings into `out`. Rules run in code order;
