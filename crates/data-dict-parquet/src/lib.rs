@@ -13,7 +13,6 @@ use std::path::Path;
 /// [`column_types`] can name the error without depending on `parquet` directly.
 pub use parquet::errors::ParquetError;
 
-/// Type information for a single parquet column.
 pub struct ColumnTypeInfo {
     pub name: String,
     pub dict_type: String,
@@ -37,8 +36,6 @@ pub fn column_types(path: &Path) -> Result<Vec<(String, String)>, parquet::error
         .collect())
 }
 
-/// Returns type information for all columns in a parquet file, including dict type,
-/// parquet logical type, and parquet physical type.
 pub fn column_type_info(path: &Path) -> Result<Vec<ColumnTypeInfo>, parquet::errors::ParquetError> {
     let file = File::open(path)
         .map_err(|e| parquet::errors::ParquetError::General(format!("Cannot open file: {e}")))?;
@@ -62,10 +59,6 @@ pub fn column_type_info(path: &Path) -> Result<Vec<ColumnTypeInfo>, parquet::err
 /// What a column's data must be inspected for, decided per column by the caller
 /// before any data is read. The scanner ([`column_stats`]) computes only what's
 /// requested, so columns nothing asks about are never touched.
-///
-/// Holds the nulls request today; range/enum/examples requests (bounds to test,
-/// an allowed set, an expected set) will become further fields as those checks
-/// are added.
 #[derive(Default, Clone)]
 pub struct ColumnNeeds {
     /// Count nulls and sample the row numbers where they occur.
@@ -89,8 +82,7 @@ impl ColumnNeeds {
 }
 
 /// The statistics gathered for a column, populated only for the fields its
-/// [`ColumnNeeds`] requested (others keep their default). Grows alongside
-/// `ColumnNeeds` as checks are added.
+/// [`ColumnNeeds`] requested (others keep their default).
 #[derive(Default)]
 pub struct ColumnStats {
     /// Total number of null values (when `nulls` was requested).
@@ -100,11 +92,8 @@ pub struct ColumnStats {
 }
 
 /// Gathers the requested statistics for each column, in one pass over the file.
-///
-/// Returns a [`ColumnStats`] for each requested column that exists in the file
-/// and asks for something ([`ColumnNeeds::any`]); others are absent from the
-/// map. Null row numbers are 1-based and in file order, capped at `limit` while
-/// `null_count` is always the true total.
+/// Only requested columns that exist in the file and ask for something
+/// ([`ColumnNeeds::any`]) appear in the map; others are absent.
 ///
 /// The work is kept to the minimum the requests imply:
 ///
@@ -188,16 +177,16 @@ pub fn column_stats(
     Ok(stats)
 }
 
-// First check if metadata proves that there are no nulls
 fn nulls_provably_absent(field: &Type, meta: &ParquetMetaData, col: usize) -> bool {
-    // A `REQUIRED` field marked  cannot contain nulls by construction
+    // A `REQUIRED` field cannot contain nulls by construction.
     if field.get_basic_info().has_repetition()
         && field.get_basic_info().repetition() == Repetition::REQUIRED
     {
         return true;
     }
 
-    // If present & per-row-group `null_count` sums to 0
+    // Otherwise, only provable from statistics: a row group missing `null_count`
+    // leaves us unable to rule nulls out.
     let mut total = 0;
     for rg in meta.row_groups() {
         match rg.column(col).statistics().and_then(|s| s.null_count_opt()) {
@@ -261,7 +250,6 @@ fn parquet_type_to_dict_type(field: &Type) -> String {
     // Logical type takes precedence; physical type is the fallback.
     // Unhandled logical types (Map, List, Time, Json, Bson, Uuid, Unknown) fall
     // through — Time lands on "number" via INT32/INT64, the rest on "string".
-    // We'll handle nested types, at least List, later.
     if let Some(logical) = info.logical_type() {
         match logical {
             LogicalType::String => return "string".into(),

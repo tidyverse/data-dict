@@ -1,12 +1,7 @@
-//! Data-level validation: the data's *values* match the dictionary.
-//!
-//! This is the last and most expensive of the three validation levels (the
-//! `D##` checks; see `site/validation.md` for what each code means): it is the
-//! only one that reads the data itself. It runs everything the metadata level
-//! ([`crate::validate_meta`]) does, then adds value-level checks that require a scan.
+//! Data-level validation, the `D##` checks (see `site/validation.md`).
 //!
 //! [`validate_data`] is the entry point; `value_issues` is the value-checking
-//! core it runs after the metadata checks.
+//! core it runs after the metadata checks ([`crate::validate_meta`]).
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -28,7 +23,6 @@ const SAMPLE_LIMIT: usize = 5;
 /// example, nulls in a required column.
 pub fn validate_data(dict_path: &Path, parquet_path: &Path, table: Option<&str>) -> ProblemSet {
     crate::compare_dataset(dict_path, parquet_path, table, |table, actual, problems| {
-        // The data level runs the metadata checks first, then its own value checks.
         crate::validate_meta::meta_issues(table, actual, problems);
         if let Err(e) = value_issues(table, parquet_path, actual, problems) {
             problems.push(Problem::preflight(ProblemKind::Parquet, e.to_string()));

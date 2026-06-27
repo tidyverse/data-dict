@@ -10,7 +10,6 @@ use quarto_source_map::SourceInfo;
 
 use crate::join_expr::JoinExpr;
 
-/// A value paired with its source location.
 #[derive(Debug, Clone)]
 pub struct Spanned<T> {
     pub value: T,

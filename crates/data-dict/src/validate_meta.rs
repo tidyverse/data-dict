@@ -1,9 +1,4 @@
-//! Metadata-level validation: the data's column names and types match the
-//! dictionary.
-//!
-//! This is the middle of the three validation levels (the `M##` checks; see
-//! `site/validation.md` for what each code means). It reads only the data's
-//! schema (e.g. a parquet footer), never its values, so it stays cheap.
+//! Metadata-level validation, the `M##` checks (see `site/validation.md`).
 //!
 //! [`validate_meta`] is the entry point; [`meta_issues`] is the reusable core
 //! that the data level ([`crate::validate_data`]) runs before its own value checks.
@@ -30,8 +25,6 @@ pub fn validate_meta(dict_path: &Path, parquet_path: &Path, table: Option<&str>)
 /// the data, pushing the metadata-level problems into `out`. Reused by the data
 /// level, which appends its value-level problems to the same set.
 pub(crate) fn meta_issues(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {
-    // Columns the dictionary describes: each must exist in the data, and its
-    // declared type (if any) must be compatible.
     for col in &table.columns {
         match actual.iter().find(|(n, _)| n == &col.name.value) {
             None => out.push(Problem::column(
@@ -45,7 +38,6 @@ pub(crate) fn meta_issues(table: &Table, actual: &[(String, String)], out: &mut 
         }
     }
 
-    // Columns present in the data that the dictionary does not describe.
     for (name, actual_type) in actual {
         if table.column(name).is_none() {
             out.push(Problem::column(

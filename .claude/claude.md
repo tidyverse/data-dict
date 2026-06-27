@@ -12,7 +12,9 @@ The repo contains:
 
 ## Code principles
 
-* Reserve comments for explaining why, not what or how.
+* Reserve comments for explaining why, not what or how. Default to no comment. Before writing one, check it isn't already said by the item's name, its type, its doc comment, or the line below it — if so, drop it.
+* Don't comment on the historical evolution of the code (what it used to do, what changed) or speculate about future work ("we'll handle X later", "grows as Y is added"). Comment only on the code as it stands.
+* Keep doc comments to what a caller can't infer from the signature (invariants, units, edge cases, spec rules); don't restate the name.
 * User facing code should be accompanied by a test.
 
 ## Spec and implementation must stay in sync

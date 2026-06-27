@@ -117,7 +117,6 @@ fn main() -> ExitCode {
     }
 }
 
-/// Print every (leaf) subcommand, including nested ones like `skill read`.
 fn print_all_subcommands() {
     print!("{}", subcommands_listing());
 }
@@ -179,9 +178,8 @@ fn resolve_dict_path(path: Option<PathBuf>) -> Result<PathBuf, String> {
 /// signature, so `run_validate` is generic over which one it drives.
 type ValidateFn = fn(&Path, &Path, Option<&str>) -> ProblemSet;
 
-/// Run a meta or data validation (`validate-meta` / `validate-data`) and turn
-/// its outcome into rendered output and an exit code. Both commands share the
-/// same plumbing; they differ only in the `validate` entry point passed in.
+/// Run a meta or data validation and turn its outcome into rendered output and
+/// an exit code.
 fn run_validate(args: ValidateArgs, validate: ValidateFn) -> ExitCode {
     let dict = match resolve_dict_path(Some(args.dict)) {
         Ok(dict) => dict,

@@ -1,15 +1,8 @@
 //! Core library for the `data-dict.yaml` specification.
 //!
-//! Validation happens at three levels, each a strict superset of the last (see
-//! `site/validation.md`):
-//!
-//! 1. [`validate_spec`] (`S##`) — the dictionary itself conforms to the
-//!    data-dict spec: well-formed and internally consistent. Never looks at the
-//!    data.
-//! 2. [`validate_meta`] (`M##`) — the data's column names and types match the
-//!    dictionary. Reads only the data's schema (e.g. a parquet footer).
-//! 3. [`validate_data`] (`D##`) — the data's values match the dictionary. Reads
-//!    the data.
+//! Validation happens at three levels — [`validate_spec`], [`validate_meta`],
+//! [`validate_data`] — each a strict superset of the last; `site/validation.md`
+//! defines them and their `S##`/`M##`/`D##` checks.
 //!
 //! Every level reports its findings as a single [`ProblemSet`]: one vector of
 //! [`Problem`]s, whatever their origin (I/O, the schema, a spec check, a
@@ -38,9 +31,6 @@ pub(crate) use validate_spec::{load, validate_and_lower};
 
 use model::{DataDict, Table};
 
-/// The full text of the `data-dict.yaml` specification (`site/spec.md`),
-/// embedded at compile time so the CLI can print it without a network or
-/// filesystem dependency.
 pub const SPEC_MD: &str = include_str!("../../../site/spec.md");
 
 /// Which of the three validation levels a check belongs to.
@@ -52,13 +42,9 @@ pub enum Level {
     Data,
 }
 
-/// Drive a metadata- or data-level comparison: initialise the run from
-/// `dict_path`, validate the spec, select the table, read its column schema, then
-/// run `checks` — the level-specific work — against the table and that schema.
-///
-/// The shared prologue (which every step bails out of on failure, reporting only
-/// what it has) lives here so `validate_meta` and `validate_data` differ only in
-/// the `checks` they pass.
+/// The shared prologue for `validate_meta` and `validate_data`, so they differ
+/// only in the `checks` they pass. Each step bails out on failure, reporting only
+/// what it has by then.
 pub(crate) fn compare_dataset(
     dict_path: &Path,
     parquet_path: &Path,
@@ -86,9 +72,8 @@ pub(crate) fn compare_dataset(
     problems
 }
 
-/// Resolve which table to validate against: `table` if given, otherwise the sole
-/// table when the dictionary describes exactly one. On failure pushes a
-/// pre-flight [`Problem`] into `out` and returns `None`.
+/// Falls back to the sole table when `table` is `None` and the dictionary
+/// describes exactly one; otherwise records why in `out` and returns `None`.
 pub(crate) fn select_table<'a>(
     dict: &'a DataDict,
     table: Option<&str>,

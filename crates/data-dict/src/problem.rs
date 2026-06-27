@@ -273,7 +273,6 @@ impl ProblemSet {
         set
     }
 
-    /// Record a problem found by a check.
     pub fn push(&mut self, problem: Problem) {
         self.items.push(problem);
     }

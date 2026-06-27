@@ -1,9 +1,6 @@
-//! Spec-level validation: the dictionary itself conforms to the data-dict spec.
+//! Spec-level validation, the `S##` checks (see `site/validation.md`).
 //!
-//! The first of the three validation levels (the `S##` checks; see
-//! `site/validation.md` for what each code means). [`validate_spec`] runs two
-//! internal passes on a `data-dict.yaml` document — a distinction not surfaced
-//! in the CLI:
+//! [`validate_spec`] runs two internal passes — a split not surfaced in the CLI:
 //!
 //! 1. **schema**: structural validation against the embedded `schema.yaml` via
 //!    the `quarto-yaml-validation` crate — everything a JSON Schema can express.
@@ -11,13 +8,7 @@
 //!    express (foreign-key targets, `join` parsing, cardinality, …).
 //!
 //! The second pass only runs if the first succeeds: there is no point chasing
-//! FK references in a document whose `tables` block is malformed. The checks can
-//! also surface *warnings* (e.g. a missing `$learn_more` key), which do not fail
-//! validation.
-//!
-//! This level never looks at the data. The [`crate::validate_meta`] and
-//! [`crate::validate_data`] levels build on it: both validate the spec first and
-//! only compare against a dataset when the spec is free of errors.
+//! FK references in a document whose `tables` block is malformed.
 
 use std::path::Path;
 use std::sync::OnceLock;
@@ -44,13 +35,11 @@ fn schema() -> &'static Schema {
     })
 }
 
-/// Validate a `data-dict.yaml` file at `path`: structural schema check followed
-/// by the cross-table semantic checks. Returns a [`ProblemSet`] — every problem
-/// (errors and warnings, in source order) bundled with the source context needed
-/// to render them. [`ProblemSet::status`] reports whether the document is valid.
-///
-/// Failures that prevent checking altogether — I/O, unparseable YAML, a
-/// structurally invalid document — are themselves reported as pre-flight
+/// Validate the `data-dict.yaml` file at `path`. The returned [`ProblemSet`]
+/// bundles every problem (errors and warnings, in source order) with the source
+/// context needed to render them; [`ProblemSet::status`] reports whether the
+/// document is valid. Failures that prevent checking altogether — I/O,
+/// unparseable YAML, a structurally invalid document — surface as pre-flight
 /// [`Problem`]s in the set.
 pub fn validate_spec(path: &Path) -> ProblemSet {
     let (mut problems, doc) = match load(path) {
