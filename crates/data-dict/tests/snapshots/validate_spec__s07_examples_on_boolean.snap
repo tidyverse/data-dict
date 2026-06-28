@@ -1,0 +1,11 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s07-examples-on-boolean.yaml\")"
+---
+Error: [S07]
+    ╭─[ spec/s07-examples-on-boolean.yaml:12:15 ]
+    │
+ 12 │       - name: active
+    │               ───┬──  
+    │                  ╰──── column `t.active` has type `boolean` but uses `examples`; `boolean` columns must not have `values`, `range`, or `examples`
+────╯

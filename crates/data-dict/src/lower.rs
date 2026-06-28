@@ -9,7 +9,9 @@ use quarto_source_map::SourceInfo;
 use quarto_yaml::YamlWithSourceInfo;
 
 use crate::join_expr::JoinExpr;
-use crate::model::{Cardinality, Column, Constraint, DataDict, Relationship, Spanned, Table};
+use crate::model::{
+    Cardinality, Column, Constraint, DataDict, Relationship, Scalar, Spanned, Table,
+};
 use crate::problem::{Problem, ProblemSet, Severity};
 
 /// Lower an AST, collecting any lowering problems (currently only S04
@@ -68,6 +70,8 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
     let mut has_values = false;
     let mut has_range = false;
     let mut has_examples = false;
+    let mut range: Vec<Spanned<Scalar>> = Vec::new();
+    let mut examples: Vec<Spanned<Scalar>> = Vec::new();
     let mut units: Option<Spanned<String>> = None;
     for entry in entries {
         let Some(key) = entry.key.yaml.as_str() else {
@@ -86,8 +90,14 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
                 }
             }
             "values" => has_values = true,
-            "range" => has_range = true,
-            "examples" => has_examples = true,
+            "range" => {
+                has_range = true;
+                range = lower_scalars(&entry.value);
+            }
+            "examples" => {
+                has_examples = true;
+                examples = lower_scalars(&entry.value);
+            }
             "units" => {
                 if let Some(s) = entry.value.yaml.as_str() {
                     units = Some(Spanned::new(s.to_string(), entry.value_span.clone()));
@@ -114,8 +124,39 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
         has_values,
         has_range,
         has_examples,
+        range,
+        examples,
         units,
     })
+}
+
+/// Lower a `range` or `examples` node into its scalar elements with spans.
+/// Non-array nodes yield an empty vector (the schema rejects them upstream).
+fn lower_scalars(node: &YamlWithSourceInfo) -> Vec<Spanned<Scalar>> {
+    let Some(items) = node.as_array() else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .map(|item| Spanned::new(lower_scalar(item), item.source_info.clone()))
+        .collect()
+}
+
+fn lower_scalar(node: &YamlWithSourceInfo) -> Scalar {
+    let yaml = &node.yaml;
+    if let Some(b) = yaml.as_bool() {
+        Scalar::Bool(b)
+    } else if let Some(i) = yaml.as_i64() {
+        Scalar::Number(i as f64)
+    } else if let Some(f) = yaml.as_f64() {
+        Scalar::Number(f)
+    } else if let Some(s) = yaml.as_str() {
+        Scalar::String(s.to_string())
+    } else if node.as_array().is_some() || node.as_hash().is_some() {
+        Scalar::Compound
+    } else {
+        Scalar::Null
+    }
 }
 
 fn lower_relationship(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Relationship {

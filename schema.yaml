@@ -75,9 +75,13 @@ object:
                                "datetime", "number", "number(id)", "string", "boolean"]
                       values:
                         anyOf:
-                          - arrayOf: any              # [M, F, U]
+                          - arrayOf:                  # [M, F, U]
+                              anyOf:
+                                - string
+                                - number
+                                - boolean
                           - object:                   # {M: Male, F: Female, ...}
-                              additionalProperties: any
+                              additionalProperties: string
                       range:
                         anyOf:
                           - arrayOf:

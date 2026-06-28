@@ -48,7 +48,45 @@ pub struct Column {
     pub has_values: bool,
     pub has_range: bool,
     pub has_examples: bool,
+    /// (schema guarantees exactly 2)
+    pub range: Vec<Spanned<Scalar>>,
+    pub examples: Vec<Spanned<Scalar>>,
     pub units: Option<Spanned<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Scalar {
+    Number(f64),
+    String(String), // includes date/times
+    Bool(bool),
+    Null,
+    /// A list or map — never valid in a representation list.
+    Compound,
+}
+
+impl Scalar {
+    /// English noun phrase naming the scalar's kind, for diagnostics.
+    pub fn noun(&self) -> &'static str {
+        match self {
+            Scalar::Number(_) => "a number",
+            Scalar::String(_) => "a string",
+            Scalar::Bool(_) => "a boolean",
+            Scalar::Null => "null",
+            Scalar::Compound => "a list or map",
+        }
+    }
+
+    /// The value as it should appear in a diagnostic message.
+    pub fn display(&self) -> String {
+        match self {
+            Scalar::Number(n) if n.fract() == 0.0 && n.is_finite() => format!("{}", *n as i64),
+            Scalar::Number(n) => n.to_string(),
+            Scalar::String(s) => s.clone(),
+            Scalar::Bool(b) => b.to_string(),
+            Scalar::Null => "null".to_string(),
+            Scalar::Compound => "…".to_string(),
+        }
+    }
 }
 
 impl Column {

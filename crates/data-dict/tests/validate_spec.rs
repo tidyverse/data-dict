@@ -418,3 +418,89 @@ fn s11_empty_column_name_errors() {
         &["S11", "empty `name`"],
     );
 }
+
+#[test]
+#[cfg(unix)]
+fn s07_examples_on_boolean() {
+    insta::assert_snapshot!(failing_diagnostic("spec/s07-examples-on-boolean.yaml"));
+}
+
+#[test]
+fn s07_examples_on_boolean_errors() {
+    assert_invalid(
+        fixture("spec/s07-examples-on-boolean.yaml"),
+        &["S07", "type `boolean`", "examples"],
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn s12_wrong_value_type() {
+    insta::assert_snapshot!(failing_diagnostic("spec/s12-wrong-value-type.yaml"));
+}
+
+#[test]
+fn s12_wrong_value_type_errors() {
+    assert_invalid(
+        fixture("spec/s12-wrong-value-type.yaml"),
+        &["S12", "expected a number"],
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn s12_date_not_iso() {
+    insta::assert_snapshot!(failing_diagnostic("spec/s12-date-not-iso.yaml"));
+}
+
+#[test]
+fn s12_date_not_iso_errors() {
+    assert_invalid(
+        fixture("spec/s12-date-not-iso.yaml"),
+        &["S12", "ISO 8601 date"],
+    );
+}
+
+#[test]
+fn s12_datetime_requires_timezone_errors() {
+    assert_invalid(
+        fixture("spec/s12-datetime-no-timezone.yaml"),
+        &["S12", "timezone"],
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn s13_descending_range() {
+    insta::assert_snapshot!(failing_diagnostic("spec/s13-descending-range.yaml"));
+}
+
+#[test]
+fn s13_descending_range_errors() {
+    assert_invalid(
+        fixture("spec/s13-descending-range.yaml"),
+        &["S13", "invalid range"],
+    );
+}
+
+// Guards that valid representation values and ascending ranges across every
+// type — including quoted numeric-looking strings and a boolean with no
+// representation key — produce no S07/S12/S13 noise.
+#[test]
+fn s12_s13_valid_ok() {
+    assert_valid(fixture("spec/s12-s13-valid-ok.yaml"));
+}
+
+#[test]
+#[cfg(unix)]
+fn enum_non_string_label() {
+    insta::assert_snapshot!(failing_diagnostic("invalid/enum-non-string-label.yaml"));
+}
+
+#[test]
+fn enum_non_string_label_errors() {
+    assert_invalid(
+        fixture("invalid/enum-non-string-label.yaml"),
+        &["YAML Validation Failed"],
+    );
+}

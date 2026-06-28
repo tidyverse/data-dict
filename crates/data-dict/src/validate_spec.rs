@@ -13,11 +13,12 @@
 use std::path::Path;
 use std::sync::OnceLock;
 
+use chrono::{DateTime, FixedOffset, NaiveDate};
 use quarto_yaml::YamlWithSourceInfo;
 use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic};
 
 use crate::join_expr::{JoinExpr, QCol};
-use crate::model::{Cardinality, DataDict};
+use crate::model::{Cardinality, Column, DataDict, Scalar, Spanned};
 use crate::problem::{Problem, ProblemKind, ProblemSet, Severity, subspan};
 use crate::{SourceContext, lower};
 
@@ -123,6 +124,8 @@ fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
     check_units_only_on_quantity(dict, out); // S08
     check_unique_column_names(dict, out); // S10
     check_non_empty_names(dict, out); // S11
+    check_value_types(dict, out); // S12
+    check_range_order(dict, out); // S13
 }
 
 // --- S02 --------------------------------------------------------------
@@ -505,8 +508,27 @@ fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
                         col.name.span.clone(),
                     ));
                 }
+            } else if type_name == "boolean" {
+                for (present, key) in [
+                    (col.has_values, "values"),
+                    (col.has_range, "range"),
+                    (col.has_examples, "examples"),
+                ] {
+                    if present {
+                        out.push(Problem::spec(
+                            "S07",
+                            Severity::Error,
+                            format!(
+                                "column `{}.{}` has type `boolean` but uses `{}`; \
+                                 `boolean` columns must not have `values`, `range`, or `examples`",
+                                table_name, col.name.value, key
+                            ),
+                            col.name.span.clone(),
+                        ));
+                    }
+                }
             } else {
-                if !col.has_examples && type_name != "boolean" {
+                if !col.has_examples {
                     out.push(
                         Problem::spec(
                             "S07",
@@ -628,6 +650,142 @@ fn check_non_empty_names(dict: &DataDict, out: &mut ProblemSet) {
                 ));
             }
         }
+    }
+}
+
+// --- S12 --------------------------------------------------------------
+
+/// The representation list whose values are type-checked for a given column
+/// type, or `None` for types that carry no typed representation (`enum`,
+/// `boolean`, and any unrecognized type). Mirrors S07: each type owns exactly
+/// one representation key, and we only check the one it owns so that a
+/// misplaced key reports as S07 rather than cascading into S12.
+fn typed_representation(col: &Column) -> Option<(&'static str, &[Spanned<Scalar>])> {
+    match col.col_type.as_ref()?.value.as_str() {
+        "number(ordinal)" | "number(quantity)" | "date" | "datetime" => Some(("range", &col.range)),
+        "string" | "number" | "number(id)" => Some(("examples", &col.examples)),
+        _ => None,
+    }
+}
+
+fn check_value_types(dict: &DataDict, out: &mut ProblemSet) {
+    for (table_name, table) in &dict.tables {
+        for col in &table.columns {
+            let type_name = match &col.col_type {
+                Some(t) => t.value.as_str(),
+                None => continue,
+            };
+            let Some((key, values)) = typed_representation(col) else {
+                continue;
+            };
+            for v in values {
+                if value_matches_type(type_name, &v.value) {
+                    continue;
+                }
+                out.push(Problem::spec(
+                    "S12",
+                    Severity::Error,
+                    format!(
+                        "column `{}.{}` has type `{}` but its `{}` value `{}` is {}; expected {}",
+                        table_name,
+                        col.name.value,
+                        type_name,
+                        key,
+                        v.value.display(),
+                        v.value.noun(),
+                        expected_noun(type_name),
+                    ),
+                    v.span.clone(),
+                ));
+            }
+        }
+    }
+}
+
+fn value_matches_type(type_name: &str, value: &Scalar) -> bool {
+    match type_name {
+        "number" | "number(id)" | "number(ordinal)" | "number(quantity)" => {
+            matches!(value, Scalar::Number(_))
+        }
+        // The YAML parser discards quote style, so a quoted `'1'` arrives as a
+        // number and a quoted `'null'` as null; we can't tell those from a real
+        // string. So `string` accepts any scalar and only rejects a list/map.
+        "string" => !matches!(value, Scalar::Compound),
+        "date" => matches!(value, Scalar::String(s) if parse_date(s).is_some()),
+        "datetime" => matches!(value, Scalar::String(s) if parse_datetime(s).is_some()),
+        _ => true,
+    }
+}
+
+fn parse_date(s: &str) -> Option<NaiveDate> {
+    s.parse().ok()
+}
+
+fn parse_datetime(s: &str) -> Option<DateTime<FixedOffset>> {
+    DateTime::parse_from_rfc3339(s).ok()
+}
+
+fn expected_noun(type_name: &str) -> &'static str {
+    match type_name {
+        "string" => "a string",
+        "date" => "an ISO 8601 date (YYYY-MM-DD)",
+        "datetime" => "an ISO 8601 datetime with a timezone (e.g. 2024-01-31T09:30:00Z)",
+        _ => "a number",
+    }
+}
+
+// --- S13 --------------------------------------------------------------
+
+fn check_range_order(dict: &DataDict, out: &mut ProblemSet) {
+    for (table_name, table) in &dict.tables {
+        for col in &table.columns {
+            let type_name = match &col.col_type {
+                Some(t) => t.value.as_str(),
+                None => continue,
+            };
+            if !RANGE_TYPES.contains(&type_name) || col.range.len() != 2 {
+                continue;
+            }
+            let (lo, hi) = (&col.range[0], &col.range[1]);
+            // A mistyped bound is S12's to report; comparing it here would be
+            // meaningless, so `range_descending` only fires when both bounds
+            // parse for the column's type.
+            if range_descending(type_name, &lo.value, &hi.value) {
+                out.push(Problem::spec(
+                    "S13",
+                    Severity::Error,
+                    format!(
+                        "column `{}.{}` has an invalid range: minimum `{}` is greater than maximum `{}`",
+                        table_name,
+                        col.name.value,
+                        lo.value.display(),
+                        hi.value.display(),
+                    ),
+                    lo.span.clone(),
+                ));
+            }
+        }
+    }
+}
+
+/// Whether `lo`..`hi` runs backwards for the column's type. Returns `false`
+/// unless both bounds parse as the type's value (a mistyped bound is S12's to
+/// report). Numbers compare numerically; dates and datetimes compare as parsed
+/// instants, so mixed timezone offsets are handled correctly.
+fn range_descending(type_name: &str, lo: &Scalar, hi: &Scalar) -> bool {
+    match (type_name, lo, hi) {
+        ("date", Scalar::String(a), Scalar::String(b)) => match (parse_date(a), parse_date(b)) {
+            (Some(a), Some(b)) => a > b,
+            _ => false,
+        },
+        ("datetime", Scalar::String(a), Scalar::String(b)) => {
+            match (parse_datetime(a), parse_datetime(b)) {
+                (Some(a), Some(b)) => a > b,
+                _ => false,
+            }
+        }
+        (_, Scalar::Number(a), Scalar::Number(b)) => a > b,
+        _ => false,
     }
 }
 

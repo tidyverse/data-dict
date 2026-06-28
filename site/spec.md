@@ -103,15 +103,15 @@ The supported types are:
 * `number`: numeric values (integers or floating-point). Can be qualified with a measure in parentheses: `number(id)`, `number(ordinal)`, or `number(quantity)`. See [Measures](#measures).
 * `string`: UTF-8 text strings.
 * `boolean`: true/false values.
-* `date`: calendar dates.
-* `datetime`: date-times with timezone.
+* `date`: calendar dates, written as ISO 8601 strings (`YYYY-MM-DD`, e.g. `2024-01-31`).
+* `datetime`: date-times with timezone, written as ISO 8601 strings (e.g. `2024-01-31T09:30:00Z`).
 * `enum`: a column with repeated values from a known set. The allowed values are listed in the `values` property.
 
 Every type *except* `boolean` has some way of representing the data it contains: an exhaustive set of values, a range, or a handful of examples. Each such column carries exactly one of the following three properties, and which one is determined by the column's `type`:
 
-* `values`: the allowed values for an `enum` column. Can be a list (`[M, F, U]`) when values are self-explanatory, or a map (`{M: Male, F: Female, U: Unknown}`) when values need labels. (`boolean` columns implicitly have `values: [true, false]`, no need to explicitly include it.)
-* `range`: a two-element list `[min, max]` giving the inclusive minimum and maximum *observed* in the column. Like `examples`, it describes the data rather than constraining it — a value outside the range will generate a warning, not a validation error. Used for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`.
-* `examples`: a list of ~5 representative values from the column. Used for all other types: `string`, `number`, and `number(id)`. A handful of concrete examples helps LLMs understand the column far better than a description alone. For instance, knowing that an id column holds `[1, 2, 3, 4, 5]` versus `[10000, 1235452, 234234]`. A good baseline is to select 5 evenly spaced values along the sorted unique values, and then add any particularly surprising values as you encounter them.
+* `values`: the allowed values for an `enum` column. Can be a list (`[M, F, U]`) when values are self-explanatory, or a map (`{M: Male, F: Female, U: Unknown}`) when values need labels. The values themselves must be scalars (string, number, or boolean); in the map form the labels must be strings. (`boolean` columns implicitly have `values: [true, false]`, no need to explicitly include it.)
+* `range`: a two-element list `[min, max]` giving the inclusive minimum and maximum *observed* in the column. Like `examples`, it describes the data rather than constraining it — a value outside the range will generate a warning, not a validation error. Used for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`. Both elements must match the column's type, and the minimum must not exceed the maximum.
+* `examples`: a list of ~5 representative values from the column. Used for all other types: `string`, `number`, and `number(id)`. Each example must match the column's type. A handful of concrete examples helps LLMs understand the column far better than a description alone. For instance, knowing that an id column holds `[1, 2, 3, 4, 5]` versus `[10000, 1235452, 234234]`. A good baseline is to select 5 evenly spaced values along the sorted unique values, and then add any particularly surprising values as you encounter them.
 
 #### Measures
 

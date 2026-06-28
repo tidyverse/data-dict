@@ -1,0 +1,11 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s13-descending-range.yaml\")"
+---
+Error: [S13]
+    ╭─[ spec/s13-descending-range.yaml:15:17 ]
+    │
+ 15 │         range: [100, 10]
+    │                 ─┬─  
+    │                  ╰─── column `t.mass` has an invalid range: minimum `100` is greater than maximum `10`
+────╯

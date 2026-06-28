@@ -1,0 +1,14 @@
+# expected: fails S07 - a `boolean` column carries no data representation, so `examples` is not allowed.
+
+$version: 0.1.0
+$learn_more: http://data-dict.tidyverse.org/
+
+tables:
+  t:
+    description: A table.
+    source:
+      parquet: t.parquet
+    columns:
+      - name: active
+        type: boolean
+        examples: [true, false]

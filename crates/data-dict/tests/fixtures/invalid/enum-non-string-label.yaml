@@ -1,0 +1,14 @@
+# expected: fails structurally - an enum `values` map label must be a string.
+
+$version: 0.1.0
+$learn_more: http://data-dict.tidyverse.org/
+
+tables:
+  t:
+    description: A table.
+    source:
+      parquet: t.parquet
+    columns:
+      - name: status
+        type: enum
+        values: {active: 1, inactive: 2}

@@ -1,0 +1,11 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s12-date-not-iso.yaml\")"
+---
+Error: [S12]
+    ╭─[ spec/s12-date-not-iso.yaml:14:31 ]
+    │
+ 14 │         range: ["2020-01-01", "20-01-2021"]
+    │                               ─────┬────  
+    │                                    ╰────── column `t.seen_on` has type `date` but its `range` value `20-01-2021` is a string; expected an ISO 8601 date (YYYY-MM-DD)
+────╯

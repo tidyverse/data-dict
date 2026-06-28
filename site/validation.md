@@ -34,11 +34,15 @@ When validating the spec, each problem with the dictionary is one of:
 * **Invalid join** (S04, error): a `join` expression fails to parse, or references neither one (self-join) nor two tables.
 * **Unresolved conflict column** (S05, error): a name in `conflicts` is not a column on both sides of the join.
 * **Inconsistent cardinality** (S06, error): the declared cardinality is inconsistent with the constraints on the joined columns (e.g. `one-to-many` whose "one" side is not `primary_key` or `unique`).
-* **Wrong representation key** (S07, error): a column's data representation key is absent or wrong for its type (`enum` → `values`; `number(ordinal)`, `number(quantity)`, `date`, `datetime` → `range`; otherwise → `examples`, except `boolean`, which needs none).
+* **Wrong representation key** (S07, error): a column's data representation key is absent or wrong for its type (`enum` → `values`; `number(ordinal)`, `number(quantity)`, `date`, `datetime` → `range`; otherwise → `examples`). A `boolean` column must carry none of `values`, `range`, or `examples`.
 * **Units without quantity** (S08, error): a column has `units` but its type is not `number(quantity)`.
 * **Missing `$learn_more`** (S09, warning): the document omits the recommended `$learn_more` key.
 * **Duplicate column name** (S10, error): two column descriptors within the same table share a `name`.
 * **Empty name** (S11, error): a table name or a column `name` is empty.
+* **Wrong value type** (S12, error): a value in `range` or `examples` does not match the column's `type` — a number type wants numbers; `string` wants strings; `date` and `datetime` want ISO 8601 strings (e.g. `2024-01-31`, `2024-01-31T09:30:00Z`).
+* **Descending range** (S13, error): a `range`'s minimum is greater than its maximum.
+
+(An `enum`'s `values` are constrained structurally by the schema rather than by an `S` check: each value must be a scalar, and in the map form each label must be a string.)
 
 ## Metadata-validation checks
 
