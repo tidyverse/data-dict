@@ -2,7 +2,7 @@
 source: crates/data-dict/tests/validate_spec.rs
 expression: "failing_diagnostic(\"spec/s07-other-type-missing-examples.yaml\")"
 ---
-Error: [S07] String, number, and ID columns must describe their data with `examples`.
+Error: [S07] A `string` column must describe its data with `examples`.
     ╭─[ spec/s07-other-type-missing-examples.yaml:10:15 ]
     │
  10 │       - name: label
@@ -10,7 +10,7 @@ Error: [S07] String, number, and ID columns must describe their data with `examp
     │                 ╰──── `t.label` has type `string` but has no `examples`
 ────╯
 
-Error: [S07] String, number, and ID columns must describe their data with `examples`.
+Error: [S07] A `number(id)` column must describe its data with `examples`.
     ╭─[ spec/s07-other-type-missing-examples.yaml:12:15 ]
     │
  12 │       - name: code

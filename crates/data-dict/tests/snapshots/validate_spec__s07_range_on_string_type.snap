@@ -2,7 +2,7 @@
 source: crates/data-dict/tests/validate_spec.rs
 expression: "failing_diagnostic(\"spec/s07-range-on-string-type.yaml\")"
 ---
-Error: [S07] String, number, and ID columns must not use `range`.
+Error: [S07] A `string` column must not use `range`.
     ╭─[ spec/s07-range-on-string-type.yaml:12:15 ]
     │
  12 │       - name: c

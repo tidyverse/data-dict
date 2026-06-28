@@ -11,7 +11,7 @@ Warning: [S09]
 ───╯
 ℹ Add `$learn_more: http://data-dict.tidyverse.org/` so readers unfamiliar with the format can find it
 
-Error: [S07] String, number, and ID columns must describe their data with `examples`.
+Error: [S07] A `number(id)` column must describe its data with `examples`.
    ╭─[ <fixture>:8:15 ]
    │
  8 │       - name: id

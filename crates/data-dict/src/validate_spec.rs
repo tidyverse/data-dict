@@ -497,7 +497,9 @@ fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
                 if !col.has_range {
                     out.push(
                         Problem::spec("S07", Severity::Error, missing("range"), span)
-                            .with_expected("Ordered numeric and date columns must describe their bounds with `range`."),
+                            .with_expected(format!(
+                                "A `{type_name}` column must describe its bounds with `range`."
+                            )),
                     );
                 }
                 if col.has_values {
@@ -508,9 +510,9 @@ fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
                             found("values"),
                             col.name.span.clone(),
                         )
-                        .with_expected(
-                            "Ordered numeric and date columns must use `range`, not `values`.",
-                        ),
+                        .with_expected(format!(
+                            "A `{type_name}` column must use `range`, not `values`."
+                        )),
                     );
                 }
                 if col.has_examples {
@@ -521,9 +523,9 @@ fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
                             found("examples"),
                             col.name.span.clone(),
                         )
-                        .with_expected(
-                            "Ordered numeric and date columns must use `range`, not `examples`.",
-                        ),
+                        .with_expected(format!(
+                            "A `{type_name}` column must use `range`, not `examples`."
+                        )),
                     );
                 }
             } else if type_name == "boolean" {
@@ -543,7 +545,9 @@ fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
                 if !col.has_examples {
                     out.push(
                         Problem::spec("S07", Severity::Error, missing("examples"), span)
-                            .with_expected("String, number, and ID columns must describe their data with `examples`."),
+                            .with_expected(format!(
+                                "A `{type_name}` column must describe its data with `examples`."
+                            )),
                     );
                 }
                 if col.has_values {
@@ -554,7 +558,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
                             found("values"),
                             col.name.span.clone(),
                         )
-                        .with_expected("String, number, and ID columns must not use `values`."),
+                        .with_expected(format!("A `{type_name}` column must not use `values`.")),
                     );
                 }
                 if col.has_range {
@@ -565,7 +569,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
                             found("range"),
                             col.name.span.clone(),
                         )
-                        .with_expected("String, number, and ID columns must not use `range`."),
+                        .with_expected(format!("A `{type_name}` column must not use `range`.")),
                     );
                 }
             }

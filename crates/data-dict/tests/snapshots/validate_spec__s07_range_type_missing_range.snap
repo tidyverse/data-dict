@@ -2,7 +2,7 @@
 source: crates/data-dict/tests/validate_spec.rs
 expression: "failing_diagnostic(\"spec/s07-range-type-missing-range.yaml\")"
 ---
-Error: [S07] Ordered numeric and date columns must describe their bounds with `range`.
+Error: [S07] A `number(quantity)` column must describe its bounds with `range`.
     ╭─[ spec/s07-range-type-missing-range.yaml:10:15 ]
     │
  10 │       - name: weight
@@ -10,7 +10,7 @@ Error: [S07] Ordered numeric and date columns must describe their bounds with `r
     │                  ╰──── `t.weight` has type `number(quantity)` but has no `range`
 ────╯
 
-Error: [S07] Ordered numeric and date columns must describe their bounds with `range`.
+Error: [S07] A `date` column must describe its bounds with `range`.
     ╭─[ spec/s07-range-type-missing-range.yaml:12:15 ]
     │
  12 │       - name: recorded_at

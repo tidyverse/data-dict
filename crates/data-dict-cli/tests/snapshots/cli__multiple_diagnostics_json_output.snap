@@ -13,7 +13,7 @@ expression: "serde_json::to_string_pretty(&value).unwrap()"
     },
     {
       "code": "S07",
-      "expected": "String, number, and ID columns must describe their data with `examples`.",
+      "expected": "A `number(id)` column must describe its data with `examples`.",
       "kind": "spec",
       "message": "`measurements.id` has type `number(id)` but has no `examples`",
       "severity": "error"
