@@ -12,6 +12,9 @@
 use std::path::{Path, PathBuf};
 
 use data_dict::Severity;
+use indoc::indoc;
+
+mod common;
 
 fn fixture(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -180,6 +183,39 @@ fn typeless_column_needs_no_representation() {
     );
 }
 
+// A single-table dictionary that describes the dataset with the top-level
+// name/description/details (leaving the table undescribed) is exactly what S14
+// recommends, so it must validate without an S14 warning.
+#[test]
+fn top_level_description_no_s14() {
+    let dir = common::temp_dir();
+    let path = common::write_yaml(
+        &dir,
+        indoc! {"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            name: FoodData Central
+            description: A snapshot of the USDA FoodData Central database.
+            details: Includes both branded and foundation foods.
+            tables:
+              food:
+                columns:
+                  - name: id
+                    type: number(id)
+                    examples: [1, 2, 3]
+        "},
+    );
+    assert!(
+        diagnostics(&path, Severity::Error).is_empty(),
+        "top-level descriptions must validate"
+    );
+    let warnings = diagnostics(&path, Severity::Warning);
+    assert!(
+        warnings.is_empty(),
+        "top-level descriptions must not trigger S14, got: {warnings:?}"
+    );
+}
+
 // --- warnings ------------------------------------------------------------
 
 // A document missing the recommended `$learn_more` key validates (it is not an
@@ -199,6 +235,35 @@ fn warn_missing_learn_more_text() {
             .iter()
             .any(|w| w.contains("S09") && w.contains("$learn_more")),
         "expected a S09 `$learn_more` warning, got: {warnings:?}"
+    );
+}
+
+// A single-table dictionary that puts `description`/`details` on the table
+// rather than at the top level validates, but surfaces one S14 warning per
+// misplaced key.
+#[test]
+#[cfg(unix)]
+fn warn_single_table_description() {
+    insta::assert_snapshot!(warning_diagnostic("spec/s14-single-table-description.yaml"));
+}
+
+#[test]
+fn warn_single_table_description_text() {
+    let warnings = diagnostics(
+        &fixture("spec/s14-single-table-description.yaml"),
+        Severity::Warning,
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("S14") && w.contains("description")),
+        "expected a S14 `description` warning, got: {warnings:?}"
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("S14") && w.contains("details")),
+        "expected a S14 `details` warning, got: {warnings:?}"
     );
 }
 

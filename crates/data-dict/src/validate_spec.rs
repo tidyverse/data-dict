@@ -128,6 +128,7 @@ fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
     validate_s04_join_table_count(dict, out);
     validate_s05_conflicts_present_on_both_sides(dict, out);
     validate_s06_cardinality_consistency(dict, out);
+    validate_s14_single_table_description(dict, out);
 
     for table in dict.tables.values() {
         validate_s11_table_name(table, out);
@@ -736,6 +737,30 @@ fn range_descending(type_name: &str, lo: &Scalar, hi: &Scalar) -> bool {
         }
         (_, Scalar::Number(a), Scalar::Number(b)) => a > b,
         _ => false,
+    }
+}
+
+// --- S14 --------------------------------------------------------------
+
+/// Warn when a single-table dictionary carries `description` or `details` on
+/// the table: for one table, those describe the dataset as a whole and belong
+/// at the top level.
+fn validate_s14_single_table_description(dict: &DataDict, out: &mut ProblemSet) {
+    if dict.tables.len() != 1 {
+        return;
+    }
+    let table = dict.tables.values().next().expect("one table");
+    for (key, span) in [
+        ("description", &table.description),
+        ("details", &table.details),
+    ] {
+        let Some(span) = span else { continue };
+        out.push_spec_warning(
+            "S14",
+            "A single-table dictionary's description and details belong at the top level.",
+            format!("table `{}` has a `{key}`", table.name.value),
+            [table.name.span.clone(), span.clone()],
+        );
     }
 }
 

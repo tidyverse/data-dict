@@ -35,6 +35,10 @@ pub struct Table {
     /// The `source` node's span, when the table declares one. Optional at the
     /// spec level; the metadata level requires it (M04).
     pub source: Option<SourceInfo>,
+    /// Spans of the `description`/`details` keys, when present. Held so S14 can
+    /// point at a single-table dictionary's misplaced table-level descriptions.
+    pub description: Option<SourceInfo>,
+    pub details: Option<SourceInfo>,
 }
 
 impl Table {

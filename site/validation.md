@@ -41,6 +41,7 @@ When validating the spec, each problem with the dictionary is one of:
 * **Empty name** (S11, error): a table name or a column `name` is empty.
 * **Wrong value type** (S12, error): a value in `range` or `examples` does not match the column's `type` — a number type wants numbers; `string` wants strings; `date` and `datetime` want ISO 8601 strings (e.g. `2024-01-31`, `2024-01-31T09:30:00Z`).
 * **Descending range** (S13, error): a `range`'s minimum is greater than its maximum.
+* **Misplaced single-table description** (S14, warning): a dictionary with exactly one table carries `description` or `details` on that table; for a single-table dictionary these belong at the top level.
 
 (An `enum`'s `values` are constrained structurally by the schema rather than by an `S` check: each value must be a scalar, and in the map form each label must be a string.)
 

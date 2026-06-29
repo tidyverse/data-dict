@@ -2,12 +2,20 @@
 
 This document describes version **0.1.0** of the `data-dict.yaml` specification.
 
-A data dictionary has two kinds of top-level keys. `$`-prefixed metadata keys that describe the dictionary itself and the data keys that describe the data. The `$` prefix marks a key as meta, distinguishes it from content, and keeps these keys grouped at the top of the file. 
+A data dictionary has three kinds of top-level keys. `$`-prefixed metadata keys that describe the dictionary itself, descriptive keys that name and describe the dataset as a whole, and content keys that describe the data. The `$` prefix marks a key as meta, distinguishes it from content, and keeps these keys grouped at the top of the file.
 
 The metadata keys are:
 
 * `$version` (required): the version of the `data-dict.yaml` spec the document conforms to. Currently `0.1.0`. While the spec is pre-1.0, breaking changes are expected, but once the spec stabilises at 1.0, breaking changes will always increment at least the minor version.
 * `$learn_more` (optional, but recommended): a URL where readers can learn about the `data-dict.yaml` format, so that people and tools meeting the file for the first time can find out what it is. Use <http://data-dict.tidyverse.org/>. Omitting it is valid, but a validator will emit a warning rather than an error (see [Validation](validation.md)).
+
+The descriptive keys identify and document the dataset as a whole:
+
+* `name` (optional): a human-readable name for the dataset, suitable for display in a user interface that lists several dictionaries. Unlike a table name, it has no uniqueness or character constraints — it's a title, not an identifier.
+* `description` (optional): a short, human-readable description of the dataset. May contain markdown, and is usually a few sentences or a paragraph.
+* `details` (optional): additional information about the dataset. Can be any length.
+
+In the common case of a dictionary that describes a single table, these top-level keys should be used to describe the dataset, leaving the table itself undescribed.
 
 The content keys all hold the actual information about the data:
 
@@ -15,7 +23,7 @@ The content keys all hold the actual information about the data:
 * [`relationships`](#relationships) describes the relationships between tables. It gives the details you need to safely create joins.
 * [`glossary`](#glossary) provides a place to define important domain-specific terms. This is a good place to write down those special words that your company loves to use.
 
-
+`name`, `description`, and `details` form a consistent trio that recurs at every level of the dictionary: the dataset as a whole (here), each [table](#tables), and each [column](#columns). `description` and `details` are always optional and mean the same thing at every level — a short summary and a longer free-text note. Only `name` differs in how it's written: it's an optional key here, the map key for a table, and the required `name` property for a column.
 
 ## Tables
 

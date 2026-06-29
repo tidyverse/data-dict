@@ -29,10 +29,11 @@ object:
     # S09 in validate_spec.rs); a URL where readers can learn about the format.
     "$learn_more": string
 
-    # `description` is not in site/spec.md but appears in real-world files
-    # (see examples/foodbank.yaml). Allowed as optional top-level metadata;
-    # may be promoted into the spec in a later version.
+    # Descriptive keys for the whole dataset. `name` is a display title with 
+    # no uniqueness constraints; all three are optional.
+    name: string
     description: string
+    details: string
 
     tables:
       object:
