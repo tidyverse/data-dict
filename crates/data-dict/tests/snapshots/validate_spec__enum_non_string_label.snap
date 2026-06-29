@@ -1,6 +1,5 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-assertion_line: 497
 expression: "failing_diagnostic(\"invalid/enum-non-string-label.yaml\")"
 ---
 Error: [Q-1-11] YAML Validation Failed
@@ -10,6 +9,6 @@ Error: [Q-1-11] YAML Validation Failed
     │                  ───────────┬──────────  
     │                             ╰──────────── Expected array, got object
 ────╯
-✖ At document path: `tables.t.columns.[0].values`
+✖ At document path: `tables.table.columns.[0].values`
 ℹ Schema constraint: object > object > object > array > object > anyOf > array
 ℹ Use YAML array syntax: `[item1, item2]` or list format?

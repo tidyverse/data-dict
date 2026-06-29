@@ -5,6 +5,7 @@ expression: "failing_diagnostic(\"spec/s05-conflicts-not-on-both-sides.yaml\")"
 Error: [S05] A `conflicts` entry must name a column on both sides of the join.
     ╭─[ spec/s05-conflicts-not-on-both-sides.yaml:36:17 ]
     │
+ 35 │     join: food.id = food_nutrient.food_id
  36 │     conflicts: [amount]
     │                 ───┬──  
     │                    ╰──── `amount` is not a column of `food`

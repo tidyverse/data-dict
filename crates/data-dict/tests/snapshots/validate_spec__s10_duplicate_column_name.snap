@@ -5,7 +5,9 @@ expression: "failing_diagnostic(\"spec/s10-duplicate-column-name.yaml\")"
 Error: [S10] Column names must be unique within a table.
     ╭─[ spec/s10-duplicate-column-name.yaml:14:15 ]
     │
+  7 │   table:
+    │ 
  14 │       - name: id
     │               ─┬  
-    │                ╰── table `t` has more than one column named `id`
+    │                ╰── appears more than once
 ────╯

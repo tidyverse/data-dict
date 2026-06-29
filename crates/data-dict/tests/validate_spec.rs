@@ -386,7 +386,11 @@ fn s10_duplicate_column_name() {
 fn s10_duplicate_column_name_errors() {
     assert_invalid(
         fixture("spec/s10-duplicate-column-name.yaml"),
-        &["S10", "more than one column named `id`"],
+        &[
+            "S10",
+            "Column names must be unique",
+            "appears more than once",
+        ],
     );
 }
 
@@ -414,7 +418,7 @@ fn s11_empty_column_name() {
 fn s11_empty_column_name_errors() {
     assert_invalid(
         fixture("spec/s11-empty-column-name.yaml"),
-        &["S11", "empty `name`"],
+        &["S11", "the `name` is empty"],
     );
 }
 

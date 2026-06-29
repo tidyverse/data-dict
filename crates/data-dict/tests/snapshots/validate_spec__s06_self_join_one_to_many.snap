@@ -8,4 +8,5 @@ Error: [S06] A `one-to-many` join must have a `primary_key` or `unique` column o
  25 │   - cardinality: one-to-many
     │                  ─────┬─────  
     │                       ╰─────── the left-side join column on `otters` is not marked `primary_key` or `unique`
+ 26 │     join: otters.pup_number = otters.otter_no
 ────╯

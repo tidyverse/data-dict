@@ -5,15 +5,19 @@ expression: "failing_diagnostic(\"spec/s07-range-type-missing-range.yaml\")"
 Error: [S07] A `number(quantity)` column must describe its bounds with `range`.
     ╭─[ spec/s07-range-type-missing-range.yaml:10:15 ]
     │
+  6 │   table:
+    │ 
  10 │       - name: weight
     │               ───┬──  
-    │                  ╰──── `t.weight` has type `number(quantity)` but has no `range`
+    │                  ╰──── has type `number(quantity)` but has no `range`
 ────╯
 
 Error: [S07] A `date` column must describe its bounds with `range`.
     ╭─[ spec/s07-range-type-missing-range.yaml:12:15 ]
     │
+  6 │   table:
+    │ 
  12 │       - name: recorded_at
     │               ─────┬─────  
-    │                    ╰─────── `t.recorded_at` has type `date` but has no `range`
+    │                    ╰─────── has type `date` but has no `range`
 ────╯

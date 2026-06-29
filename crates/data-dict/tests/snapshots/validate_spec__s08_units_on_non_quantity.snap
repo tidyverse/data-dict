@@ -5,7 +5,11 @@ expression: "failing_diagnostic(\"spec/s08-units-on-non-quantity.yaml\")"
 Error: [S08] A column with `units` must have type `number(quantity)`.
     ╭─[ spec/s08-units-on-non-quantity.yaml:13:16 ]
     │
+  7 │   races:
+    │ 
+ 11 │       - name: finish_rank
+    │ 
  13 │         units: place
     │                ──┬──  
-    │                  ╰──── `races.finish_rank` has `units` but has type `number(ordinal)`
+    │                  ╰──── has `units` but has type `number(ordinal)`
 ────╯

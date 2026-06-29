@@ -19,7 +19,7 @@ use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic};
 
 use crate::join_expr::{JoinExpr, QCol};
 use crate::model::{Cardinality, Column, DataDict, Scalar, Spanned};
-use crate::problem::{Problem, ProblemKind, ProblemSet, Severity, subspan};
+use crate::problem::{Problem, ProblemKind, ProblemSet, subspan};
 use crate::{SourceContext, lower};
 
 /// The canonical documentation URL suggested for `$learn_more`.
@@ -137,14 +137,11 @@ fn check_relationship_table_refs(dict: &DataDict, out: &mut ProblemSet) {
             if !dict.tables.contains_key(&q.table) {
                 let span = subspan(&rel.join_text.span, q.start, q.end)
                     .unwrap_or_else(|| rel.join_text.span.clone());
-                out.push(
-                    Problem::spec(
-                        "S02",
-                        Severity::Error,
-                        format!("table `{}` is not defined", q.table),
-                        span,
-                    )
-                    .with_expected("A `join` must refer to known tables."),
+                out.push_spec_error(
+                    "S02",
+                    "A `join` must refer to known tables.",
+                    format!("table `{}` is not defined", q.table),
+                    [span],
                 );
             }
         }
@@ -165,14 +162,11 @@ fn check_relationship_column_refs(dict: &DataDict, out: &mut ProblemSet) {
                 if table.column(&q.column).is_none() {
                     let span = subspan(&rel.join_text.span, q.start, q.end)
                         .unwrap_or_else(|| rel.join_text.span.clone());
-                    out.push(
-                        Problem::spec(
-                            "S03",
-                            Severity::Error,
-                            format!("table `{}` has no column `{}`", q.table, q.column),
-                            span,
-                        )
-                        .with_expected("A `join` must refer to known columns."),
+                    out.push_spec_error(
+                        "S03",
+                        "A `join` must refer to known columns.",
+                        format!("table `{}` has no column `{}`", q.table, q.column),
+                        [span],
                     );
                 }
             }
@@ -192,14 +186,11 @@ fn check_join_table_count(dict: &DataDict, out: &mut ProblemSet) {
         let Some(join) = &rel.join else { continue };
         let tables = join.tables();
         if tables.is_empty() || tables.len() > 2 {
-            out.push(
-                Problem::spec(
-                    "S04",
-                    Severity::Error,
-                    format!("this `join` references {} tables", tables.len()),
-                    rel.join_text.span.clone(),
-                )
-                .with_expected("A `join` must reference one (self-join) or two tables."),
+            out.push_spec_error(
+                "S04",
+                "A `join` must reference one (self-join) or two tables.",
+                format!("this `join` references {} tables", tables.len()),
+                [rel.join_text.span.clone()],
             );
         }
     }
@@ -236,19 +227,11 @@ fn check_foreign_keys_resolve(dict: &DataDict, out: &mut ProblemSet) {
                 })
             });
             if !satisfied {
-                out.push(
-                    Problem::spec(
-                        "S01",
-                        Severity::Error,
-                        format!(
-                            "`{}.{}` is `foreign_key` but no relationship points it at a `primary_key`",
-                            table_name, col.name.value
-                        ),
-                        col.name.span.clone(),
-                    )
-                    .with_expected(
-                        "Every `foreign_key` column must have a matching relationship to a `primary_key`.",
-                    ),
+                out.push_spec_error(
+                    "S01",
+                    "Every `foreign_key` column must have a matching relationship to a `primary_key`.",
+                    "is `foreign_key` but no relationship points it at a `primary_key`",
+                    [table.name.span.clone(), col.name.span.clone()],
                 );
             }
         }
@@ -279,20 +262,15 @@ fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut ProblemSet) 
                 }
             }
             if !missing_from.is_empty() {
-                out.push(
-                    Problem::spec(
-                        "S05",
-                        Severity::Error,
-                        format!(
-                            "`{}` is not a column of {}",
-                            c.value,
-                            join_with_commas(&missing_from)
-                        ),
-                        c.span.clone(),
-                    )
-                    .with_expected(
-                        "A `conflicts` entry must name a column on both sides of the join.",
+                out.push_spec_error(
+                    "S05",
+                    "A `conflicts` entry must name a column on both sides of the join.",
+                    format!(
+                        "`{}` is not a column of {}",
+                        c.value,
+                        join_with_commas(&missing_from)
                     ),
+                    [rel.join_text.span.clone(), c.span.clone()],
                 );
             }
         }
@@ -358,19 +336,14 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
         match rel.cardinality.value {
             Cardinality::OneToOne => {
                 if !lhs_cols_unique || !rhs_cols_unique {
-                    out.push(
-                        Problem::spec(
-                            "S06",
-                            Severity::Error,
-                            format!(
-                                "the join columns on `{}` or `{}` are not marked `primary_key` or `unique`",
-                                lhs_table, rhs_table
-                            ),
-                            card_span,
-                        )
-                        .with_expected(
-                            "A `one-to-one` join must have `primary_key` or `unique` columns on both sides.",
+                    out.push_spec_error(
+                        "S06",
+                        "A `one-to-one` join must have `primary_key` or `unique` columns on both sides.",
+                        format!(
+                            "the join columns on `{}` or `{}` are not marked `primary_key` or `unique`",
+                            lhs_table, rhs_table
                         ),
+                        [rel.join_text.span.clone(), card_span],
                     );
                 }
             }
@@ -378,37 +351,27 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                 // Spec: "from left to right" — one row on the left maps to
                 // many on the right, so the left side is the "one" side.
                 if !lhs_cols_unique {
-                    out.push(
-                        Problem::spec(
-                            "S06",
-                            Severity::Error,
-                            format!(
-                                "the left-side join column on `{}` is not marked `primary_key` or `unique`",
-                                lhs_table
-                            ),
-                            card_span,
-                        )
-                        .with_expected(
-                            "A `one-to-many` join must have a `primary_key` or `unique` column on its left (\"one\") side.",
+                    out.push_spec_error(
+                        "S06",
+                        "A `one-to-many` join must have a `primary_key` or `unique` column on its left (\"one\") side.",
+                        format!(
+                            "the left-side join column on `{}` is not marked `primary_key` or `unique`",
+                            lhs_table
                         ),
+                        [rel.join_text.span.clone(), card_span],
                     );
                 }
             }
             Cardinality::ManyToOne => {
                 if !rhs_cols_unique {
-                    out.push(
-                        Problem::spec(
-                            "S06",
-                            Severity::Error,
-                            format!(
-                                "the right-side join column on `{}` is not marked `primary_key` or `unique`",
-                                rhs_table
-                            ),
-                            card_span,
-                        )
-                        .with_expected(
-                            "A `many-to-one` join must have a `primary_key` or `unique` column on its right (\"one\") side.",
+                    out.push_spec_error(
+                        "S06",
+                        "A `many-to-one` join must have a `primary_key` or `unique` column on its right (\"one\") side.",
+                        format!(
+                            "the right-side join column on `{}` is not marked `primary_key` or `unique`",
+                            rhs_table
                         ),
+                        [rel.join_text.span.clone(), card_span],
                     );
                 }
             }
@@ -441,91 +404,65 @@ fn side_has_unique_implied(
 const RANGE_TYPES: &[&str] = &["number(ordinal)", "number(quantity)", "date", "datetime"];
 
 fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
-    for (table_name, table) in &dict.tables {
+    for table in dict.tables.values() {
         for col in &table.columns {
             let Some(col_type) = &col.col_type else {
                 continue;
             };
             let type_name = col_type.value.as_str();
-            let span = col.name.span.clone();
 
-            let found = |key: &str| {
-                format!(
-                    "`{}.{}` has type `{}` but uses `{}`",
-                    table_name, col.name.value, type_name, key
-                )
-            };
-            let missing = |key: &str| {
-                format!(
-                    "`{}.{}` has type `{}` but has no `{}`",
-                    table_name, col.name.value, type_name, key
-                )
-            };
+            let found = |key: &str| format!("has type `{type_name}` but uses `{key}`");
+            let missing = |key: &str| format!("has type `{type_name}` but has no `{key}`");
 
+            let trace = || [table.name.span.clone(), col.name.span.clone()];
             if type_name == "enum" {
                 if !col.has_values {
-                    out.push(
-                        Problem::spec("S07", Severity::Error, missing("values"), span)
-                            .with_expected(
-                                "An `enum` column must list its categories with `values`.",
-                            ),
+                    out.push_spec_error(
+                        "S07",
+                        "An `enum` column must list its categories with `values`.",
+                        missing("values"),
+                        trace(),
                     );
                 }
                 if col.has_range {
-                    out.push(
-                        Problem::spec(
-                            "S07",
-                            Severity::Error,
-                            found("range"),
-                            col.name.span.clone(),
-                        )
-                        .with_expected("An `enum` column must use `values`, not `range`."),
+                    out.push_spec_error(
+                        "S07",
+                        "An `enum` column must use `values`, not `range`.",
+                        found("range"),
+                        trace(),
                     );
                 }
                 if col.has_examples {
-                    out.push(
-                        Problem::spec(
-                            "S07",
-                            Severity::Error,
-                            found("examples"),
-                            col.name.span.clone(),
-                        )
-                        .with_expected("An `enum` column must use `values`, not `examples`."),
+                    out.push_spec_error(
+                        "S07",
+                        "An `enum` column must use `values`, not `examples`.",
+                        found("examples"),
+                        trace(),
                     );
                 }
             } else if RANGE_TYPES.contains(&type_name) {
                 if !col.has_range {
-                    out.push(
-                        Problem::spec("S07", Severity::Error, missing("range"), span)
-                            .with_expected(format!(
-                                "A `{type_name}` column must describe its bounds with `range`."
-                            )),
+                    out.push_spec_error(
+                        "S07",
+                        format!("A `{type_name}` column must describe its bounds with `range`."),
+                        missing("range"),
+                        trace(),
                     );
                 }
                 if col.has_values {
-                    out.push(
-                        Problem::spec(
-                            "S07",
-                            Severity::Error,
-                            found("values"),
-                            col.name.span.clone(),
-                        )
-                        .with_expected(format!(
-                            "A `{type_name}` column must use `range`, not `values`."
-                        )),
+                    out.push_spec_error(
+                        "S07",
+                        format!("A `{type_name}` column must use `range`, not `values`."),
+                        found("values"),
+                        trace(),
                     );
                 }
                 if col.has_examples {
-                    out.push(
-                        Problem::spec(
-                            "S07",
-                            Severity::Error,
-                            found("examples"),
-                            col.name.span.clone(),
-                        )
-                        .with_expected(format!(
-                            "A `{type_name}` column must use `range`, not `examples`."
-                        )),
+                    out.push_spec_error(
+                        "S07",
+                        format!("A `{type_name}` column must use `range`, not `examples`."),
+                        found("examples"),
+                        trace(),
                     );
                 }
             } else if type_name == "boolean" {
@@ -535,41 +472,37 @@ fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
                     (col.has_examples, "examples"),
                 ] {
                     if present {
-                        out.push(
-                            Problem::spec("S07", Severity::Error, found(key), col.name.span.clone())
-                                .with_expected("A `boolean` column must not have `values`, `range`, or `examples`."),
+                        out.push_spec_error(
+                            "S07",
+                            "A `boolean` column must not have `values`, `range`, or `examples`.",
+                            found(key),
+                            trace(),
                         );
                     }
                 }
             } else {
                 if !col.has_examples {
-                    out.push(
-                        Problem::spec("S07", Severity::Error, missing("examples"), span)
-                            .with_expected(format!(
-                                "A `{type_name}` column must describe its data with `examples`."
-                            )),
+                    out.push_spec_error(
+                        "S07",
+                        format!("A `{type_name}` column must describe its data with `examples`."),
+                        missing("examples"),
+                        trace(),
                     );
                 }
                 if col.has_values {
-                    out.push(
-                        Problem::spec(
-                            "S07",
-                            Severity::Error,
-                            found("values"),
-                            col.name.span.clone(),
-                        )
-                        .with_expected(format!("A `{type_name}` column must not use `values`.")),
+                    out.push_spec_error(
+                        "S07",
+                        format!("A `{type_name}` column must not use `values`."),
+                        found("values"),
+                        trace(),
                     );
                 }
                 if col.has_range {
-                    out.push(
-                        Problem::spec(
-                            "S07",
-                            Severity::Error,
-                            found("range"),
-                            col.name.span.clone(),
-                        )
-                        .with_expected(format!("A `{type_name}` column must not use `range`.")),
+                    out.push_spec_error(
+                        "S07",
+                        format!("A `{type_name}` column must not use `range`."),
+                        found("range"),
+                        trace(),
                     );
                 }
             }
@@ -580,7 +513,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
 // --- S08 --------------------------------------------------------------
 
 fn check_units_only_on_quantity(dict: &DataDict, out: &mut ProblemSet) {
-    for (table_name, table) in &dict.tables {
+    for table in dict.tables.values() {
         for col in &table.columns {
             let Some(units) = &col.units else { continue };
             let is_quantity = col
@@ -592,17 +525,15 @@ fn check_units_only_on_quantity(dict: &DataDict, out: &mut ProblemSet) {
                     .col_type
                     .as_ref()
                     .map_or_else(|| "no type".to_string(), |t| format!("type `{}`", t.value));
-                out.push(
-                    Problem::spec(
-                        "S08",
-                        Severity::Error,
-                        format!(
-                            "`{}.{}` has `units` but has {}",
-                            table_name, col.name.value, type_desc
-                        ),
+                out.push_spec_error(
+                    "S08",
+                    "A column with `units` must have type `number(quantity)`.",
+                    format!("has `units` but has {type_desc}"),
+                    [
+                        table.name.span.clone(),
+                        col.name.span.clone(),
                         units.span.clone(),
-                    )
-                    .with_expected("A column with `units` must have type `number(quantity)`."),
+                    ],
                 );
             }
         }
@@ -612,7 +543,7 @@ fn check_units_only_on_quantity(dict: &DataDict, out: &mut ProblemSet) {
 // --- S10 --------------------------------------------------------------
 
 fn check_unique_column_names(dict: &DataDict, out: &mut ProblemSet) {
-    for (table_name, table) in &dict.tables {
+    for table in dict.tables.values() {
         let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
         for col in &table.columns {
             // Empty names are S11's concern; reporting them as duplicates too
@@ -621,17 +552,11 @@ fn check_unique_column_names(dict: &DataDict, out: &mut ProblemSet) {
                 continue;
             }
             if !seen.insert(col.name.value.as_str()) {
-                out.push(
-                    Problem::spec(
-                        "S10",
-                        Severity::Error,
-                        format!(
-                            "table `{}` has more than one column named `{}`",
-                            table_name, col.name.value
-                        ),
-                        col.name.span.clone(),
-                    )
-                    .with_expected("Column names must be unique within a table."),
+                out.push_spec_error(
+                    "S10",
+                    "Column names must be unique within a table.",
+                    "appears more than once",
+                    [table.name.span.clone(), col.name.span.clone()],
                 );
             }
         }
@@ -641,28 +566,22 @@ fn check_unique_column_names(dict: &DataDict, out: &mut ProblemSet) {
 // --- S11 --------------------------------------------------------------
 
 fn check_non_empty_names(dict: &DataDict, out: &mut ProblemSet) {
-    for (table_name, table) in &dict.tables {
+    for table in dict.tables.values() {
         if table.name.value.is_empty() {
-            out.push(
-                Problem::spec(
-                    "S11",
-                    Severity::Error,
-                    "table name is empty".to_string(),
-                    table.name.span.clone(),
-                )
-                .with_expected("A table must have a non-empty name."),
+            out.push_spec_error(
+                "S11",
+                "A table must have a non-empty name.",
+                "table name is empty",
+                [table.name.span.clone()],
             );
         }
         for col in &table.columns {
             if col.name.value.is_empty() {
-                out.push(
-                    Problem::spec(
-                        "S11",
-                        Severity::Error,
-                        format!("a column in table `{table_name}` has an empty `name`"),
-                        col.name.span.clone(),
-                    )
-                    .with_expected("Every column must have a non-empty `name`."),
+                out.push_spec_error(
+                    "S11",
+                    "Every column must have a non-empty `name`.",
+                    "the `name` is empty",
+                    [table.name.span.clone(), col.name.span.clone()],
                 );
             }
         }
@@ -698,19 +617,20 @@ fn check_value_types(dict: &DataDict, out: &mut ProblemSet) {
                 if value_matches_type(type_name, &v.value) {
                     continue;
                 }
-                out.push(
-                    Problem::spec(
-                        "S12",
-                        Severity::Error,
-                        format!("`{}` is {}", v.value.display(), v.value.noun(),),
-                        v.span.clone(),
-                    )
-                    .with_expected(format!(
+                out.push_spec_error(
+                    "S12",
+                    format!(
                         "Each `{}` value of a `{}` column must be {}.",
                         key,
                         type_name,
                         expected_noun(type_name),
-                    )),
+                    ),
+                    format!("`{}` is {}", v.value.display(), v.value.noun()),
+                    [
+                        table.name.span.clone(),
+                        col.name.span.clone(),
+                        v.span.clone(),
+                    ],
                 );
             }
         }
@@ -766,18 +686,19 @@ fn check_range_order(dict: &DataDict, out: &mut ProblemSet) {
             // meaningless, so `range_descending` only fires when both bounds
             // parse for the column's type.
             if range_descending(type_name, &lo.value, &hi.value) {
-                out.push(
-                    Problem::spec(
-                        "S13",
-                        Severity::Error,
-                        format!(
-                            "minimum `{}` is greater than maximum `{}`",
-                            lo.value.display(),
-                            hi.value.display(),
-                        ),
+                out.push_spec_error(
+                    "S13",
+                    "A range's minimum must be less than or equal to its maximum.",
+                    format!(
+                        "minimum `{}` is greater than maximum `{}`",
+                        lo.value.display(),
+                        hi.value.display(),
+                    ),
+                    [
+                        table.name.span.clone(),
+                        col.name.span.clone(),
                         lo.span.clone(),
-                    )
-                    .with_expected("A range's minimum must be less than or equal to its maximum."),
+                    ],
                 );
             }
         }
@@ -822,16 +743,13 @@ fn check_learn_more(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
     let span = has("$version")
         .map(|e| e.key_span.clone())
         .unwrap_or_else(|| root.source_info.clone());
-    out.push(
-        Problem::spec(
-            "S09",
-            Severity::Warning,
-            "The document is missing the recommended `$learn_more` key.".to_string(),
-            span,
-        )
-        .with_hint(format!(
-            "Add `$learn_more: {LEARN_MORE_URL}` so readers unfamiliar with the format can find it"
-        )),
+    out.push_spec_warning(
+        "S09",
+        format!(
+            "A document should point readers to the spec with `$learn_more: {LEARN_MORE_URL}`."
+        ),
+        "`$learn_more` is not set",
+        [span],
     )
 }
 

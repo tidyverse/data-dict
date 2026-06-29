@@ -5,15 +5,19 @@ expression: "failing_diagnostic(\"spec/s07-wrong-rep-on-enum.yaml\")"
 Error: [S07] An `enum` column must list its categories with `values`.
     ╭─[ spec/s07-wrong-rep-on-enum.yaml:10:15 ]
     │
+  6 │   table:
+    │ 
  10 │       - name: status
     │               ───┬──  
-    │                  ╰──── `t.status` has type `enum` but has no `values`
+    │                  ╰──── has type `enum` but has no `values`
 ────╯
 
 Error: [S07] An `enum` column must use `values`, not `range`.
     ╭─[ spec/s07-wrong-rep-on-enum.yaml:10:15 ]
     │
+  6 │   table:
+    │ 
  10 │       - name: status
     │               ───┬──  
-    │                  ╰──── `t.status` has type `enum` but uses `range`
+    │                  ╰──── has type `enum` but uses `range`
 ────╯

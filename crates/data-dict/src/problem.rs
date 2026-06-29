@@ -3,8 +3,8 @@
 //! A [`Problem`] is anything that can be wrong while validating — a failed spec
 //! check, a column that disagrees with the data, an unreadable file. They vary
 //! only on where the problem points (a YAML span / a named column / nowhere) and
-//! what structured payload they carry; a code, a severity, a message, and an
-//! optional hint are common to all. The structured payload is the flattened
+//! what structured payload they carry; a code, a severity, and a message are
+//! common to all. The structured payload is the flattened
 //! [`ProblemKind`] tag, so a single `#[derive(Serialize)]` produces the JSON for
 //! every kind uniformly.
 //!
@@ -48,7 +48,7 @@ impl Status {
 
 /// One problem found while validating, at any level. `code` and `column` are
 /// present only when meaningful (spec problems have a code but no column;
-/// pre-flight failures have neither); `span`/`related` drive source-highlighted
+/// pre-flight failures have neither); `span`/`context` drive source-highlighted
 /// rendering and are never serialized; `kind` is the structured payload.
 #[derive(Debug, serde::Serialize)]
 pub struct Problem {
@@ -58,8 +58,6 @@ pub struct Problem {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub column: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hint: Option<String>,
     /// What the spec expects, stated independently of this occurrence. When
     /// present it leads the rendering (the title line) and `message` reports
     /// what was found instead.
@@ -68,8 +66,24 @@ pub struct Problem {
     /// The YAML span this problem points at (spec problems only). Display-only.
     #[serde(skip)]
     pub span: Option<SourceInfo>,
+    /// Enclosing source lines shown faded (unlabelled) around the primary
+    /// label, locating it within the document (e.g. the table and column a bad
+    /// value sits in). Display-only; ordered outermost-first.
+    #[serde(skip)]
+    pub context: Vec<SourceInfo>,
     #[serde(flatten)]
     pub kind: ProblemKind,
+}
+
+/// A resolved source span as 0-based line/column bounds, for JSON consumers.
+/// Lines and columns count from 0, following the LSP convention; the
+/// human-rendered diagnostics show the same positions 1-based.
+#[derive(Debug, serde::Serialize)]
+pub struct SpanLocation {
+    pub start_line: usize,
+    pub start_column: usize,
+    pub end_line: usize,
+    pub end_column: usize,
 }
 
 /// The structured payload behind a [`Problem`]. The serde tag (`"kind"`) is the
@@ -146,9 +160,9 @@ impl Problem {
             severity,
             message: message.into(),
             column: None,
-            hint: None,
             expected: None,
             span: Some(span),
+            context: Vec::new(),
             kind: ProblemKind::Spec,
         }
     }
@@ -162,9 +176,9 @@ impl Problem {
             severity,
             message: column_message(&column, &kind),
             column: Some(column),
-            hint: None,
             expected: column_expected(&kind),
             span: None,
+            context: Vec::new(),
             kind,
         }
     }
@@ -176,24 +190,26 @@ impl Problem {
             severity: Severity::Error,
             message: message.into(),
             column: None,
-            hint: None,
             expected: None,
             span: None,
+            context: Vec::new(),
             kind,
         }
     }
 
-    /// Attach an advisory hint (rendered as an info bullet).
-    pub(crate) fn with_hint(mut self, hint: impl Into<String>) -> Self {
-        self.hint = Some(hint.into());
-        self
-    }
-
-    /// State what the spec expects, independent of this occurrence. It leads the
-    /// rendering (the title line), leaving `message` to report what was found.
-    pub(crate) fn with_expected(mut self, expected: impl Into<String>) -> Self {
-        self.expected = Some(expected.into());
-        self
+    /// Resolve the primary span to 0-based line/column bounds (LSP convention)
+    /// for JSON consumers, e.g. an editor placing the diagnostic in the file.
+    /// `None` for problems with no span (column-located and pre-flight failures).
+    pub fn location(&self, ctx: &SourceContext) -> Option<SpanLocation> {
+        let span = self.span.as_ref()?;
+        let start = span.map_offset(0, ctx)?.location;
+        let end = span.map_offset(span.length(), ctx)?.location;
+        Some(SpanLocation {
+            start_line: start.row,
+            start_column: start.column,
+            end_line: end.row,
+            end_column: end.column,
+        })
     }
 
     /// Render to display text. Span-located problems get full source
@@ -218,12 +234,12 @@ impl Problem {
             Severity::Error => DiagnosticMessageBuilder::error(header),
             Severity::Warning => DiagnosticMessageBuilder::warning(header),
         };
+        for ctx_span in &self.context {
+            builder = builder.add_faded_at("", ctx_span.clone());
+        }
         builder = builder
             .problem(self.message.clone())
             .with_location(span.clone());
-        if let Some(hint) = &self.hint {
-            builder = builder.add_info(hint.clone());
-        }
         builder.build().to_text(Some(ctx))
     }
 
@@ -239,9 +255,6 @@ impl Problem {
         };
         if self.expected.is_some() {
             line.push_str(&format!("\n  {}", self.message));
-        }
-        if let Some(hint) = &self.hint {
-            line.push_str(&format!("\n  {hint}"));
         }
         line
     }
@@ -322,6 +335,52 @@ impl ProblemSet {
 
     pub fn push(&mut self, problem: Problem) {
         self.items.push(problem);
+    }
+
+    /// Push a spec problem (`S##`): `expected` states the rule, `actual` reports
+    /// what was found, and `spans` locates it — the **last** span is the primary
+    /// highlight carrying `actual`, and any preceding spans are shown faded as
+    /// enclosing context (outermost-first, e.g. the table then the column).
+    /// `spans` must be non-empty. A check with no rule statement (a bare parse
+    /// failure) builds its [`Problem`] directly.
+    fn push_spec(
+        &mut self,
+        severity: Severity,
+        code: &'static str,
+        expected: impl Into<String>,
+        actual: impl Into<String>,
+        spans: impl IntoIterator<Item = SourceInfo>,
+    ) {
+        let mut spans: Vec<SourceInfo> = spans.into_iter().collect();
+        let primary = spans
+            .pop()
+            .expect("push_spec needs at least the primary span");
+        let mut problem = Problem::spec(code, severity, actual, primary);
+        problem.expected = Some(expected.into());
+        problem.context = spans;
+        self.push(problem);
+    }
+
+    /// Push a spec problem at error severity; see [`push_spec`](Self::push_spec).
+    pub(crate) fn push_spec_error(
+        &mut self,
+        code: &'static str,
+        expected: impl Into<String>,
+        actual: impl Into<String>,
+        spans: impl IntoIterator<Item = SourceInfo>,
+    ) {
+        self.push_spec(Severity::Error, code, expected, actual, spans);
+    }
+
+    /// Push a spec problem at warning severity; see [`push_spec`](Self::push_spec).
+    pub(crate) fn push_spec_warning(
+        &mut self,
+        code: &'static str,
+        expected: impl Into<String>,
+        actual: impl Into<String>,
+        spans: impl IntoIterator<Item = SourceInfo>,
+    ) {
+        self.push_spec(Severity::Warning, code, expected, actual, spans);
     }
 
     /// Order span-located problems by their position in the document. Checks
@@ -413,13 +472,11 @@ mod tests {
 
     #[test]
     fn spec_problem_json_carries_code_and_message_no_column() {
-        let p = Problem::spec("S07", Severity::Error, "bad column", SourceInfo::for_test())
-            .with_hint("fix it");
+        let p = Problem::spec("S07", Severity::Error, "bad column", SourceInfo::for_test());
         let v = serde_json::to_value(&p).unwrap();
         assert_eq!(v["code"], "S07");
         assert_eq!(v["kind"], "spec");
         assert_eq!(v["message"], "bad column");
-        assert_eq!(v["hint"], "fix it");
         assert!(v.get("column").is_none());
     }
 

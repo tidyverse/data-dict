@@ -5,6 +5,10 @@ expression: "failing_diagnostic(\"spec/s12-wrong-value-type.yaml\")"
 Error: [S12] Each `examples` value of a `number` column must be a number.
     ╭─[ spec/s12-wrong-value-type.yaml:13:23 ]
     │
+  7 │   table:
+    │ 
+ 11 │       - name: count
+    │ 
  13 │         examples: [1, two, 3]
     │                       ─┬─  
     │                        ╰─── `two` is a string

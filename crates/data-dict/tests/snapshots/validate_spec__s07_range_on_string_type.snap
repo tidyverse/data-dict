@@ -5,7 +5,9 @@ expression: "failing_diagnostic(\"spec/s07-range-on-string-type.yaml\")"
 Error: [S07] A `string` column must not use `range`.
     ╭─[ spec/s07-range-on-string-type.yaml:12:15 ]
     │
+  8 │   table:
+    │ 
  12 │       - name: c
     │               ┬  
-    │               ╰── `t.c` has type `string` but uses `range`
+    │               ╰── has type `string` but uses `range`
 ────╯

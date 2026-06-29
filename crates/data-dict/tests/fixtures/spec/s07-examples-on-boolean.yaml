@@ -4,7 +4,7 @@ $version: 0.1.0
 $learn_more: http://data-dict.tidyverse.org/
 
 tables:
-  t:
+  table:
     source:
       parquet: t.parquet
     columns:

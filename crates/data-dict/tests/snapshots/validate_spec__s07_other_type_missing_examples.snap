@@ -5,15 +5,19 @@ expression: "failing_diagnostic(\"spec/s07-other-type-missing-examples.yaml\")"
 Error: [S07] A `string` column must describe its data with `examples`.
     ╭─[ spec/s07-other-type-missing-examples.yaml:10:15 ]
     │
+  6 │   table:
+    │ 
  10 │       - name: label
     │               ──┬──  
-    │                 ╰──── `t.label` has type `string` but has no `examples`
+    │                 ╰──── has type `string` but has no `examples`
 ────╯
 
 Error: [S07] A `number(id)` column must describe its data with `examples`.
     ╭─[ spec/s07-other-type-missing-examples.yaml:12:15 ]
     │
+  6 │   table:
+    │ 
  12 │       - name: code
     │               ──┬─  
-    │                 ╰─── `t.code` has type `number(id)` but has no `examples`
+    │                 ╰─── has type `number(id)` but has no `examples`
 ────╯

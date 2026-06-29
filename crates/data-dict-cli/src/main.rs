@@ -208,9 +208,20 @@ fn run_validate(args: ValidateArgs, validate: ValidateFn) -> ExitCode {
 }
 
 fn problems_to_json(problems: &ProblemSet) -> serde_json::Value {
+    let items: Vec<serde_json::Value> = problems
+        .items
+        .iter()
+        .map(|p| {
+            let mut value = serde_json::to_value(p).expect("a Problem always serializes");
+            if let Some(location) = p.location(&problems.source) {
+                value["location"] = serde_json::to_value(location).expect("location serializes");
+            }
+            value
+        })
+        .collect();
     serde_json::json!({
         "status": problems.status(),
-        "problems": problems.items,
+        "problems": items,
     })
 }
 
@@ -344,11 +355,16 @@ mod tests {
         assert_eq!(json["problems"][0]["severity"], "warning");
         assert_eq!(json["problems"][0]["kind"], "spec");
         assert!(
-            json["problems"][0]["hint"]
+            json["problems"][0]["expected"]
                 .as_str()
-                .is_some_and(|h| h.contains("$learn_more")),
-            "S09 hint should be carried in the JSON output"
+                .is_some_and(|e| e.contains("$learn_more")),
+            "S09 expectation should be carried in the JSON output"
         );
+        // The span resolves to a 0-based (LSP) line/column range so an editor
+        // can place the diagnostic in the file.
+        let location = &json["problems"][0]["location"];
+        assert_eq!(location["start_line"], 0);
+        assert_eq!(location["start_column"], 0);
     }
 
     #[test]

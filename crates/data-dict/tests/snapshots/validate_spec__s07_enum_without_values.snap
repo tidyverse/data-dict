@@ -5,7 +5,9 @@ expression: "failing_diagnostic(\"spec/s07-enum-without-values.yaml\")"
 Error: [S07] An `enum` column must list its categories with `values`.
     ╭─[ spec/s07-enum-without-values.yaml:10:15 ]
     │
+  6 │   table:
+    │ 
  10 │       - name: c
     │               ┬  
-    │               ╰── `t.c` has type `enum` but has no `values`
+    │               ╰── has type `enum` but has no `values`
 ────╯

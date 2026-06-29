@@ -5,7 +5,9 @@ expression: "failing_diagnostic(\"spec/s01-fk-no-relationship.yaml\")"
 Error: [S01] Every `foreign_key` column must have a matching relationship to a `primary_key`.
     ╭─[ spec/s01-fk-no-relationship.yaml:17:15 ]
     │
+  9 │   food:
+    │ 
  17 │       - name: food_category_id
     │               ────────┬───────  
-    │                       ╰───────── `food.food_category_id` is `foreign_key` but no relationship points it at a `primary_key`
+    │                       ╰───────── is `foreign_key` but no relationship points it at a `primary_key`
 ────╯

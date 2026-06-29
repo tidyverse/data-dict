@@ -5,7 +5,9 @@ expression: "failing_diagnostic(\"spec/s11-empty-column-name.yaml\")"
 Error: [S11] Every column must have a non-empty `name`.
     ╭─[ spec/s11-empty-column-name.yaml:11:15 ]
     │
+  7 │   table:
+    │ 
  11 │       - name: ""
     │               │ 
-    │               ╰─ a column in table `t` has an empty `name`
+    │               ╰─ the `name` is empty
 ────╯
