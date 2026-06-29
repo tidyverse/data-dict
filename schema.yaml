@@ -70,6 +70,10 @@ object:
                       description: string
                       details: string
                       units: string
+                      # Shape (S15) and placement (S14) are checked semantically
+                      # so diagnostics can name the offending value rather than
+                      # dump a regex; see the `Time zones` section of the spec.
+                      time_zone: string
                       type:
                         enum: ["enum", "number(ordinal)", "number(quantity)", "date",
                                "datetime", "number", "number(id)", "string", "boolean"]

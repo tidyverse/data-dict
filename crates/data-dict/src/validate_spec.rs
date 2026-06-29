@@ -14,7 +14,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::OnceLock;
 
-use chrono::{DateTime, FixedOffset, NaiveDate};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime};
 use quarto_source_map::SourceInfo;
 use quarto_yaml::YamlWithSourceInfo;
 use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic};
@@ -135,6 +135,8 @@ fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
         for col in &table.columns {
             validate_s01_foreign_key(dict, table, col, out);
             validate_s08_units(table, col, out);
+            validate_s14_time_zone(table, col, out);
+            validate_s15_time_zone_format(table, col, out);
             if validate_s11_column_name(table, col, out) {
                 validate_s10_unique_name(table, col, &mut seen, out);
             }
@@ -563,6 +565,88 @@ fn validate_s08_units(table: &Table, col: &Column, out: &mut ProblemSet) {
     );
 }
 
+// --- S14 --------------------------------------------------------------
+
+fn validate_s14_time_zone(table: &Table, col: &Column, out: &mut ProblemSet) {
+    let Some(time_zone) = &col.time_zone else {
+        return;
+    };
+    let is_datetime = col.col_type.as_ref().is_some_and(|t| t.value == "datetime");
+    if is_datetime {
+        return;
+    }
+    let type_desc = col
+        .col_type
+        .as_ref()
+        .map_or_else(|| "no type".to_string(), |t| format!("type `{}`", t.value));
+    let mut spans = vec![table.name.span.clone(), col.name.span.clone()];
+    if let Some(col_type) = &col.col_type {
+        spans.push(col_type.span.clone());
+    }
+    spans.push(time_zone.span.clone());
+    out.push_spec_error(
+        "S14",
+        "A column with `time_zone` must have type `datetime`.",
+        format!("has `time_zone` but has {type_desc}"),
+        spans,
+    );
+}
+
+// --- S15 --------------------------------------------------------------
+
+/// The IANA areas the `Area/Location` form accepts, mirroring the spec's
+/// `Time zones` section: the continents and oceans plus `Etc`.
+const TIME_ZONE_AREAS: &[&str] = &[
+    "Africa",
+    "America",
+    "Antarctica",
+    "Arctic",
+    "Asia",
+    "Atlantic",
+    "Australia",
+    "Europe",
+    "Indian",
+    "Pacific",
+    "Etc",
+];
+
+/// Whether `tz` has the accepted `time_zone` shape: `naive`, `UTC`, or an
+/// `Area/Location` name with a known area. Checks the shape, not the full tzdb,
+/// so the accepted set doesn't go stale as zones are added or renamed.
+fn time_zone_well_formed(tz: &str) -> bool {
+    if tz == "naive" || tz == "UTC" {
+        return true;
+    }
+    let Some((area, location)) = tz.split_once('/') else {
+        return false;
+    };
+    TIME_ZONE_AREAS.contains(&area)
+        && !location.is_empty()
+        && location
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '+' | '-' | '/'))
+}
+
+fn validate_s15_time_zone_format(table: &Table, col: &Column, out: &mut ProblemSet) {
+    let Some(time_zone) = &col.time_zone else {
+        return;
+    };
+    if time_zone_well_formed(&time_zone.value) {
+        return;
+    }
+    let mut spans = vec![table.name.span.clone(), col.name.span.clone()];
+    if let Some(col_type) = &col.col_type {
+        spans.push(col_type.span.clone());
+    }
+    spans.push(time_zone.span.clone());
+    out.push_spec_error(
+        "S15",
+        "A `time_zone` must be `naive`, `UTC`, or an IANA `Area/Location` name.",
+        "not a valid time zone",
+        spans,
+    );
+}
+
 // --- S10 --------------------------------------------------------------
 
 fn validate_s10_unique_name(
@@ -634,9 +718,10 @@ fn validate_s12_value_types(table: &Table, col: &Column, out: &mut ProblemSet) -
     let Some((key, values)) = typed_representation(col) else {
         return true;
     };
+    let tz_present = col.time_zone.is_some();
     let mut ok = true;
     for v in values {
-        if value_matches_type(type_name, &v.value) {
+        if value_matches_type(type_name, &v.value, tz_present) {
             continue;
         }
         ok = false;
@@ -646,7 +731,7 @@ fn validate_s12_value_types(table: &Table, col: &Column, out: &mut ProblemSet) -
                 "Each `{}` value of a `{}` column must be {}.",
                 key,
                 type_name,
-                expected_noun(type_name),
+                expected_noun(type_name, tz_present),
             ),
             format!("is {}", v.value.noun()),
             [
@@ -659,7 +744,7 @@ fn validate_s12_value_types(table: &Table, col: &Column, out: &mut ProblemSet) -
     ok
 }
 
-fn value_matches_type(type_name: &str, value: &Scalar) -> bool {
+fn value_matches_type(type_name: &str, value: &Scalar, tz_present: bool) -> bool {
     match type_name {
         "number" | "number(id)" | "number(ordinal)" | "number(quantity)" => {
             matches!(value, Scalar::Number(_))
@@ -669,7 +754,7 @@ fn value_matches_type(type_name: &str, value: &Scalar) -> bool {
         // string. So `string` accepts any scalar and only rejects a list/map.
         "string" => !matches!(value, Scalar::Compound),
         "date" => matches!(value, Scalar::String(s) if parse_date(s).is_some()),
-        "datetime" => matches!(value, Scalar::String(s) if parse_datetime(s).is_some()),
+        "datetime" => matches!(value, Scalar::String(s) if datetime_parses(s, tz_present)),
         _ => true,
     }
 }
@@ -682,10 +767,26 @@ fn parse_datetime(s: &str) -> Option<DateTime<FixedOffset>> {
     DateTime::parse_from_rfc3339(s).ok()
 }
 
-fn expected_noun(type_name: &str) -> &'static str {
+fn parse_naive_datetime(s: &str) -> Option<NaiveDateTime> {
+    s.parse().ok()
+}
+
+/// A `datetime` column carries its zone in `time_zone` (`tz_present`), so its
+/// values are written zoneless; without one, each value must carry its own
+/// offset.
+fn datetime_parses(s: &str, tz_present: bool) -> bool {
+    if tz_present {
+        parse_naive_datetime(s).is_some()
+    } else {
+        parse_datetime(s).is_some()
+    }
+}
+
+fn expected_noun(type_name: &str, tz_present: bool) -> &'static str {
     match type_name {
         "string" => "a string",
         "date" => "an ISO 8601 date (YYYY-MM-DD)",
+        "datetime" if tz_present => "a zoneless ISO 8601 datetime (e.g. 2024-01-31T09:30:00)",
         "datetime" => "an ISO 8601 datetime with a timezone (e.g. 2024-01-31T09:30:00Z)",
         _ => "a number",
     }
@@ -704,7 +805,7 @@ fn validate_s13_range_order(table: &Table, col: &Column, out: &mut ProblemSet) {
         return;
     }
     let (lo, hi) = (&range.items[0], &range.items[1]);
-    if range_descending(type_name, &lo.value, &hi.value) {
+    if range_descending(type_name, &lo.value, &hi.value, col.time_zone.is_some()) {
         out.push_spec_error(
             "S13",
             "A range's minimum must be less than or equal to its maximum.",
@@ -721,13 +822,20 @@ fn validate_s13_range_order(table: &Table, col: &Column, out: &mut ProblemSet) {
 /// Whether `lo`..`hi` runs backwards for the column's type. Returns `false`
 /// unless both bounds parse as the type's value (a mistyped bound is S12's to
 /// report). Numbers compare numerically; dates and datetimes compare as parsed
-/// instants, so mixed timezone offsets are handled correctly.
-fn range_descending(type_name: &str, lo: &Scalar, hi: &Scalar) -> bool {
+/// instants, so mixed timezone offsets are handled correctly. A datetime column
+/// with a `time_zone` (`tz_present`) has zoneless bounds, compared as wall-clock.
+fn range_descending(type_name: &str, lo: &Scalar, hi: &Scalar, tz_present: bool) -> bool {
     match (type_name, lo, hi) {
         ("date", Scalar::String(a), Scalar::String(b)) => match (parse_date(a), parse_date(b)) {
             (Some(a), Some(b)) => a > b,
             _ => false,
         },
+        ("datetime", Scalar::String(a), Scalar::String(b)) if tz_present => {
+            match (parse_naive_datetime(a), parse_naive_datetime(b)) {
+                (Some(a), Some(b)) => a > b,
+                _ => false,
+            }
+        }
         ("datetime", Scalar::String(a), Scalar::String(b)) => {
             match (parse_datetime(a), parse_datetime(b)) {
                 (Some(a), Some(b)) => a > b,

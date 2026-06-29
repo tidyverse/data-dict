@@ -52,6 +52,7 @@ pub struct Column {
     pub range: Option<Representation>,
     pub examples: Option<Representation>,
     pub units: Option<Spanned<String>>,
+    pub time_zone: Option<Spanned<String>>,
 }
 
 #[derive(Debug, Clone)]

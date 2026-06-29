@@ -85,7 +85,6 @@ A diagnostic is split across two parts: `expected` is a general statement of the
 
 If a schema change causes `site/examples/` to fail, don't fix them. Instead report them to me so I can fix upstream.
 
-
 ## Data format
 
 - Keys in `data-dict.yaml` use snake_case (e.g. `primary_key`, `foreign_key`, `$learn_more`).

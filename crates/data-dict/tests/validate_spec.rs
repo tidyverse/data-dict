@@ -10,14 +10,38 @@
 //! `# expected: ...` header) and a one-line test here over inline YAML.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use data_dict::Severity;
+use indoc::indoc;
 
 fn fixture(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("fixtures")
         .join(rel)
+}
+
+/// Assert that inline `yaml` validates without errors. For clean-pass cases that
+/// need no snapshot, inline YAML reads better than a fixture file; the failing
+/// cases stay as fixtures so their snapshots can reference a stable path.
+fn assert_valid_yaml(yaml: &str) {
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+    let dir = std::env::temp_dir().join(format!(
+        "data-dict-spec-{}-{}",
+        std::process::id(),
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("dict.yaml");
+    std::fs::write(&path, yaml).unwrap();
+    let errors = diagnostics(&path, Severity::Error);
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        errors.is_empty(),
+        "expected inline YAML to validate, but:\n{}",
+        errors.join("\n"),
+    );
 }
 
 /// Render the problems of the given `severity` for a fixture, in source order.
@@ -492,6 +516,56 @@ fn s13_descending_range_errors() {
 #[test]
 fn s12_s13_valid_ok() {
     assert_valid(fixture("spec/s12-s13-valid-ok.yaml"));
+}
+
+// `time_zone` is valid only on `datetime`. A datetime column with a time zone —
+// whose range is then written zoneless — validates cleanly; a time zone on any
+// other type is S14.
+#[test]
+fn s14_time_zone_ok_on_datetime() {
+    assert_valid_yaml(indoc! {r#"
+        $version: "0.1.0"
+
+        tables:
+          events:
+            columns:
+              - name: observed_at
+                type: datetime
+                time_zone: UTC
+                range: [2020-01-01T00:00:00, 2024-12-31T23:59:59]
+    "#});
+}
+
+#[test]
+#[cfg(unix)]
+fn s14_time_zone_on_non_datetime() {
+    insta::assert_snapshot!(failing_diagnostic(
+        "spec/s14-time-zone-on-non-datetime.yaml"
+    ));
+}
+
+#[test]
+fn s14_time_zone_on_non_datetime_errors() {
+    assert_invalid(
+        fixture("spec/s14-time-zone-on-non-datetime.yaml"),
+        &["S14", "type `date`"],
+    );
+}
+
+// A `time_zone` outside the accepted shape (bare abbreviation, unknown area) is
+// rejected by S15, which names the offending value.
+#[test]
+#[cfg(unix)]
+fn s15_bad_time_zone() {
+    insta::assert_snapshot!(failing_diagnostic("spec/s15-bad-time-zone.yaml"));
+}
+
+#[test]
+fn s15_bad_time_zone_errors() {
+    assert_invalid(
+        fixture("spec/s15-bad-time-zone.yaml"),
+        &["S15", "not a valid time zone"],
+    );
 }
 
 #[test]
