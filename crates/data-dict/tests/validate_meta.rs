@@ -68,10 +68,11 @@ fn type_mismatch_reported() {
     assert_eq!(problems.status(), Status::Error);
     assert!(matches!(
         problems.items.as_slice(),
-        [Problem { column: Some(column), code: Some(code), kind: ProblemKind::TypeMismatch { declared, actual }, .. }]
-            if column == "weight" && *code == "M01" && declared == "string" && actual == "number"
+        [Problem { code: Some(code), kind: ProblemKind::TypeMismatch { declared, actual }, .. }]
+            if *code == "M01" && declared == "string" && actual == "number"
     ));
-    insta::assert_snapshot!(problems.render().join("\n"));
+    #[cfg(unix)]
+    insta::assert_snapshot!(common::sanitize(&problems.render().join("\n"), &dir));
 }
 
 #[test]
@@ -172,7 +173,10 @@ fn typeless_column_still_must_exist_in_data() {
     assert_eq!(problems.status(), Status::Error);
     assert!(matches!(
         problems.items.as_slice(),
-        [Problem { column: Some(column), kind: ProblemKind::MissingInData, .. }] if column == "height"
+        [Problem {
+            kind: ProblemKind::MissingInData,
+            ..
+        }]
     ));
 }
 
@@ -208,9 +212,13 @@ fn missing_column_in_data_reported() {
     assert_eq!(problems.status(), Status::Error);
     assert!(matches!(
         problems.items.as_slice(),
-        [Problem { column: Some(column), kind: ProblemKind::MissingInData, .. }] if column == "height"
+        [Problem {
+            kind: ProblemKind::MissingInData,
+            ..
+        }]
     ));
-    insta::assert_snapshot!(problems.render().join("\n"));
+    #[cfg(unix)]
+    insta::assert_snapshot!(common::sanitize(&problems.render().join("\n"), &dir));
 }
 
 #[test]
@@ -289,6 +297,40 @@ fn unknown_table_name() {
             }]
         ),
         "got {:?}",
+        problems.items
+    );
+}
+
+#[test]
+fn missing_source_reported() {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    write_parquet(&parquet);
+    // The table declares no `source`; valid at the spec level, but M04 at meta.
+    let yaml = write_yaml(
+        &dir,
+        indoc! {"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            tables:
+              animals:
+                columns:
+                  - name: name
+                    type: string
+                    examples: [otter, seal]
+                  - name: weight
+                    type: number(quantity)
+                    range: [0, 100]
+        "},
+    );
+
+    let problems = validate_meta(&yaml, &parquet, None);
+    assert!(
+        problems
+            .items
+            .iter()
+            .any(|p| p.code == Some("M04") && p.severity == Severity::Error),
+        "expected an M04 missing-source error, got {:?}",
         problems.items
     );
 }

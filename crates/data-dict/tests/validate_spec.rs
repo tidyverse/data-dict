@@ -482,7 +482,7 @@ fn s13_descending_range() {
 fn s13_descending_range_errors() {
     assert_invalid(
         fixture("spec/s13-descending-range.yaml"),
-        &["S13", "greater than maximum"],
+        &["S13", "is greater than the maximum"],
     );
 }
 

@@ -10,15 +10,17 @@
 //! The second pass only runs if the first succeeds: there is no point chasing
 //! FK references in a document whose `tables` block is malformed.
 
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::OnceLock;
 
 use chrono::{DateTime, FixedOffset, NaiveDate};
+use quarto_source_map::SourceInfo;
 use quarto_yaml::YamlWithSourceInfo;
 use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic};
 
 use crate::join_expr::{JoinExpr, QCol};
-use crate::model::{Cardinality, Column, DataDict, Scalar, Spanned};
+use crate::model::{Cardinality, Column, DataDict, Scalar, Spanned, Table};
 use crate::problem::{Problem, ProblemKind, ProblemSet, subspan};
 use crate::{SourceContext, lower};
 
@@ -101,7 +103,7 @@ pub(crate) fn validate_and_lower(
 ) -> Option<DataDict> {
     let dict = lower::lower(doc, out);
     check_spec(&dict, out);
-    check_learn_more(doc, out);
+    validate_s09_learn_more(doc, out);
     out.sort();
 
     if out.status().failed() {
@@ -111,26 +113,43 @@ pub(crate) fn validate_and_lower(
     }
 }
 
-/// Run every rule, pushing any findings into `out`. Rules run in code order;
-/// call [`ProblemSet::sort`] afterwards to put the findings in source order.
+/// Run every rule, pushing any findings into `out`; call [`ProblemSet::sort`]
+/// afterwards to put the findings in source order.
+///
+/// Relationship-level rules run against the whole dictionary. Column-level rules
+/// run per column from a single iteration here, sequenced so a more specific
+/// check runs only when the general one it refines passed: a malformed `name`
+/// blocks the uniqueness check, and the representation chain narrows from "the
+/// right key is present" (S07) to "its values have the right type" (S12) to "the
+/// range is ordered" (S13).
 fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
-    check_relationship_table_refs(dict, out); // S02
-    check_relationship_column_refs(dict, out); // S03
-    check_join_table_count(dict, out); // S04
-    check_foreign_keys_resolve(dict, out); // S01
-    check_conflicts_present_on_both_sides(dict, out); // S05
-    check_cardinality_consistency(dict, out); // S06
-    check_column_data_representation(dict, out); // S07
-    check_units_only_on_quantity(dict, out); // S08
-    check_unique_column_names(dict, out); // S10
-    check_non_empty_names(dict, out); // S11
-    check_value_types(dict, out); // S12
-    check_range_order(dict, out); // S13
+    validate_s02_relationship_table_refs(dict, out);
+    validate_s03_relationship_column_refs(dict, out);
+    validate_s04_join_table_count(dict, out);
+    validate_s05_conflicts_present_on_both_sides(dict, out);
+    validate_s06_cardinality_consistency(dict, out);
+
+    for table in dict.tables.values() {
+        validate_s11_table_name(table, out);
+        let mut seen: HashSet<String> = HashSet::new();
+        for col in &table.columns {
+            validate_s01_foreign_key(dict, table, col, out);
+            validate_s08_units(table, col, out);
+            if validate_s11_column_name(table, col, out) {
+                validate_s10_unique_name(table, col, &mut seen, out);
+            }
+            if validate_s07_representation(table, col, out)
+                && validate_s12_value_types(table, col, out)
+            {
+                validate_s13_range_order(table, col, out);
+            }
+        }
+    }
 }
 
 // --- S02 --------------------------------------------------------------
 
-fn check_relationship_table_refs(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s02_relationship_table_refs(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
         for q in join.qcols() {
@@ -150,7 +169,7 @@ fn check_relationship_table_refs(dict: &DataDict, out: &mut ProblemSet) {
 
 // --- S03 --------------------------------------------------------------
 
-fn check_relationship_column_refs(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s03_relationship_column_refs(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         if let Some(join) = &rel.join {
             for q in join.qcols() {
@@ -179,7 +198,7 @@ fn check_relationship_column_refs(dict: &DataDict, out: &mut ProblemSet) {
 
 // --- S04 --------------------------------------------------------------
 
-fn check_join_table_count(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s04_join_table_count(dict: &DataDict, out: &mut ProblemSet) {
     // Parse failures are emitted during lowering. Here we only check the
     // table-count invariant on successfully parsed joins.
     for rel in &dict.relationships {
@@ -198,49 +217,51 @@ fn check_join_table_count(dict: &DataDict, out: &mut ProblemSet) {
 
 // --- S01 --------------------------------------------------------------
 
-fn check_foreign_keys_resolve(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s01_foreign_key(dict: &DataDict, table: &Table, col: &Column, out: &mut ProblemSet) {
     use crate::model::Constraint::*;
 
-    for (table_name, table) in &dict.tables {
-        for col in &table.columns {
-            if !col.has(ForeignKey) {
-                continue;
-            }
-            let satisfied = dict.relationships.iter().any(|rel| {
-                let Some(join) = &rel.join else { return false };
-                // The FK column must appear on one side of some conjunct,
-                // and the corresponding other side must carry PrimaryKey.
-                join.conjuncts.iter().any(|conj| {
-                    let sides = [(&conj.lhs, &conj.rhs), (&conj.rhs, &conj.lhs)];
-                    sides.iter().any(|(fk_side, pk_side)| {
-                        if fk_side.table != *table_name || fk_side.column != col.name.value {
-                            return false;
-                        }
-                        let Some(other_tbl) = dict.tables.get(&pk_side.table) else {
-                            return false;
-                        };
-                        let Some(other_col) = other_tbl.column(&pk_side.column) else {
-                            return false;
-                        };
-                        other_col.has(PrimaryKey)
-                    })
-                })
-            });
-            if !satisfied {
-                out.push_spec_error(
-                    "S01",
-                    "Every `foreign_key` column must have a matching relationship to a `primary_key`.",
-                    "is `foreign_key` but no relationship points it at a `primary_key`",
-                    [table.name.span.clone(), col.name.span.clone()],
-                );
-            }
-        }
+    if !col.has(ForeignKey) {
+        return;
+    }
+    let table_name = table.name.value.as_str();
+    let satisfied = dict.relationships.iter().any(|rel| {
+        let Some(join) = &rel.join else { return false };
+        // The FK column must appear on one side of some conjunct, and the
+        // corresponding other side must carry PrimaryKey.
+        join.conjuncts.iter().any(|conj| {
+            let sides = [(&conj.lhs, &conj.rhs), (&conj.rhs, &conj.lhs)];
+            sides.iter().any(|(fk_side, pk_side)| {
+                if fk_side.table != table_name || fk_side.column != col.name.value {
+                    return false;
+                }
+                let Some(other_tbl) = dict.tables.get(&pk_side.table) else {
+                    return false;
+                };
+                let Some(other_col) = other_tbl.column(&pk_side.column) else {
+                    return false;
+                };
+                other_col.has(PrimaryKey)
+            })
+        })
+    });
+    if !satisfied {
+        let fk_span = col
+            .constraints
+            .iter()
+            .find(|c| c.value == ForeignKey)
+            .map_or_else(|| col.name.span.clone(), |c| c.span.clone());
+        out.push_spec_error(
+            "S01",
+            "Every `foreign_key` column must have a matching relationship to a `primary_key`.",
+            "is `foreign_key` but no relationship points it at a `primary_key`",
+            [table.name.span.clone(), col.name.span.clone(), fk_span],
+        );
     }
 }
 
 // --- S05 --------------------------------------------------------------
 
-fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s05_conflicts_present_on_both_sides(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         if rel.conflicts.is_empty() {
             continue;
@@ -291,7 +312,7 @@ fn join_with_commas(items: &[&str]) -> String {
 
 // --- S06 --------------------------------------------------------------
 
-fn check_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
 
@@ -343,7 +364,7 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the join columns on `{}` or `{}` are not marked `primary_key` or `unique`",
                             lhs_table, rhs_table
                         ),
-                        [rel.join_text.span.clone(), card_span],
+                        [card_span, rel.join_text.span.clone()],
                     );
                 }
             }
@@ -358,7 +379,7 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the left-side join column on `{}` is not marked `primary_key` or `unique`",
                             lhs_table
                         ),
-                        [rel.join_text.span.clone(), card_span],
+                        [card_span, rel.join_text.span.clone()],
                     );
                 }
             }
@@ -371,7 +392,7 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the right-side join column on `{}` is not marked `primary_key` or `unique`",
                             rhs_table
                         ),
-                        [rel.join_text.span.clone(), card_span],
+                        [card_span, rel.join_text.span.clone()],
                     );
                 }
             }
@@ -403,189 +424,188 @@ fn side_has_unique_implied(
 
 const RANGE_TYPES: &[&str] = &["number(ordinal)", "number(quantity)", "date", "datetime"];
 
-fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
-    for table in dict.tables.values() {
-        for col in &table.columns {
-            let Some(col_type) = &col.col_type else {
-                continue;
-            };
-            let type_name = col_type.value.as_str();
+/// Returns whether the column carries the representation its type requires and
+/// no other — i.e. whether checking that representation's values (S12) makes
+/// sense.
+fn validate_s07_representation(table: &Table, col: &Column, out: &mut ProblemSet) -> bool {
+    let Some(col_type) = &col.col_type else {
+        return true;
+    };
+    let type_name = col_type.value.as_str();
 
-            let found = |key: &str| format!("has type `{type_name}` but uses `{key}`");
-            let missing = |key: &str| format!("has type `{type_name}` but has no `{key}`");
+    let found = |key: &str| format!("has type `{type_name}` but uses `{key}`");
+    let missing = |key: &str| format!("has type `{type_name}` but is missing `{key}`");
 
-            let trace = || [table.name.span.clone(), col.name.span.clone()];
-            if type_name == "enum" {
-                if !col.has_values {
-                    out.push_spec_error(
-                        "S07",
-                        "An `enum` column must list its categories with `values`.",
-                        missing("values"),
-                        trace(),
-                    );
-                }
-                if col.has_range {
-                    out.push_spec_error(
-                        "S07",
-                        "An `enum` column must use `values`, not `range`.",
-                        found("range"),
-                        trace(),
-                    );
-                }
-                if col.has_examples {
-                    out.push_spec_error(
-                        "S07",
-                        "An `enum` column must use `values`, not `examples`.",
-                        found("examples"),
-                        trace(),
-                    );
-                }
-            } else if RANGE_TYPES.contains(&type_name) {
-                if !col.has_range {
-                    out.push_spec_error(
-                        "S07",
-                        format!("A `{type_name}` column must describe its bounds with `range`."),
-                        missing("range"),
-                        trace(),
-                    );
-                }
-                if col.has_values {
-                    out.push_spec_error(
-                        "S07",
-                        format!("A `{type_name}` column must use `range`, not `values`."),
-                        found("values"),
-                        trace(),
-                    );
-                }
-                if col.has_examples {
-                    out.push_spec_error(
-                        "S07",
-                        format!("A `{type_name}` column must use `range`, not `examples`."),
-                        found("examples"),
-                        trace(),
-                    );
-                }
-            } else if type_name == "boolean" {
-                for (present, key) in [
-                    (col.has_values, "values"),
-                    (col.has_range, "range"),
-                    (col.has_examples, "examples"),
-                ] {
-                    if present {
-                        out.push_spec_error(
-                            "S07",
-                            "A `boolean` column must not have `values`, `range`, or `examples`.",
-                            found(key),
-                            trace(),
-                        );
-                    }
-                }
-            } else {
-                if !col.has_examples {
-                    out.push_spec_error(
-                        "S07",
-                        format!("A `{type_name}` column must describe its data with `examples`."),
-                        missing("examples"),
-                        trace(),
-                    );
-                }
-                if col.has_values {
-                    out.push_spec_error(
-                        "S07",
-                        format!("A `{type_name}` column must not use `values`."),
-                        found("values"),
-                        trace(),
-                    );
-                }
-                if col.has_range {
-                    out.push_spec_error(
-                        "S07",
-                        format!("A `{type_name}` column must not use `range`."),
-                        found("range"),
-                        trace(),
-                    );
-                }
+    // A finding is reported on a specific line — the `type` line for a missing
+    // representation, the offending key's line for a present one — with the
+    // table and column shown as faded context above it.
+    let at = |span: &SourceInfo| [table.name.span.clone(), col.name.span.clone(), span.clone()];
+
+    let before = out.items.len();
+    if type_name == "enum" {
+        if col.values.is_none() {
+            out.push_spec_error(
+                "S07",
+                "An `enum` column must list its categories with `values`.",
+                missing("values"),
+                at(&col_type.span),
+            );
+        }
+        if let Some(range) = &col.range {
+            out.push_spec_error(
+                "S07",
+                "An `enum` column must use `values`, not `range`.",
+                found("range"),
+                at(&range.span),
+            );
+        }
+        if let Some(examples) = &col.examples {
+            out.push_spec_error(
+                "S07",
+                "An `enum` column must use `values`, not `examples`.",
+                found("examples"),
+                at(&examples.span),
+            );
+        }
+    } else if RANGE_TYPES.contains(&type_name) {
+        if col.range.is_none() {
+            out.push_spec_error(
+                "S07",
+                format!("A `{type_name}` column must describe its bounds with `range`."),
+                missing("range"),
+                at(&col_type.span),
+            );
+        }
+        if let Some(values) = &col.values {
+            out.push_spec_error(
+                "S07",
+                format!("A `{type_name}` column must use `range`, not `values`."),
+                found("values"),
+                at(values),
+            );
+        }
+        if let Some(examples) = &col.examples {
+            out.push_spec_error(
+                "S07",
+                format!("A `{type_name}` column must use `range`, not `examples`."),
+                found("examples"),
+                at(&examples.span),
+            );
+        }
+    } else if type_name == "boolean" {
+        for (span, key) in [
+            (col.values.as_ref(), "values"),
+            (col.range.as_ref().map(|r| &r.span), "range"),
+            (col.examples.as_ref().map(|e| &e.span), "examples"),
+        ] {
+            if let Some(span) = span {
+                out.push_spec_error(
+                    "S07",
+                    "A `boolean` column must not have `values`, `range`, or `examples`.",
+                    found(key),
+                    at(span),
+                );
             }
         }
+    } else {
+        if col.examples.is_none() {
+            out.push_spec_error(
+                "S07",
+                format!("A `{type_name}` column must describe its data with `examples`."),
+                missing("examples"),
+                at(&col_type.span),
+            );
+        }
+        if let Some(values) = &col.values {
+            out.push_spec_error(
+                "S07",
+                format!("A `{type_name}` column must not use `values`."),
+                found("values"),
+                at(values),
+            );
+        }
+        if let Some(range) = &col.range {
+            out.push_spec_error(
+                "S07",
+                format!("A `{type_name}` column must not use `range`."),
+                found("range"),
+                at(&range.span),
+            );
+        }
     }
+    out.items.len() == before
 }
 
 // --- S08 --------------------------------------------------------------
 
-fn check_units_only_on_quantity(dict: &DataDict, out: &mut ProblemSet) {
-    for table in dict.tables.values() {
-        for col in &table.columns {
-            let Some(units) = &col.units else { continue };
-            let is_quantity = col
-                .col_type
-                .as_ref()
-                .is_some_and(|t| t.value == "number(quantity)");
-            if !is_quantity {
-                let type_desc = col
-                    .col_type
-                    .as_ref()
-                    .map_or_else(|| "no type".to_string(), |t| format!("type `{}`", t.value));
-                out.push_spec_error(
-                    "S08",
-                    "A column with `units` must have type `number(quantity)`.",
-                    format!("has `units` but has {type_desc}"),
-                    [
-                        table.name.span.clone(),
-                        col.name.span.clone(),
-                        units.span.clone(),
-                    ],
-                );
-            }
-        }
+fn validate_s08_units(table: &Table, col: &Column, out: &mut ProblemSet) {
+    let Some(units) = &col.units else { return };
+    let is_quantity = col
+        .col_type
+        .as_ref()
+        .is_some_and(|t| t.value == "number(quantity)");
+    if is_quantity {
+        return;
     }
+    let type_desc = col
+        .col_type
+        .as_ref()
+        .map_or_else(|| "no type".to_string(), |t| format!("type `{}`", t.value));
+    out.push_spec_error(
+        "S08",
+        "A column with `units` must have type `number(quantity)`.",
+        format!("has `units` but has {type_desc}"),
+        [
+            table.name.span.clone(),
+            col.name.span.clone(),
+            units.span.clone(),
+        ],
+    );
 }
 
 // --- S10 --------------------------------------------------------------
 
-fn check_unique_column_names(dict: &DataDict, out: &mut ProblemSet) {
-    for table in dict.tables.values() {
-        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
-        for col in &table.columns {
-            // Empty names are S11's concern; reporting them as duplicates too
-            // would just be noise.
-            if col.name.value.is_empty() {
-                continue;
-            }
-            if !seen.insert(col.name.value.as_str()) {
-                out.push_spec_error(
-                    "S10",
-                    "Column names must be unique within a table.",
-                    "appears more than once",
-                    [table.name.span.clone(), col.name.span.clone()],
-                );
-            }
-        }
+fn validate_s10_unique_name(
+    table: &Table,
+    col: &Column,
+    seen: &mut HashSet<String>,
+    out: &mut ProblemSet,
+) {
+    if !seen.insert(col.name.value.clone()) {
+        out.push_spec_error(
+            "S10",
+            "Column names must be unique within a table.",
+            "appears more than once",
+            [table.name.span.clone(), col.name.span.clone()],
+        );
     }
 }
 
 // --- S11 --------------------------------------------------------------
 
-fn check_non_empty_names(dict: &DataDict, out: &mut ProblemSet) {
-    for table in dict.tables.values() {
-        if table.name.value.is_empty() {
-            out.push_spec_error(
-                "S11",
-                "A table must have a non-empty name.",
-                "table name is empty",
-                [table.name.span.clone()],
-            );
-        }
-        for col in &table.columns {
-            if col.name.value.is_empty() {
-                out.push_spec_error(
-                    "S11",
-                    "Every column must have a non-empty `name`.",
-                    "the `name` is empty",
-                    [table.name.span.clone(), col.name.span.clone()],
-                );
-            }
-        }
+fn validate_s11_table_name(table: &Table, out: &mut ProblemSet) {
+    if table.name.value.is_empty() {
+        out.push_spec_error(
+            "S11",
+            "A table must have a non-empty name.",
+            "table name is empty",
+            [table.name.span.clone()],
+        );
     }
+}
+
+/// Returns whether the column has a name (so its uniqueness may be checked).
+fn validate_s11_column_name(table: &Table, col: &Column, out: &mut ProblemSet) -> bool {
+    if col.name.value.is_empty() {
+        out.push_spec_error(
+            "S11",
+            "Every column must have a non-empty `name`.",
+            "the `name` is empty",
+            [table.name.span.clone(), col.name.span.clone()],
+        );
+        return false;
+    }
+    true
 }
 
 // --- S12 --------------------------------------------------------------
@@ -597,44 +617,46 @@ fn check_non_empty_names(dict: &DataDict, out: &mut ProblemSet) {
 /// misplaced key reports as S07 rather than cascading into S12.
 fn typed_representation(col: &Column) -> Option<(&'static str, &[Spanned<Scalar>])> {
     match col.col_type.as_ref()?.value.as_str() {
-        "number(ordinal)" | "number(quantity)" | "date" | "datetime" => Some(("range", &col.range)),
-        "string" | "number" | "number(id)" => Some(("examples", &col.examples)),
+        "number(ordinal)" | "number(quantity)" | "date" | "datetime" => {
+            Some(("range", &col.range.as_ref()?.items))
+        }
+        "string" | "number" | "number(id)" => Some(("examples", &col.examples.as_ref()?.items)),
         _ => None,
     }
 }
 
-fn check_value_types(dict: &DataDict, out: &mut ProblemSet) {
-    for table in dict.tables.values() {
-        for col in &table.columns {
-            let type_name = match &col.col_type {
-                Some(t) => t.value.as_str(),
-                None => continue,
-            };
-            let Some((key, values)) = typed_representation(col) else {
-                continue;
-            };
-            for v in values {
-                if value_matches_type(type_name, &v.value) {
-                    continue;
-                }
-                out.push_spec_error(
-                    "S12",
-                    format!(
-                        "Each `{}` value of a `{}` column must be {}.",
-                        key,
-                        type_name,
-                        expected_noun(type_name),
-                    ),
-                    format!("`{}` is {}", v.value.display(), v.value.noun()),
-                    [
-                        table.name.span.clone(),
-                        col.name.span.clone(),
-                        v.span.clone(),
-                    ],
-                );
-            }
+/// Returns whether every value in the column's typed representation matches its
+/// type — i.e. whether the bounds are sound enough to compare for order (S13).
+fn validate_s12_value_types(table: &Table, col: &Column, out: &mut ProblemSet) -> bool {
+    let Some(type_name) = col.col_type.as_ref().map(|t| t.value.as_str()) else {
+        return true;
+    };
+    let Some((key, values)) = typed_representation(col) else {
+        return true;
+    };
+    let mut ok = true;
+    for v in values {
+        if value_matches_type(type_name, &v.value) {
+            continue;
         }
+        ok = false;
+        out.push_spec_error(
+            "S12",
+            format!(
+                "Each `{}` value of a `{}` column must be {}.",
+                key,
+                type_name,
+                expected_noun(type_name),
+            ),
+            format!("is {}", v.value.noun()),
+            [
+                table.name.span.clone(),
+                col.name.span.clone(),
+                v.span.clone(),
+            ],
+        );
     }
+    ok
 }
 
 fn value_matches_type(type_name: &str, value: &Scalar) -> bool {
@@ -671,37 +693,28 @@ fn expected_noun(type_name: &str) -> &'static str {
 
 // --- S13 --------------------------------------------------------------
 
-fn check_range_order(dict: &DataDict, out: &mut ProblemSet) {
-    for table in dict.tables.values() {
-        for col in &table.columns {
-            let type_name = match &col.col_type {
-                Some(t) => t.value.as_str(),
-                None => continue,
-            };
-            if !RANGE_TYPES.contains(&type_name) || col.range.len() != 2 {
-                continue;
-            }
-            let (lo, hi) = (&col.range[0], &col.range[1]);
-            // A mistyped bound is S12's to report; comparing it here would be
-            // meaningless, so `range_descending` only fires when both bounds
-            // parse for the column's type.
-            if range_descending(type_name, &lo.value, &hi.value) {
-                out.push_spec_error(
-                    "S13",
-                    "A range's minimum must be less than or equal to its maximum.",
-                    format!(
-                        "minimum `{}` is greater than maximum `{}`",
-                        lo.value.display(),
-                        hi.value.display(),
-                    ),
-                    [
-                        table.name.span.clone(),
-                        col.name.span.clone(),
-                        lo.span.clone(),
-                    ],
-                );
-            }
-        }
+/// Only reached when S12 confirmed both bounds parse for the column's type, so
+/// `range_descending` can compare them meaningfully.
+fn validate_s13_range_order(table: &Table, col: &Column, out: &mut ProblemSet) {
+    let Some(type_name) = col.col_type.as_ref().map(|t| t.value.as_str()) else {
+        return;
+    };
+    let Some(range) = &col.range else { return };
+    if !RANGE_TYPES.contains(&type_name) || range.items.len() != 2 {
+        return;
+    }
+    let (lo, hi) = (&range.items[0], &range.items[1]);
+    if range_descending(type_name, &lo.value, &hi.value) {
+        out.push_spec_error(
+            "S13",
+            "A range's minimum must be less than or equal to its maximum.",
+            "is greater than the maximum",
+            [
+                table.name.span.clone(),
+                col.name.span.clone(),
+                lo.span.clone(),
+            ],
+        );
     }
 }
 
@@ -732,7 +745,7 @@ fn range_descending(type_name: &str, lo: &Scalar, hi: &Scalar) -> bool {
 /// other rules this inspects the raw AST, because `$learn_more` is top-level
 /// metadata that the lowered [`DataDict`] does not carry. The warning is
 /// anchored at the `$version` key, which the schema guarantees is present.
-fn check_learn_more(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
+fn validate_s09_learn_more(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
     let Some(entries) = root.as_hash() else {
         return;
     };

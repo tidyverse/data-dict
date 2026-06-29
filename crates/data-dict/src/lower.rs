@@ -10,7 +10,7 @@ use quarto_yaml::YamlWithSourceInfo;
 
 use crate::join_expr::JoinExpr;
 use crate::model::{
-    Cardinality, Column, Constraint, DataDict, Relationship, Scalar, Spanned, Table,
+    Cardinality, Column, Constraint, DataDict, Relationship, Representation, Scalar, Spanned, Table,
 };
 use crate::problem::{Problem, ProblemSet, Severity};
 
@@ -56,9 +56,13 @@ fn lower_table(name: &str, name_span: &SourceInfo, value: &YamlWithSourceInfo) -
             }
         }
     }
+    let source = value
+        .get_hash_value("source")
+        .map(|n| n.source_info.clone());
     Table {
         name: Spanned::new(name.to_string(), name_span.clone()),
         columns,
+        source,
     }
 }
 
@@ -67,11 +71,9 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
     let mut name: Option<Spanned<String>> = None;
     let mut constraints: Vec<Spanned<Constraint>> = Vec::new();
     let mut col_type: Option<Spanned<String>> = None;
-    let mut has_values = false;
-    let mut has_range = false;
-    let mut has_examples = false;
-    let mut range: Vec<Spanned<Scalar>> = Vec::new();
-    let mut examples: Vec<Spanned<Scalar>> = Vec::new();
+    let mut values: Option<SourceInfo> = None;
+    let mut range: Option<Representation> = None;
+    let mut examples: Option<Representation> = None;
     let mut units: Option<Spanned<String>> = None;
     for entry in entries {
         let Some(key) = entry.key.yaml.as_str() else {
@@ -89,14 +91,18 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
                     col_type = Some(Spanned::new(s.to_string(), entry.value_span.clone()));
                 }
             }
-            "values" => has_values = true,
+            "values" => values = Some(entry.value_span.clone()),
             "range" => {
-                has_range = true;
-                range = lower_scalars(&entry.value);
+                range = Some(Representation {
+                    span: entry.value_span.clone(),
+                    items: lower_scalars(&entry.value),
+                });
             }
             "examples" => {
-                has_examples = true;
-                examples = lower_scalars(&entry.value);
+                examples = Some(Representation {
+                    span: entry.value_span.clone(),
+                    items: lower_scalars(&entry.value),
+                });
             }
             "units" => {
                 if let Some(s) = entry.value.yaml.as_str() {
@@ -121,9 +127,7 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
         name: name?,
         constraints,
         col_type,
-        has_values,
-        has_range,
-        has_examples,
+        values,
         range,
         examples,
         units,

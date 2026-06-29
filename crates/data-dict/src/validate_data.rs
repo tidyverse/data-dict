@@ -8,7 +8,7 @@ use std::path::Path;
 
 use data_dict_parquet::{ColumnNeeds, ColumnStats};
 
-use crate::model::{Column, Table};
+use crate::model::{Column, Constraint, Table};
 use crate::problem::{Problem, ProblemKind, ProblemSet, Severity};
 
 /// How many example values (e.g. offending rows) to record per validation
@@ -68,7 +68,7 @@ fn value_issues(
     for col in &table.columns {
         if let Some(stat) = stats.get(&col.name.value) {
             for check in VALUE_CHECKS {
-                check.check(col, stat, out);
+                check.check(table, col, stat, out);
             }
         }
     }
@@ -86,15 +86,16 @@ trait ColumnCheck {
     fn needs(&self, col: &Column) -> ColumnNeeds;
 
     /// Draw a verdict from the gathered stats. Only ever called with stats whose
-    /// requested fields this check (or another) asked for.
-    fn check(&self, col: &Column, stats: &ColumnStats, out: &mut ProblemSet);
+    /// requested fields this check (or another) asked for. `table` is passed for
+    /// locating the finding at the column's node in the dictionary.
+    fn check(&self, table: &Table, col: &Column, stats: &ColumnStats, out: &mut ProblemSet);
 }
 
 /// Every value-level check, run against each present column. Add a check here
 /// and the plan/scan/check pipeline picks it up automatically.
 const VALUE_CHECKS: &[&dyn ColumnCheck] = &[&RequiredNotNull];
 
-/// A `required` (or `primary_key`) column must contain no nulls.
+/// D01 — a `required` (or `primary_key`) column must contain no nulls.
 struct RequiredNotNull;
 
 impl ColumnCheck for RequiredNotNull {
@@ -104,18 +105,33 @@ impl ColumnCheck for RequiredNotNull {
         }
     }
 
-    fn check(&self, col: &Column, stats: &ColumnStats, out: &mut ProblemSet) {
+    fn check(&self, table: &Table, col: &Column, stats: &ColumnStats, out: &mut ProblemSet) {
         // Nulls are only counted when this check requested them (i.e. the column
         // is required), so a positive count is exactly a violation.
-        if stats.null_count > 0 {
-            out.push(Problem::column(
-                Severity::Error,
-                col.name.value.clone(),
-                ProblemKind::NullsInRequired {
-                    count: stats.null_count,
-                    rows: stats.null_rows.clone(),
-                },
-            ));
+        if stats.null_count == 0 {
+            return;
         }
+        let count = stats.null_count;
+        let rows = stats.null_rows.clone();
+        let detail = crate::problem::format_rows(&rows, count);
+        let plural = if count == 1 { "" } else { "s" };
+        // Point at the constraint that bars nulls — the rule being violated —
+        // with the table and column as context.
+        let constraint_span = col
+            .constraints
+            .iter()
+            .find(|c| matches!(c.value, Constraint::Required | Constraint::PrimaryKey))
+            .map_or_else(|| col.name.span.clone(), |c| c.span.clone());
+        out.push_located(
+            ProblemKind::NullsInRequired { count, rows },
+            Severity::Error,
+            "A required column must not contain nulls.",
+            format!("has {count} null value{plural} ({detail})"),
+            [
+                table.name.span.clone(),
+                col.name.span.clone(),
+                constraint_span,
+            ],
+        );
     }
 }

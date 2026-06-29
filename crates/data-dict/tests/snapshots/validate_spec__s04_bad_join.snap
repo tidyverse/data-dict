@@ -3,9 +3,9 @@ source: crates/data-dict/tests/validate_spec.rs
 expression: "failing_diagnostic(\"spec/s04-bad-join.yaml\")"
 ---
 Error: [S04]
-    ╭─[ spec/s04-bad-join.yaml:32:33 ]
+    ╭─[ spec/s04-bad-join.yaml:28:33 ]
     │
- 32 │     join: food.food_category_id ~ food_category.id
+ 28 │     join: food.food_category_id ~ food_category.id
     │                                 │ 
     │                                 ╰─ `join` expression does not parse: expected one of `=`, `>=`, `<=`, `>`, `<`
 ────╯

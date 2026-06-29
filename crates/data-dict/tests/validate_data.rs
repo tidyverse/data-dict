@@ -126,7 +126,7 @@ fn meta_ignores_null_values_that_data_catches() {
 
 #[test]
 fn nulls_in_required_column_reported() {
-    let result = check_column(
+    let (yaml, parquet) = build_column(
         "OPTIONAL DOUBLE weight",
         write_double_with_null,
         indoc! {"
@@ -136,18 +136,23 @@ fn nulls_in_required_column_reported() {
               range: [0, 100]
         "},
     );
+    let result = validate_data(&yaml, &parquet, None);
 
     assert_eq!(result.status(), Status::Error);
     assert!(
         matches!(
             result.items.as_slice(),
-            [Problem { column: Some(column), kind: ProblemKind::NullsInRequired { count, rows }, .. }]
-                if column == "weight" && *count == 1 && rows == &[2]
+            [Problem { kind: ProblemKind::NullsInRequired { count, rows }, .. }]
+                if *count == 1 && rows == &[2]
         ),
         "got {:?}",
         result.items
     );
-    insta::assert_snapshot!(result.render().join("\n"));
+    #[cfg(unix)]
+    insta::assert_snapshot!(common::sanitize(
+        &result.render().join("\n"),
+        yaml.parent().unwrap()
+    ));
 }
 
 #[test]
@@ -207,7 +212,10 @@ fn primary_key_implies_required_for_nulls() {
     assert!(
         matches!(
             result.items.as_slice(),
-            [Problem { column: Some(column), kind: ProblemKind::NullsInRequired { .. }, .. }] if column == "weight"
+            [Problem {
+                kind: ProblemKind::NullsInRequired { .. },
+                ..
+            }]
         ),
         "got {:?}",
         result.items

@@ -3,9 +3,9 @@ source: crates/data-dict/tests/validate_spec.rs
 expression: "failing_diagnostic(\"spec/s03-missing-column.yaml\")"
 ---
 Error: [S03] A `join` must refer to known columns.
-    ╭─[ spec/s03-missing-column.yaml:32:35 ]
+    ╭─[ spec/s03-missing-column.yaml:28:35 ]
     │
- 32 │     join: food.food_category_id = food_category.identifier
+ 28 │     join: food.food_category_id = food_category.identifier
     │                                   ────────────┬───────────  
     │                                               ╰───────────── table `food_category` has no column `identifier`
 ────╯

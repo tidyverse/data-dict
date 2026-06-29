@@ -32,6 +32,9 @@ pub struct DataDict {
 pub struct Table {
     pub name: Spanned<String>,
     pub columns: Vec<Column>,
+    /// The `source` node's span, when the table declares one. Optional at the
+    /// spec level; the metadata level requires it (M04).
+    pub source: Option<SourceInfo>,
 }
 
 impl Table {
@@ -45,13 +48,16 @@ pub struct Column {
     pub name: Spanned<String>,
     pub constraints: Vec<Spanned<Constraint>>,
     pub col_type: Option<Spanned<String>>,
-    pub has_values: bool,
-    pub has_range: bool,
-    pub has_examples: bool,
-    /// (schema guarantees exactly 2)
-    pub range: Vec<Spanned<Scalar>>,
-    pub examples: Vec<Spanned<Scalar>>,
+    pub values: Option<SourceInfo>,
+    pub range: Option<Representation>,
+    pub examples: Option<Representation>,
     pub units: Option<Spanned<String>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Representation {
+    pub span: SourceInfo,
+    pub items: Vec<Spanned<Scalar>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -73,18 +79,6 @@ impl Scalar {
             Scalar::Bool(_) => "a boolean",
             Scalar::Null => "null",
             Scalar::Compound => "a list or map",
-        }
-    }
-
-    /// The value as it should appear in a diagnostic message.
-    pub fn display(&self) -> String {
-        match self {
-            Scalar::Number(n) if n.fract() == 0.0 && n.is_finite() => format!("{}", *n as i64),
-            Scalar::Number(n) => n.to_string(),
-            Scalar::String(s) => s.clone(),
-            Scalar::Bool(b) => b.to_string(),
-            Scalar::Null => "null".to_string(),
-            Scalar::Compound => "…".to_string(),
         }
     }
 }

@@ -1,6 +1,15 @@
 ---
 source: crates/data-dict/tests/validate_data.rs
-expression: "result.render().join(\"\\n\")"
+expression: "common::sanitize(&result.render().join(\"\\n\"), yaml.parent().unwrap())"
 ---
-error [D01]: A required column must not contain nulls.
-  `weight` has 1 null value (rows: 2)
+Error: [D01] A required column must not contain nulls.
+    ╭─[ dict.yaml:10:23 ]
+    │
+  4 │   t:
+    │ 
+  8 │       - name: weight
+    │ 
+ 10 │         constraints: [required]
+    │                       ────┬───  
+    │                           ╰───── has 1 null value (row: 2)
+────╯

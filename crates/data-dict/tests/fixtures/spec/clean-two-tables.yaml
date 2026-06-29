@@ -9,8 +9,6 @@ $learn_more: http://data-dict.tidyverse.org/
 tables:
   food:
     description: Foods.
-    source:
-      parquet: food.parquet
     columns:
       - name: id
         type: number(id)
@@ -23,8 +21,6 @@ tables:
         examples: [1, 2, 3, 4, 5]
 
   food_category:
-    source:
-      parquet: food_category.parquet
     columns:
       - name: id
         type: number(id)

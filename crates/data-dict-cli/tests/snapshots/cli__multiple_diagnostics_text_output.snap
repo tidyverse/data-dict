@@ -11,13 +11,14 @@ Warning: [S09] A document should point readers to the spec with `$learn_more: ht
 ───╯
 
 Error: [S07] A `number(id)` column must describe its data with `examples`.
-   ╭─[ <fixture>:8:15 ]
+   ╭─[ <fixture>:9:15 ]
    │
  4 │   measurements:
    │ 
  8 │       - name: id
-   │               ─┬  
-   │                ╰── has type `number(id)` but has no `examples`
+ 9 │         type: number(id)
+   │               ─────┬────  
+   │                    ╰────── has type `number(id)` but is missing `examples`
 ───╯
 
 Error: [S08] A column with `units` must have type `number(quantity)`.

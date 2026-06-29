@@ -3,13 +3,13 @@ source: crates/data-dict/tests/validate_spec.rs
 expression: "failing_diagnostic(\"spec/s13-descending-range.yaml\")"
 ---
 Error: [S13] A range's minimum must be less than or equal to its maximum.
-    ╭─[ spec/s13-descending-range.yaml:14:17 ]
+    ╭─[ spec/s13-descending-range.yaml:12:17 ]
     │
   7 │   table:
     │ 
- 11 │       - name: mass
+  9 │       - name: mass
     │ 
- 14 │         range: [100, 10]
+ 12 │         range: [100, 10]
     │                 ─┬─  
-    │                  ╰─── minimum `100` is greater than maximum `10`
+    │                  ╰─── is greater than the maximum
 ────╯

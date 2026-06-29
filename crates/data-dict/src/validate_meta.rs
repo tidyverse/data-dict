@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use crate::model::{Column, Table};
+use crate::model::Table;
 use crate::problem::{Problem, ProblemKind, ProblemSet, Severity};
 
 /// Validate a parquet file's column names and types against a data dictionary.
@@ -25,45 +25,73 @@ pub fn validate_meta(dict_path: &Path, parquet_path: &Path, table: Option<&str>)
 /// the data, pushing the metadata-level problems into `out`. Reused by the data
 /// level, which appends its value-level problems to the same set.
 pub(crate) fn meta_issues(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {
-    for col in &table.columns {
-        match actual.iter().find(|(n, _)| n == &col.name.value) {
-            None => out.push(Problem::column(
-                Severity::Error,
-                col.name.value.clone(),
-                ProblemKind::MissingInData,
-            )),
-            // A column with no `type` makes no claims about its contents, so
-            // `check_type` is naturally a no-op; only its existence is required.
-            Some((_, actual_type)) => check_type(col, actual_type, out),
-        }
-    }
+    validate_m04_source(table, out);
+    validate_m01_column_types(table, actual, out);
+    validate_m02_missing_columns(table, actual, out);
+    validate_m03_extra_columns(table, actual, out);
+}
 
-    for (name, actual_type) in actual {
-        if table.column(name).is_none() {
-            out.push(Problem::column(
-                Severity::Warning,
-                name.clone(),
-                ProblemKind::ExtraInData {
-                    actual: actual_type.clone(),
+fn validate_m04_source(table: &Table, out: &mut ProblemSet) {
+    if table.source.is_none() {
+        out.push_located(
+            ProblemKind::MissingSource,
+            Severity::Error,
+            "A table validated against data must declare a `source`.",
+            "has no `source`",
+            [table.name.span.clone()],
+        );
+    }
+}
+
+fn validate_m01_column_types(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {
+    for col in &table.columns {
+        // Only described columns present in the data are type-checked; an absent
+        // column is M02's concern, and a column with no `type` makes no claims.
+        let Some((_, actual_type)) = actual.iter().find(|(n, _)| n == &col.name.value) else {
+            continue;
+        };
+        if let Some(declared) = &col.col_type
+            && !types_compatible(&declared.value, actual_type)
+        {
+            out.push_located(
+                ProblemKind::TypeMismatch {
+                    declared: declared.value.clone(),
+                    actual: actual_type.to_string(),
                 },
-            ));
+                Severity::Error,
+                "A column's data must match its declared type.",
+                format!("the data is `{actual_type}`"),
+                [
+                    table.name.span.clone(),
+                    col.name.span.clone(),
+                    declared.span.clone(),
+                ],
+            );
         }
     }
 }
 
-/// A column's declared type must be compatible with the type read from the data.
-fn check_type(col: &Column, actual_type: &str, out: &mut ProblemSet) {
-    if let Some(declared) = &col.col_type
-        && !types_compatible(&declared.value, actual_type)
-    {
-        out.push(Problem::column(
-            Severity::Error,
-            col.name.value.clone(),
-            ProblemKind::TypeMismatch {
-                declared: declared.value.clone(),
-                actual: actual_type.to_string(),
-            },
-        ));
+fn validate_m02_missing_columns(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {
+    for col in &table.columns {
+        if !actual.iter().any(|(n, _)| n == &col.name.value) {
+            out.push_located(
+                ProblemKind::MissingInData,
+                Severity::Error,
+                "Every column in the dictionary must be present in the data.",
+                "is missing from the data",
+                [table.name.span.clone(), col.name.span.clone()],
+            );
+        }
+    }
+}
+
+fn validate_m03_extra_columns(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {
+    for (name, actual_type) in actual {
+        if table.column(name).is_none() {
+            // The column exists only in the data, so there is no dictionary node
+            // to point at; it is named in the message instead.
+            out.push(Problem::undocumented_column(name, actual_type.clone()));
+        }
     }
 }
 

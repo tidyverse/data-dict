@@ -6,8 +6,6 @@ $version: "0.1.0"
 
 tables:
   food:
-    source:
-      parquet: food.parquet
     columns:
       - name: id
         type: number(id)
@@ -15,8 +13,6 @@ tables:
         examples: [1, 2]
 
   food_nutrient:
-    source:
-      parquet: food_nutrient.parquet
     columns:
       - name: id
         type: number(id)

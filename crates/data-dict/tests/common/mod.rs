@@ -71,3 +71,51 @@ pub fn write_yaml(dir: &Path, yaml: &str) -> PathBuf {
     std::fs::write(&path, yaml).unwrap();
     path
 }
+
+/// Make a source-highlighted diagnostic snapshottable: strip terminal styling
+/// (ANSI escapes and OSC-8 hyperlinks) and rewrite the absolute temp-dir path to
+/// the bare `dict.yaml`, both of which vary per run.
+pub fn sanitize(rendered: &str, dir: &Path) -> String {
+    let dir_prefix = format!("{}/", dir.display());
+    strip_terminal_escapes(rendered).replace(&dir_prefix, "")
+}
+
+/// Remove ANSI SGR sequences (`ESC [ ... m`) and OSC-8 hyperlink wrappers
+/// (`ESC ] 8 ; ; ... BEL|ST`) while leaving the visible text intact.
+fn strip_terminal_escapes(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == 0x1b && i + 1 < bytes.len() {
+            match bytes[i + 1] {
+                b'[' => {
+                    i += 2;
+                    while i < bytes.len() && !(0x40..=0x7e).contains(&bytes[i]) {
+                        i += 1;
+                    }
+                    i += 1;
+                }
+                b']' => {
+                    i += 2;
+                    while i < bytes.len() {
+                        if bytes[i] == 0x07 {
+                            i += 1;
+                            break;
+                        }
+                        if bytes[i] == 0x1b && i + 1 < bytes.len() && bytes[i + 1] == b'\\' {
+                            i += 2;
+                            break;
+                        }
+                        i += 1;
+                    }
+                }
+                _ => i += 2,
+            }
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).expect("stripping ASCII escapes preserves UTF-8")
+}

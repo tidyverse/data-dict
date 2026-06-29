@@ -7,8 +7,6 @@ $learn_more: http://data-dict.tidyverse.org/
 
 tables:
   table:
-    source:
-      parquet: t.parquet
     columns:
       - name: label
         type: string

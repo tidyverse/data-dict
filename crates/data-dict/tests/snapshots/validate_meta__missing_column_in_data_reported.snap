@@ -1,6 +1,13 @@
 ---
 source: crates/data-dict/tests/validate_meta.rs
-expression: "problems.render().join(\"\\n\")"
+expression: "common::sanitize(&problems.render().join(\"\\n\"), &dir)"
 ---
-error [M02]: Every column in the dictionary must be present in the data.
-  `height` is in the dictionary but missing from the data
+Error: [M02] Every column in the dictionary must be present in the data.
+    ╭─[ dict.yaml:14:15 ]
+    │
+  4 │   animals:
+    │ 
+ 14 │       - name: height
+    │               ───┬──  
+    │                  ╰──── is missing from the data
+────╯

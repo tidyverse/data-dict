@@ -4,8 +4,6 @@ $version: 0.1.0
 
 tables:
   table:
-    source:
-      parquet: t.parquet
     columns:
       - name: c
         type: enum

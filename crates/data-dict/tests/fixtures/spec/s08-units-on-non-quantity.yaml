@@ -5,8 +5,6 @@ $version: "0.1.0"
 
 tables:
   races:
-    source:
-      parquet: races.parquet
     columns:
       - name: finish_rank
         type: number(ordinal)

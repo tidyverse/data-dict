@@ -3,10 +3,10 @@ source: crates/data-dict/tests/validate_spec.rs
 expression: "failing_diagnostic(\"spec/s06-self-join-one-to-many.yaml\")"
 ---
 Error: [S06] A `one-to-many` join must have a `primary_key` or `unique` column on its left ("one") side.
-    ╭─[ spec/s06-self-join-one-to-many.yaml:25:18 ]
+    ╭─[ spec/s06-self-join-one-to-many.yaml:24:11 ]
     │
- 25 │   - cardinality: one-to-many
-    │                  ─────┬─────  
-    │                       ╰─────── the left-side join column on `otters` is not marked `primary_key` or `unique`
- 26 │     join: otters.pup_number = otters.otter_no
+ 23 │   - cardinality: one-to-many
+ 24 │     join: otters.pup_number = otters.otter_no
+    │           ─────────────────┬─────────────────  
+    │                            ╰─────────────────── the left-side join column on `otters` is not marked `primary_key` or `unique`
 ────╯
