@@ -353,12 +353,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dyn-clone"
-version = "1.0.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
-
-[[package]]
 name = "encode_unicode"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -980,13 +974,12 @@ dependencies = [
 
 [[package]]
 name = "quarto-error-reporting"
-version = "0.4.0"
-source = "git+https://github.com/quarto-dev/q2?branch=main#0940c9446568ab998a6fad40c22e80ecfd245bed"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2aa95153b93fea9754e121137d5a6e38e30dd1184c73d2266958f698b8cb9503"
 dependencies = [
  "ariadne",
- "once_cell",
  "quarto-source-map",
- "schemars",
  "serde",
  "serde_json",
  "thiserror",
@@ -995,8 +988,9 @@ dependencies = [
 
 [[package]]
 name = "quarto-source-map"
-version = "0.4.0"
-source = "git+https://github.com/quarto-dev/q2?branch=main#0940c9446568ab998a6fad40c22e80ecfd245bed"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e3d29b1ef6088d016dfe84d831e5aa3daaba4624e23621364c2aef6d593114f"
 dependencies = [
  "serde",
  "serde_json",
@@ -1005,8 +999,9 @@ dependencies = [
 
 [[package]]
 name = "quarto-yaml"
-version = "0.4.0"
-source = "git+https://github.com/quarto-dev/q2?branch=main#0940c9446568ab998a6fad40c22e80ecfd245bed"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c32ab7b39ffa5c43c8aa6abf7eff392678acee63bad5d21680fe295e69b7c2e0"
 dependencies = [
  "quarto-source-map",
  "serde",
@@ -1016,8 +1011,9 @@ dependencies = [
 
 [[package]]
 name = "quarto-yaml-validation"
-version = "0.4.0"
-source = "git+https://github.com/quarto-dev/q2?branch=main#0940c9446568ab998a6fad40c22e80ecfd245bed"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87c2810413afaeddd4fff7520d51883429c04574e95da47e4c0960728f87679d"
 dependencies = [
  "anyhow",
  "quarto-error-reporting",
@@ -1050,26 +1046,6 @@ name = "r-efi"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
-
-[[package]]
-name = "ref-cast"
-version = "1.0.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f354300ae66f76f1c85c5f84693f0ce81d747e2c3f21a45fef496d89c960bf7d"
-dependencies = [
- "ref-cast-impl",
-]
-
-[[package]]
-name = "ref-cast-impl"
-version = "1.0.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7186006dcb21920990093f30e3dea63b7d6e977bf1256be20c3563a5db070da"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
 
 [[package]]
 name = "regex"
@@ -1120,31 +1096,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
-name = "schemars"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2b42f36aa1cd011945615b92222f6bf73c599a102a300334cd7f8dbeec726cc"
-dependencies = [
- "dyn-clone",
- "ref-cast",
- "schemars_derive",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "schemars_derive"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d115b50f4aaeea07e79c1912f645c7513d81715d0420f8bc77a18c6260b307f"
-dependencies = [
- "proc-macro2",
- "quote",
- "serde_derive_internals",
- "syn",
-]
-
-[[package]]
 name = "semver"
 version = "1.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1180,17 +1131,6 @@ name = "serde_derive"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "serde_derive_internals"
-version = "0.29.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18d26a20a969b9e3fdf2fc2d9f21eda6c40e2de84c9408bb5d3b05d499aae711"
 dependencies = [
  "proc-macro2",
  "quote",

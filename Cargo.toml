@@ -11,7 +11,10 @@ repository = "https://github.com/hadley/data-dict.yaml"
 [workspace.dependencies]
 data-dict = { path = "crates/data-dict", version = "0.0.1" }
 clap = { version = "4", features = ["derive"] }
-quarto-yaml-validation = { git = "https://github.com/quarto-dev/q2", branch = "main" }
+quarto-yaml = "0.1.0"
+quarto-yaml-validation = "0.1.0"
+quarto-source-map = "0.1.0"
+quarto-error-reporting = "0.1.0"
 parquet = { version = "54", default-features = false }
 data-dict-parquet = { path = "crates/data-dict-parquet", version = "0.0.1" }
 chrono = { version = "0.4", default-features = false, features = ["std"] }

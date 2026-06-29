@@ -8,10 +8,10 @@ repository.workspace = true
 
 [dependencies]
 data-dict-parquet.workspace = true
+quarto-yaml.workspace = true
 quarto-yaml-validation.workspace = true
-quarto-yaml = { git = "https://github.com/quarto-dev/q2", branch = "main" }
-quarto-source-map = { git = "https://github.com/quarto-dev/q2", branch = "main" }
-quarto-error-reporting = { git = "https://github.com/quarto-dev/q2", branch = "main" }
+quarto-source-map.workspace = true
+quarto-error-reporting.workspace = true
 indexmap = "2"
 serde.workspace = true
 chrono.workspace = true
