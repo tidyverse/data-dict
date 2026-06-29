@@ -112,3 +112,16 @@ object:
     glossary:
       object:
         additionalProperties: string
+
+    # The dictionary's own version. S14 enforces exactly one key + 
+    # ISO-8601 valid dates
+    version:
+      object:
+        closed: true
+        properties:
+          number:
+            anyOf:
+              - string
+              - number
+          date: string
+          hash: string

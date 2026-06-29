@@ -14,8 +14,7 @@ The content keys all hold the actual information about the data:
 * [`tables`](#tables) is where the bulk of most data-dict.yaml files will be. It describes the tables and their columns.
 * [`relationships`](#relationships) describes the relationships between tables. It gives the details you need to safely create joins.
 * [`glossary`](#glossary) provides a place to define important domain-specific terms. This is a good place to write down those special words that your company loves to use.
-
-
+* [`version`](#version) records the version of the data the dictionary describes — a version number, a date, or an opaque hash.
 
 ## Tables
 
@@ -170,4 +169,21 @@ glossary:
   foundation food: >
     A food whose nutrient and food component values are derived
     primarily by chemical analysis.
+```
+
+## Version
+
+`version` records the version of the data this dictionary describes, so people and tools can tell two snapshots of the data apart and know which one a given dictionary goes with. (This is distinct from `$version`, which records the version of the *spec* the document conforms to.)
+
+`version` is optional. It's a map with exactly one of three keys, which names both the kind of version and its value:
+
+* `number`: a hand-curated version number, such as `1.2.0`.
+* `date`: a release date in ISO 8601 form (`YYYY-MM-DD`), such as `2024-01-31`, for data refreshed on a schedule.
+* `hash`: an opaque identifier, such as `a1b2c3d`, derived from the data itself.
+
+`data-dict` checks that exactly one key is present and that a `date` is a valid ISO 8601 date, but otherwise treats the version as opaque.
+
+```yaml
+version:
+  date: 2024-01-31
 ```

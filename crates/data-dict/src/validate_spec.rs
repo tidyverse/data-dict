@@ -104,6 +104,7 @@ pub(crate) fn validate_and_lower(
     let dict = lower::lower(doc, out);
     check_spec(&dict, out);
     validate_s09_learn_more(doc, out);
+    validate_s14_version(doc, out);
     out.sort();
 
     if out.status().failed() {
@@ -764,6 +765,76 @@ fn validate_s09_learn_more(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
         "`$learn_more` is not set",
         [span],
     )
+}
+
+// --- S14 --------------------------------------------------------------
+
+/// Check the optional top-level `version`. The schema has already fixed its
+/// shape (a map whose only keys are `number`, `date`, or `hash`, each with the
+/// right value type); S14 enforces the two semantic rules the schema can't: a
+/// `version` must carry exactly one of those keys, and a `date` must be a valid
+/// ISO 8601 date. Like S09, it reads the raw AST because `version` is top-level
+/// metadata the lowered [`DataDict`] does not carry.
+fn validate_s14_version(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
+    let Some(entries) = root.as_hash() else {
+        return;
+    };
+    let Some(version) = entries
+        .iter()
+        .find(|e| e.key.yaml.as_str() == Some("version"))
+    else {
+        return;
+    };
+    let Some(fields) = version.value.as_hash() else {
+        return;
+    };
+
+    let expected = "A `version` must give exactly one of `number`, `date`, or `hash`.";
+    match fields {
+        [] => {
+            out.push_spec_error(
+                "S14",
+                expected,
+                "names none of them",
+                [version.key_span.clone()],
+            );
+            return;
+        }
+        [_] => {}
+        [first, .., last] => {
+            // The last key is the offending one: a kind was already supplied
+            // before it. Highlight it, with the `version` key and the kind it
+            // duplicates shown faded above.
+            let already = first.key.yaml.as_str().unwrap_or("");
+            out.push_spec_error(
+                "S14",
+                expected,
+                format!("`{already}` has already been supplied"),
+                [
+                    version.key_span.clone(),
+                    first.key_span.clone(),
+                    last.key_span.clone(),
+                ],
+            );
+            return;
+        }
+    }
+
+    let field = &fields[0];
+    if field.key.yaml.as_str() == Some("date") {
+        let text = field.value.yaml.as_str();
+        if text.is_none_or(|s| parse_date(s).is_none()) {
+            out.push_spec_error(
+                "S14",
+                "A `version` `date` must be an ISO 8601 date (YYYY-MM-DD).",
+                match text {
+                    Some(s) => format!("`{s}` is not an ISO 8601 date"),
+                    None => "is not an ISO 8601 date".to_string(),
+                },
+                [version.key_span.clone(), field.value_span.clone()],
+            );
+        }
+    }
 }
 
 #[cfg(test)]

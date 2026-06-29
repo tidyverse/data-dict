@@ -41,8 +41,9 @@ When validating the spec, each problem with the dictionary is one of:
 * **Empty name** (S11, error): a table name or a column `name` is empty.
 * **Wrong value type** (S12, error): a value in `range` or `examples` does not match the column's `type` — a number type wants numbers; `string` wants strings; `date` and `datetime` want ISO 8601 strings (e.g. `2024-01-31`, `2024-01-31T09:30:00Z`).
 * **Descending range** (S13, error): a `range`'s minimum is greater than its maximum.
+* **Malformed version** (S14, error): the top-level `version` does not give exactly one of `number`, `date`, or `hash`, or its `date` is not a valid ISO 8601 date (`YYYY-MM-DD`).
 
-(An `enum`'s `values` are constrained structurally by the schema rather than by an `S` check: each value must be a scalar, and in the map form each label must be a string.)
+(An `enum`'s `values` are constrained structurally by the schema rather than by an `S` check: each value must be a scalar, and in the map form each label must be a string. The `version` map's allowed keys and their value types are likewise structural; S14 covers only the semantics the schema can't express.)
 
 ## Metadata-validation checks
 
