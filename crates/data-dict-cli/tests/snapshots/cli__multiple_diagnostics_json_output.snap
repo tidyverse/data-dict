@@ -22,12 +22,12 @@ expression: "serde_json::to_string_pretty(&value).unwrap()"
       "expected": "A `number(id)` column must describe its data with `examples`.",
       "kind": "spec",
       "location": {
-        "end_column": 16,
-        "end_line": 7,
+        "end_column": 24,
+        "end_line": 8,
         "start_column": 14,
-        "start_line": 7
+        "start_line": 8
       },
-      "message": "has type `number(id)` but has no `examples`",
+      "message": "has type `number(id)` but is missing `examples`",
       "severity": "error"
     },
     {

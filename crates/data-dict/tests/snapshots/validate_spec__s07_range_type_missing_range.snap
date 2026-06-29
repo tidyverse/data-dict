@@ -3,21 +3,23 @@ source: crates/data-dict/tests/validate_spec.rs
 expression: "failing_diagnostic(\"spec/s07-range-type-missing-range.yaml\")"
 ---
 Error: [S07] A `number(quantity)` column must describe its bounds with `range`.
-    ╭─[ spec/s07-range-type-missing-range.yaml:10:15 ]
+    ╭─[ spec/s07-range-type-missing-range.yaml:11:15 ]
     │
   6 │   table:
     │ 
  10 │       - name: weight
-    │               ───┬──  
-    │                  ╰──── has type `number(quantity)` but has no `range`
+ 11 │         type: number(quantity)
+    │               ────────┬───────  
+    │                       ╰───────── has type `number(quantity)` but is missing `range`
 ────╯
 
 Error: [S07] A `date` column must describe its bounds with `range`.
-    ╭─[ spec/s07-range-type-missing-range.yaml:12:15 ]
+    ╭─[ spec/s07-range-type-missing-range.yaml:13:15 ]
     │
   6 │   table:
     │ 
  12 │       - name: recorded_at
-    │               ─────┬─────  
-    │                    ╰─────── has type `date` but has no `range`
+ 13 │         type: date
+    │               ──┬─  
+    │                 ╰─── has type `date` but is missing `range`
 ────╯

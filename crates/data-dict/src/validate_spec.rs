@@ -14,6 +14,7 @@ use std::path::Path;
 use std::sync::OnceLock;
 
 use chrono::{DateTime, FixedOffset, NaiveDate};
+use quarto_source_map::SourceInfo;
 use quarto_yaml::YamlWithSourceInfo;
 use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic};
 
@@ -227,11 +228,16 @@ fn check_foreign_keys_resolve(dict: &DataDict, out: &mut ProblemSet) {
                 })
             });
             if !satisfied {
+                let fk_span = col
+                    .constraints
+                    .iter()
+                    .find(|c| c.value == ForeignKey)
+                    .map_or_else(|| col.name.span.clone(), |c| c.span.clone());
                 out.push_spec_error(
                     "S01",
                     "Every `foreign_key` column must have a matching relationship to a `primary_key`.",
                     "is `foreign_key` but no relationship points it at a `primary_key`",
-                    [table.name.span.clone(), col.name.span.clone()],
+                    [table.name.span.clone(), col.name.span.clone(), fk_span],
                 );
             }
         }
@@ -343,7 +349,7 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the join columns on `{}` or `{}` are not marked `primary_key` or `unique`",
                             lhs_table, rhs_table
                         ),
-                        [rel.join_text.span.clone(), card_span],
+                        [card_span, rel.join_text.span.clone()],
                     );
                 }
             }
@@ -358,7 +364,7 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the left-side join column on `{}` is not marked `primary_key` or `unique`",
                             lhs_table
                         ),
-                        [rel.join_text.span.clone(), card_span],
+                        [card_span, rel.join_text.span.clone()],
                     );
                 }
             }
@@ -371,7 +377,7 @@ fn check_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the right-side join column on `{}` is not marked `primary_key` or `unique`",
                             rhs_table
                         ),
-                        [rel.join_text.span.clone(), card_span],
+                        [card_span, rel.join_text.span.clone()],
                     );
                 }
             }
@@ -412,97 +418,102 @@ fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
             let type_name = col_type.value.as_str();
 
             let found = |key: &str| format!("has type `{type_name}` but uses `{key}`");
-            let missing = |key: &str| format!("has type `{type_name}` but has no `{key}`");
+            let missing = |key: &str| format!("has type `{type_name}` but is missing `{key}`");
 
-            let trace = || [table.name.span.clone(), col.name.span.clone()];
+            // A finding is reported on a specific line — the `type` line for a
+            // missing representation, the offending key's line for a present
+            // one — with the table and column shown as faded context above it.
+            let at =
+                |span: &SourceInfo| [table.name.span.clone(), col.name.span.clone(), span.clone()];
+
             if type_name == "enum" {
-                if !col.has_values {
+                if col.values.is_none() {
                     out.push_spec_error(
                         "S07",
                         "An `enum` column must list its categories with `values`.",
                         missing("values"),
-                        trace(),
+                        at(&col_type.span),
                     );
                 }
-                if col.has_range {
+                if let Some(range) = &col.range {
                     out.push_spec_error(
                         "S07",
                         "An `enum` column must use `values`, not `range`.",
                         found("range"),
-                        trace(),
+                        at(&range.span),
                     );
                 }
-                if col.has_examples {
+                if let Some(examples) = &col.examples {
                     out.push_spec_error(
                         "S07",
                         "An `enum` column must use `values`, not `examples`.",
                         found("examples"),
-                        trace(),
+                        at(&examples.span),
                     );
                 }
             } else if RANGE_TYPES.contains(&type_name) {
-                if !col.has_range {
+                if col.range.is_none() {
                     out.push_spec_error(
                         "S07",
                         format!("A `{type_name}` column must describe its bounds with `range`."),
                         missing("range"),
-                        trace(),
+                        at(&col_type.span),
                     );
                 }
-                if col.has_values {
+                if let Some(values) = &col.values {
                     out.push_spec_error(
                         "S07",
                         format!("A `{type_name}` column must use `range`, not `values`."),
                         found("values"),
-                        trace(),
+                        at(values),
                     );
                 }
-                if col.has_examples {
+                if let Some(examples) = &col.examples {
                     out.push_spec_error(
                         "S07",
                         format!("A `{type_name}` column must use `range`, not `examples`."),
                         found("examples"),
-                        trace(),
+                        at(&examples.span),
                     );
                 }
             } else if type_name == "boolean" {
-                for (present, key) in [
-                    (col.has_values, "values"),
-                    (col.has_range, "range"),
-                    (col.has_examples, "examples"),
+                for (span, key) in [
+                    (col.values.as_ref(), "values"),
+                    (col.range.as_ref().map(|r| &r.span), "range"),
+                    (col.examples.as_ref().map(|e| &e.span), "examples"),
                 ] {
-                    if present {
+                    if let Some(span) = span {
                         out.push_spec_error(
                             "S07",
                             "A `boolean` column must not have `values`, `range`, or `examples`.",
                             found(key),
-                            trace(),
+                            at(span),
                         );
                     }
                 }
             } else {
-                if !col.has_examples {
+                if col.examples.is_none() {
                     out.push_spec_error(
                         "S07",
                         format!("A `{type_name}` column must describe its data with `examples`."),
                         missing("examples"),
-                        trace(),
+                        at(&col_type.span),
                     );
                 }
-                if col.has_values {
+                if let Some(values) = &col.values {
                     out.push_spec_error(
                         "S07",
                         format!("A `{type_name}` column must not use `values`."),
                         found("values"),
-                        trace(),
+                        at(values),
                     );
                 }
-                if col.has_range {
+                if let Some(range) = &col.range {
                     out.push_spec_error(
                         "S07",
                         format!("A `{type_name}` column must not use `range`."),
                         found("range"),
-                        trace(),
+                        at(&range.span),
                     );
                 }
             }
@@ -597,8 +608,10 @@ fn check_non_empty_names(dict: &DataDict, out: &mut ProblemSet) {
 /// misplaced key reports as S07 rather than cascading into S12.
 fn typed_representation(col: &Column) -> Option<(&'static str, &[Spanned<Scalar>])> {
     match col.col_type.as_ref()?.value.as_str() {
-        "number(ordinal)" | "number(quantity)" | "date" | "datetime" => Some(("range", &col.range)),
-        "string" | "number" | "number(id)" => Some(("examples", &col.examples)),
+        "number(ordinal)" | "number(quantity)" | "date" | "datetime" => {
+            Some(("range", &col.range.as_ref()?.items))
+        }
+        "string" | "number" | "number(id)" => Some(("examples", &col.examples.as_ref()?.items)),
         _ => None,
     }
 }
@@ -625,7 +638,7 @@ fn check_value_types(dict: &DataDict, out: &mut ProblemSet) {
                         type_name,
                         expected_noun(type_name),
                     ),
-                    format!("`{}` is {}", v.value.display(), v.value.noun()),
+                    format!("is {}", v.value.noun()),
                     [
                         table.name.span.clone(),
                         col.name.span.clone(),
@@ -678,10 +691,11 @@ fn check_range_order(dict: &DataDict, out: &mut ProblemSet) {
                 Some(t) => t.value.as_str(),
                 None => continue,
             };
-            if !RANGE_TYPES.contains(&type_name) || col.range.len() != 2 {
+            let Some(range) = &col.range else { continue };
+            if !RANGE_TYPES.contains(&type_name) || range.items.len() != 2 {
                 continue;
             }
-            let (lo, hi) = (&col.range[0], &col.range[1]);
+            let (lo, hi) = (&range.items[0], &range.items[1]);
             // A mistyped bound is S12's to report; comparing it here would be
             // meaningless, so `range_descending` only fires when both bounds
             // parse for the column's type.
@@ -689,11 +703,7 @@ fn check_range_order(dict: &DataDict, out: &mut ProblemSet) {
                 out.push_spec_error(
                     "S13",
                     "A range's minimum must be less than or equal to its maximum.",
-                    format!(
-                        "minimum `{}` is greater than maximum `{}`",
-                        lo.value.display(),
-                        hi.value.display(),
-                    ),
+                    "is greater than the maximum",
                     [
                         table.name.span.clone(),
                         col.name.span.clone(),

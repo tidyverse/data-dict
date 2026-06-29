@@ -11,5 +11,5 @@ Error: [S13] A range's minimum must be less than or equal to its maximum.
     │ 
  14 │         range: [100, 10]
     │                 ─┬─  
-    │                  ╰─── minimum `100` is greater than maximum `10`
+    │                  ╰─── is greater than the maximum
 ────╯

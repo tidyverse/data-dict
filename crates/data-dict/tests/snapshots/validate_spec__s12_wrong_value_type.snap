@@ -11,5 +11,5 @@ Error: [S12] Each `examples` value of a `number` column must be a number.
     │ 
  13 │         examples: [1, two, 3]
     │                       ─┬─  
-    │                        ╰─── `two` is a string
+    │                        ╰─── is a string
 ────╯
