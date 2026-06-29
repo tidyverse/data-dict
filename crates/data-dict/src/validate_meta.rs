@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use crate::model::{Column, Table};
+use crate::model::Table;
 use crate::problem::{Problem, ProblemKind, ProblemSet, Severity};
 
 /// Validate a parquet file's column names and types against a data dictionary.
@@ -25,19 +25,46 @@ pub fn validate_meta(dict_path: &Path, parquet_path: &Path, table: Option<&str>)
 /// the data, pushing the metadata-level problems into `out`. Reused by the data
 /// level, which appends its value-level problems to the same set.
 pub(crate) fn meta_issues(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {
+    validate_m01_column_types(table, actual, out);
+    validate_m02_missing_columns(table, actual, out);
+    validate_m03_extra_columns(table, actual, out);
+}
+
+fn validate_m01_column_types(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {
     for col in &table.columns {
-        match actual.iter().find(|(n, _)| n == &col.name.value) {
-            None => out.push(Problem::column(
+        // Only described columns present in the data are type-checked; an absent
+        // column is M02's concern, and a column with no `type` makes no claims.
+        let Some((_, actual_type)) = actual.iter().find(|(n, _)| n == &col.name.value) else {
+            continue;
+        };
+        if let Some(declared) = &col.col_type
+            && !types_compatible(&declared.value, actual_type)
+        {
+            out.push(Problem::column(
+                Severity::Error,
+                col.name.value.clone(),
+                ProblemKind::TypeMismatch {
+                    declared: declared.value.clone(),
+                    actual: actual_type.to_string(),
+                },
+            ));
+        }
+    }
+}
+
+fn validate_m02_missing_columns(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {
+    for col in &table.columns {
+        if !actual.iter().any(|(n, _)| n == &col.name.value) {
+            out.push(Problem::column(
                 Severity::Error,
                 col.name.value.clone(),
                 ProblemKind::MissingInData,
-            )),
-            // A column with no `type` makes no claims about its contents, so
-            // `check_type` is naturally a no-op; only its existence is required.
-            Some((_, actual_type)) => check_type(col, actual_type, out),
+            ));
         }
     }
+}
 
+fn validate_m03_extra_columns(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {
     for (name, actual_type) in actual {
         if table.column(name).is_none() {
             out.push(Problem::column(
@@ -48,22 +75,6 @@ pub(crate) fn meta_issues(table: &Table, actual: &[(String, String)], out: &mut 
                 },
             ));
         }
-    }
-}
-
-/// A column's declared type must be compatible with the type read from the data.
-fn check_type(col: &Column, actual_type: &str, out: &mut ProblemSet) {
-    if let Some(declared) = &col.col_type
-        && !types_compatible(&declared.value, actual_type)
-    {
-        out.push(Problem::column(
-            Severity::Error,
-            col.name.value.clone(),
-            ProblemKind::TypeMismatch {
-                declared: declared.value.clone(),
-                actual: actual_type.to_string(),
-            },
-        ));
     }
 }
 

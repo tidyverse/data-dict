@@ -94,7 +94,7 @@ trait ColumnCheck {
 /// and the plan/scan/check pipeline picks it up automatically.
 const VALUE_CHECKS: &[&dyn ColumnCheck] = &[&RequiredNotNull];
 
-/// A `required` (or `primary_key`) column must contain no nulls.
+/// D01 — a `required` (or `primary_key`) column must contain no nulls.
 struct RequiredNotNull;
 
 impl ColumnCheck for RequiredNotNull {

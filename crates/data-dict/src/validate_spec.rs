@@ -102,7 +102,7 @@ pub(crate) fn validate_and_lower(
 ) -> Option<DataDict> {
     let dict = lower::lower(doc, out);
     check_spec(&dict, out);
-    check_learn_more(doc, out);
+    validate_s09_learn_more(doc, out);
     out.sort();
 
     if out.status().failed() {
@@ -115,23 +115,23 @@ pub(crate) fn validate_and_lower(
 /// Run every rule, pushing any findings into `out`. Rules run in code order;
 /// call [`ProblemSet::sort`] afterwards to put the findings in source order.
 fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
-    check_relationship_table_refs(dict, out); // S02
-    check_relationship_column_refs(dict, out); // S03
-    check_join_table_count(dict, out); // S04
-    check_foreign_keys_resolve(dict, out); // S01
-    check_conflicts_present_on_both_sides(dict, out); // S05
-    check_cardinality_consistency(dict, out); // S06
-    check_column_data_representation(dict, out); // S07
-    check_units_only_on_quantity(dict, out); // S08
-    check_unique_column_names(dict, out); // S10
-    check_non_empty_names(dict, out); // S11
-    check_value_types(dict, out); // S12
-    check_range_order(dict, out); // S13
+    validate_s02_relationship_table_refs(dict, out);
+    validate_s03_relationship_column_refs(dict, out);
+    validate_s04_join_table_count(dict, out);
+    validate_s01_foreign_keys_resolve(dict, out);
+    validate_s05_conflicts_present_on_both_sides(dict, out);
+    validate_s06_cardinality_consistency(dict, out);
+    validate_s07_column_data_representation(dict, out);
+    validate_s08_units_only_on_quantity(dict, out);
+    validate_s10_unique_column_names(dict, out);
+    validate_s11_non_empty_names(dict, out);
+    validate_s12_value_types(dict, out);
+    validate_s13_range_order(dict, out);
 }
 
 // --- S02 --------------------------------------------------------------
 
-fn check_relationship_table_refs(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s02_relationship_table_refs(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
         for q in join.qcols() {
@@ -151,7 +151,7 @@ fn check_relationship_table_refs(dict: &DataDict, out: &mut ProblemSet) {
 
 // --- S03 --------------------------------------------------------------
 
-fn check_relationship_column_refs(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s03_relationship_column_refs(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         if let Some(join) = &rel.join {
             for q in join.qcols() {
@@ -180,7 +180,7 @@ fn check_relationship_column_refs(dict: &DataDict, out: &mut ProblemSet) {
 
 // --- S04 --------------------------------------------------------------
 
-fn check_join_table_count(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s04_join_table_count(dict: &DataDict, out: &mut ProblemSet) {
     // Parse failures are emitted during lowering. Here we only check the
     // table-count invariant on successfully parsed joins.
     for rel in &dict.relationships {
@@ -199,7 +199,7 @@ fn check_join_table_count(dict: &DataDict, out: &mut ProblemSet) {
 
 // --- S01 --------------------------------------------------------------
 
-fn check_foreign_keys_resolve(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s01_foreign_keys_resolve(dict: &DataDict, out: &mut ProblemSet) {
     use crate::model::Constraint::*;
 
     for (table_name, table) in &dict.tables {
@@ -246,7 +246,7 @@ fn check_foreign_keys_resolve(dict: &DataDict, out: &mut ProblemSet) {
 
 // --- S05 --------------------------------------------------------------
 
-fn check_conflicts_present_on_both_sides(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s05_conflicts_present_on_both_sides(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         if rel.conflicts.is_empty() {
             continue;
@@ -297,7 +297,7 @@ fn join_with_commas(items: &[&str]) -> String {
 
 // --- S06 --------------------------------------------------------------
 
-fn check_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
 
@@ -409,7 +409,7 @@ fn side_has_unique_implied(
 
 const RANGE_TYPES: &[&str] = &["number(ordinal)", "number(quantity)", "date", "datetime"];
 
-fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s07_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
     for table in dict.tables.values() {
         for col in &table.columns {
             let Some(col_type) = &col.col_type else {
@@ -523,7 +523,7 @@ fn check_column_data_representation(dict: &DataDict, out: &mut ProblemSet) {
 
 // --- S08 --------------------------------------------------------------
 
-fn check_units_only_on_quantity(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s08_units_only_on_quantity(dict: &DataDict, out: &mut ProblemSet) {
     for table in dict.tables.values() {
         for col in &table.columns {
             let Some(units) = &col.units else { continue };
@@ -553,7 +553,7 @@ fn check_units_only_on_quantity(dict: &DataDict, out: &mut ProblemSet) {
 
 // --- S10 --------------------------------------------------------------
 
-fn check_unique_column_names(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s10_unique_column_names(dict: &DataDict, out: &mut ProblemSet) {
     for table in dict.tables.values() {
         let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
         for col in &table.columns {
@@ -576,7 +576,7 @@ fn check_unique_column_names(dict: &DataDict, out: &mut ProblemSet) {
 
 // --- S11 --------------------------------------------------------------
 
-fn check_non_empty_names(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s11_non_empty_names(dict: &DataDict, out: &mut ProblemSet) {
     for table in dict.tables.values() {
         if table.name.value.is_empty() {
             out.push_spec_error(
@@ -616,7 +616,7 @@ fn typed_representation(col: &Column) -> Option<(&'static str, &[Spanned<Scalar>
     }
 }
 
-fn check_value_types(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s12_value_types(dict: &DataDict, out: &mut ProblemSet) {
     for table in dict.tables.values() {
         for col in &table.columns {
             let type_name = match &col.col_type {
@@ -684,7 +684,7 @@ fn expected_noun(type_name: &str) -> &'static str {
 
 // --- S13 --------------------------------------------------------------
 
-fn check_range_order(dict: &DataDict, out: &mut ProblemSet) {
+fn validate_s13_range_order(dict: &DataDict, out: &mut ProblemSet) {
     for table in dict.tables.values() {
         for col in &table.columns {
             let type_name = match &col.col_type {
@@ -742,7 +742,7 @@ fn range_descending(type_name: &str, lo: &Scalar, hi: &Scalar) -> bool {
 /// other rules this inspects the raw AST, because `$learn_more` is top-level
 /// metadata that the lowered [`DataDict`] does not carry. The warning is
 /// anchored at the `$version` key, which the schema guarantees is present.
-fn check_learn_more(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
+fn validate_s09_learn_more(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
     let Some(entries) = root.as_hash() else {
         return;
     };
