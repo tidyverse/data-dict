@@ -8,8 +8,6 @@ $version: "0.1.0"
 
 tables:
   transaction:
-    source:
-      parquet: transaction.parquet
     columns:
       - name: id
         type: number(id)
@@ -21,8 +19,6 @@ tables:
         examples: [1, 2]
 
   account:
-    source:
-      parquet: account.parquet
     columns:
       - name: account_id
         type: number(id)

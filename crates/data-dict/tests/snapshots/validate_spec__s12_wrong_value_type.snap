@@ -3,13 +3,13 @@ source: crates/data-dict/tests/validate_spec.rs
 expression: "failing_diagnostic(\"spec/s12-wrong-value-type.yaml\")"
 ---
 Error: [S12] Each `examples` value of a `number` column must be a number.
-    ╭─[ spec/s12-wrong-value-type.yaml:13:23 ]
+    ╭─[ spec/s12-wrong-value-type.yaml:11:23 ]
     │
   7 │   table:
     │ 
- 11 │       - name: count
+  9 │       - name: count
     │ 
- 13 │         examples: [1, two, 3]
+ 11 │         examples: [1, two, 3]
     │                       ─┬─  
     │                        ╰─── is a string
 ────╯

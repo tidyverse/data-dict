@@ -7,8 +7,6 @@ $version: "0.1.0"
 
 tables:
   otters:
-    source:
-      parquet: otters.parquet
     columns:
       - name: otter_no
         type: number(id)

@@ -292,3 +292,37 @@ fn unknown_table_name() {
         problems.items
     );
 }
+
+#[test]
+fn missing_source_reported() {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    write_parquet(&parquet);
+    // The table declares no `source`; valid at the spec level, but M04 at meta.
+    let yaml = write_yaml(
+        &dir,
+        indoc! {"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            tables:
+              animals:
+                columns:
+                  - name: name
+                    type: string
+                    examples: [otter, seal]
+                  - name: weight
+                    type: number(quantity)
+                    range: [0, 100]
+        "},
+    );
+
+    let problems = validate_meta(&yaml, &parquet, None);
+    assert!(
+        problems
+            .items
+            .iter()
+            .any(|p| p.code == Some("M04") && p.severity == Severity::Error),
+        "expected an M04 missing-source error, got {:?}",
+        problems.items
+    );
+}

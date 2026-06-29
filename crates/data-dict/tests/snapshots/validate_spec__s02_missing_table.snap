@@ -3,9 +3,9 @@ source: crates/data-dict/tests/validate_spec.rs
 expression: "failing_diagnostic(\"spec/s02-missing-table.yaml\")"
 ---
 Error: [S02] A `join` must refer to known tables.
-    ╭─[ spec/s02-missing-table.yaml:32:35 ]
+    ╭─[ spec/s02-missing-table.yaml:28:35 ]
     │
- 32 │     join: food.food_category_id = category.id
+ 28 │     join: food.food_category_id = category.id
     │                                   ─────┬─────  
     │                                        ╰─────── table `category` is not defined
 ────╯

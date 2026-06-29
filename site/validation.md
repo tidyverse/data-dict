@@ -51,6 +51,7 @@ When validating the data's metadata against the dictionary, each column mismatch
 * **Type mismatch** (M01, error): a column's declared type is incompatible with the data.
 * **Missing column** (M02, error): a column the dictionary describes is absent from the data. This applies even to columns listed by name only — listing a column that doesn't exist is an error.
 * **Undocumented column** (M03, warning): a column present in the data that the dictionary does not describe. This is a warning, not an error: if a production pipeline adds a column, validation should not fail, but you should document it (or at least list it by name) next time you touch the dictionary.
+* **Missing source** (M04, error): a table validated against data does not declare a `source`. `source` is optional at the spec level but required here, so a validated dictionary always records where its data comes from.
 
 ## Data-validation checks
 

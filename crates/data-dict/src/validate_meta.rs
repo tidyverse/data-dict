@@ -25,9 +25,16 @@ pub fn validate_meta(dict_path: &Path, parquet_path: &Path, table: Option<&str>)
 /// the data, pushing the metadata-level problems into `out`. Reused by the data
 /// level, which appends its value-level problems to the same set.
 pub(crate) fn meta_issues(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {
+    validate_m04_source(table, out);
     validate_m01_column_types(table, actual, out);
     validate_m02_missing_columns(table, actual, out);
     validate_m03_extra_columns(table, actual, out);
+}
+
+fn validate_m04_source(table: &Table, out: &mut ProblemSet) {
+    if table.source.is_none() {
+        out.push(Problem::missing_source(&table.name.value));
+    }
 }
 
 fn validate_m01_column_types(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {

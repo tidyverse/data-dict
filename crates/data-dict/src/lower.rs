@@ -56,9 +56,13 @@ fn lower_table(name: &str, name_span: &SourceInfo, value: &YamlWithSourceInfo) -
             }
         }
     }
+    let source = value
+        .get_hash_value("source")
+        .map(|n| n.source_info.clone());
     Table {
         name: Spanned::new(name.to_string(), name_span.clone()),
         columns,
+        source,
     }
 }
 

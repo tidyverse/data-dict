@@ -3,13 +3,13 @@ source: crates/data-dict/tests/validate_spec.rs
 expression: "failing_diagnostic(\"spec/s07-range-on-string-type.yaml\")"
 ---
 Error: [S07] A `string` column must not use `range`.
-    ╭─[ spec/s07-range-on-string-type.yaml:15:16 ]
+    ╭─[ spec/s07-range-on-string-type.yaml:13:16 ]
     │
   8 │   table:
     │ 
- 12 │       - name: c
+ 10 │       - name: c
     │ 
- 15 │         range: ["a", "z"]
+ 13 │         range: ["a", "z"]
     │                ────┬────  
     │                    ╰────── has type `string` but uses `range`
 ────╯

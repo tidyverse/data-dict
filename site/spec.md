@@ -25,7 +25,7 @@ The content keys all hold the actual information about the data:
     * **What's the grain?** What does a row represent? (e.g. "each row is a food item", "each row is one patient visit").
     * **What's the population?** What's been included or filtered out to produce this dataset? (e.g. "only completed orders from 2020 onwards", "excludes test accounts").
 * `details`: additional information about the table. This is the place for "here be dragons": assumptions baked into the data, known weak spots, surprising calculations, and known problems. Also covers how the data was collected or constructed. Can be any length.
-* `source` (required): ways to access the data.
+* `source`: ways to access the data. Optional at the spec level, so you can draft a dictionary before its data exists, but required to validate against data (see [Validation](validation.md)).
 * `columns` (required): an ordered list of column metadata.
 
 For example:
@@ -72,6 +72,8 @@ source:
 * `parquet`: path to a Parquet file (may include globs).
 
 Parquet is the only source `data-dict` can currently validate against, so it's the only one the spec defines. We expect to add more access methods in the future — most importantly `SQL` (a schema-qualified table name such as `foodbank.food`, or a full `SELECT` query), and likely others such as R, Python, and Posit Connect pins.
+
+`source` is optional while you're only validating the spec, letting you sketch a table before its data exists. But the metadata and data levels validate the dictionary against real data, so they require every table they check to declare a `source`.
 
 ### Columns
 

@@ -114,6 +114,8 @@ pub enum ProblemKind {
     MissingInData,
     /// `M03` — column present in the data but not described by the dictionary.
     ExtraInData { actual: String },
+    /// `M04` — a table validated against data declares no `source`.
+    MissingSource,
     /// `D01` — a `required` (or `primary_key`) column contains nulls. `rows`
     /// lists the first few offending row numbers (1-based); `count` is the total.
     NullsInRequired { count: usize, rows: Vec<usize> },
@@ -128,6 +130,7 @@ impl ProblemKind {
             ProblemKind::TypeMismatch { .. } => "M01",
             ProblemKind::MissingInData => "M02",
             ProblemKind::ExtraInData { .. } => "M03",
+            ProblemKind::MissingSource => "M04",
             ProblemKind::NullsInRequired { .. } => "D01",
             _ => return None,
         })
@@ -140,7 +143,8 @@ impl ProblemKind {
             ProblemKind::Spec => Level::Spec,
             ProblemKind::TypeMismatch { .. }
             | ProblemKind::MissingInData
-            | ProblemKind::ExtraInData { .. } => Level::Meta,
+            | ProblemKind::ExtraInData { .. }
+            | ProblemKind::MissingSource => Level::Meta,
             ProblemKind::NullsInRequired { .. } => Level::Data,
             _ => return None,
         })
@@ -180,6 +184,21 @@ impl Problem {
             span: None,
             context: Vec::new(),
             kind,
+        }
+    }
+
+    /// `M04` — a table validated against data declares no `source`.
+    /// Table-located (named in the message), so it carries no `column`.
+    pub(crate) fn missing_source(table_name: &str) -> Self {
+        Problem {
+            code: Some("M04"),
+            severity: Severity::Error,
+            message: format!("table `{table_name}` has no `source`"),
+            column: None,
+            expected: Some("A table validated against data must declare a `source`.".into()),
+            span: None,
+            context: Vec::new(),
+            kind: ProblemKind::MissingSource,
         }
     }
 

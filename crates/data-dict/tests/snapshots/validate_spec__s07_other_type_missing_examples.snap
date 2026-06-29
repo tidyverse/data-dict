@@ -3,23 +3,23 @@ source: crates/data-dict/tests/validate_spec.rs
 expression: "failing_diagnostic(\"spec/s07-other-type-missing-examples.yaml\")"
 ---
 Error: [S07] A `string` column must describe its data with `examples`.
+   ╭─[ spec/s07-other-type-missing-examples.yaml:9:15 ]
+   │
+ 6 │   table:
+   │ 
+ 8 │       - name: label
+ 9 │         type: string
+   │               ───┬──  
+   │                  ╰──── has type `string` but is missing `examples`
+───╯
+
+Error: [S07] A `number(id)` column must describe its data with `examples`.
     ╭─[ spec/s07-other-type-missing-examples.yaml:11:15 ]
     │
   6 │   table:
     │ 
- 10 │       - name: label
- 11 │         type: string
-    │               ───┬──  
-    │                  ╰──── has type `string` but is missing `examples`
-────╯
-
-Error: [S07] A `number(id)` column must describe its data with `examples`.
-    ╭─[ spec/s07-other-type-missing-examples.yaml:13:15 ]
-    │
-  6 │   table:
-    │ 
- 12 │       - name: code
- 13 │         type: number(id)
+ 10 │       - name: code
+ 11 │         type: number(id)
     │               ─────┬────  
     │                    ╰────── has type `number(id)` but is missing `examples`
 ────╯

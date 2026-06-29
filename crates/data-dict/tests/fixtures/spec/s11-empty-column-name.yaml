@@ -5,8 +5,6 @@ $learn_more: http://data-dict.tidyverse.org/
 
 tables:
   table:
-    source:
-      parquet: t.parquet
     columns:
       - name: ""
         type: string

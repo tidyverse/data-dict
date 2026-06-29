@@ -7,8 +7,6 @@ $version: "0.1.0"
 
 tables:
   food:
-    source:
-      parquet: food.parquet
     columns:
       - name: id
         type: number(id)
@@ -19,8 +17,6 @@ tables:
         range: [0, 1000]
 
   food_nutrient:
-    source:
-      parquet: food_nutrient.parquet
     columns:
       - name: id
         type: number(id)

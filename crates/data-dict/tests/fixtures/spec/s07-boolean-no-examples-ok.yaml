@@ -5,8 +5,6 @@ $version: "0.1.0"
 
 tables:
   account:
-    source:
-      parquet: account.parquet
     columns:
       - name: id
         type: number(id)
