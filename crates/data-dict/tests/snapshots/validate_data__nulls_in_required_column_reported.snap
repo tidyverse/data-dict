@@ -1,7 +1,18 @@
 ---
 source: crates/data-dict/tests/validate_data.rs
-expression: "common::sanitize(&result.render().join(\"\\n\"), yaml.parent().unwrap())"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  t:
+    source:
+      parquet: data.parquet
+    columns:
+      - name: weight
+        type: number(quantity)
+        constraints: [required]
+        range: [0, 100]
+────────────────────────────────────────
 Error: [D01] A required column must not contain nulls.
     ╭─[ dict.yaml:10:23 ]
     │

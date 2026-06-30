@@ -14,36 +14,9 @@ use std::path::{Path, PathBuf};
 
 mod common;
 
+use common::{Diagnostic, assert_snapshot};
 use data_dict::Severity;
 use indoc::indoc;
-
-/// A validation outcome captured for snapshotting: the YAML `source` that was
-/// validated and the `rendered` diagnostic it produced.
-struct Diagnostic {
-    source: String,
-    rendered: String,
-}
-
-/// Separates the validated YAML source from the rendered diagnostic in a
-/// combined snapshot body.
-const RULE: &str = "────────────────────────────────────────";
-
-/// Snapshot a [`Diagnostic`] as its YAML source followed by the rendered
-/// diagnostic, so the `.snap` shows input and output together. Folding the
-/// source into the snapshot body (rather than metadata) keeps it readable and
-/// self-maintaining: it is part of what insta compares, so editing the YAML
-/// shows up as an ordinary snapshot diff. The redundant `expression:` header is
-/// omitted.
-macro_rules! assert_snapshot {
-    ($diagnostic:expr) => {{
-        let diagnostic = $diagnostic;
-        let body = format!("{}{RULE}\n{}", diagnostic.source, diagnostic.rendered);
-        let mut settings = insta::Settings::clone_current();
-        settings.set_omit_expression(true);
-        let _guard = settings.bind_to_scope();
-        insta::assert_snapshot!(body);
-    }};
-}
 
 fn fixtures_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -87,10 +60,7 @@ fn failing(path: &Path) -> Diagnostic {
         !errors.is_empty(),
         "expected document to fail validation, but it passed"
     );
-    Diagnostic {
-        source: std::fs::read_to_string(path).unwrap(),
-        rendered: common::sanitize(&errors.join("\n"), path.parent().unwrap()),
-    }
+    common::diagnostic(path, &errors.join("\n"))
 }
 
 fn failing_dict(body: &str) -> Diagnostic {
@@ -113,10 +83,7 @@ fn warning(path: &Path) -> Diagnostic {
         !warnings.is_empty(),
         "expected document to emit a warning, but it was clean"
     );
-    Diagnostic {
-        source: std::fs::read_to_string(path).unwrap(),
-        rendered: common::sanitize(&warnings.join("\n"), path.parent().unwrap()),
-    }
+    common::diagnostic(path, &warnings.join("\n"))
 }
 
 fn warning_dict(body: &str) -> Diagnostic {

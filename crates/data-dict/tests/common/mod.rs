@@ -97,6 +97,51 @@ pub fn sanitize(rendered: &str, dir: &Path) -> String {
         .replace(&dir_prefix, "")
 }
 
+/// A validation outcome captured for snapshotting: the YAML `source` that was
+/// validated and the `rendered` diagnostic it produced. Snapshot it with
+/// [`assert_snapshot!`], which shows the source and the diagnostic together.
+pub struct Diagnostic {
+    pub source: String,
+    pub rendered: String,
+}
+
+/// Separates the validated YAML source from the rendered diagnostic in a
+/// combined snapshot body.
+const RULE: &str = "────────────────────────────────────────";
+
+impl Diagnostic {
+    /// The snapshot body: the YAML source, a rule, then the rendered diagnostic.
+    pub fn body(&self) -> String {
+        format!("{}{RULE}\n{}", self.source, self.rendered)
+    }
+}
+
+/// Capture a validation result for snapshotting: read the validated YAML from
+/// `path` as the source and [`sanitize`] `rendered` against the file's own
+/// directory (turning its absolute paths into the bare `dict.yaml`).
+pub fn diagnostic(path: &Path, rendered: &str) -> Diagnostic {
+    Diagnostic {
+        source: std::fs::read_to_string(path).unwrap(),
+        rendered: sanitize(rendered, path.parent().unwrap()),
+    }
+}
+
+/// Snapshot a [`Diagnostic`] as its YAML source followed by the rendered
+/// diagnostic (see [`Diagnostic::body`]), so the `.snap` shows input and output
+/// together. The source lives in the snapshot body rather than metadata, so it
+/// is readable and self-maintaining: editing the YAML shows up as an ordinary
+/// snapshot diff. The redundant `expression:` header is omitted.
+macro_rules! assert_snapshot {
+    ($diagnostic:expr) => {{
+        let body = $diagnostic.body();
+        let mut settings = insta::Settings::clone_current();
+        settings.set_omit_expression(true);
+        let _guard = settings.bind_to_scope();
+        insta::assert_snapshot!(body);
+    }};
+}
+pub(crate) use assert_snapshot;
+
 /// Remove ANSI SGR sequences (`ESC [ ... m`) and OSC-8 hyperlink wrappers
 /// (`ESC ] 8 ; ; ... BEL|ST`) while leaving the visible text intact.
 fn strip_terminal_escapes(s: &str) -> String {

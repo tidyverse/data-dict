@@ -6,7 +6,7 @@
 //! one against the other.
 
 mod common;
-use common::{temp_dir, write_dict, write_parquet};
+use common::{assert_snapshot, temp_dir, write_dict, write_parquet};
 
 use data_dict::{Problem, ProblemKind, Severity, Status, validate_meta};
 use indoc::indoc;
@@ -68,7 +68,7 @@ fn type_mismatch_reported() {
             if *code == "M01" && declared == "string" && actual == "number"
     ));
     #[cfg(unix)]
-    insta::assert_snapshot!(common::sanitize(&problems.render().join("\n"), &dir));
+    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
 }
 
 #[test]
@@ -105,7 +105,7 @@ fn extra_column_in_data_is_warning() {
         [Problem { column: Some(column), code: Some(code), severity, kind: ProblemKind::ExtraInData { actual }, .. }]
             if column == "weight" && *code == "M03" && actual == "number" && *severity == Severity::Warning
     ));
-    insta::assert_snapshot!(problems.render().join("\n"));
+    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
 }
 
 #[test]
@@ -206,7 +206,7 @@ fn missing_column_in_data_reported() {
         }]
     ));
     #[cfg(unix)]
-    insta::assert_snapshot!(common::sanitize(&problems.render().join("\n"), &dir));
+    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
 }
 
 #[test]
@@ -292,7 +292,7 @@ fn unreadable_source_reported() {
         problems.items
     );
     #[cfg(unix)]
-    insta::assert_snapshot!(common::sanitize(&problems.render().join("\n"), &dir));
+    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
 }
 
 #[test]
@@ -339,7 +339,7 @@ fn unreadable_source_does_not_stop_other_tables() {
         problems.items
     );
     #[cfg(unix)]
-    insta::assert_snapshot!(common::sanitize(&problems.render().join("\n"), &dir));
+    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
 }
 
 #[test]

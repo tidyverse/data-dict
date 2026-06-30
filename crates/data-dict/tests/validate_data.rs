@@ -6,7 +6,7 @@
 //! and data levels are genuinely distinct.
 
 mod common;
-use common::{temp_dir, write_dict};
+use common::{assert_snapshot, temp_dir, write_dict};
 
 use std::fs::File;
 use std::path::PathBuf;
@@ -145,10 +145,7 @@ fn nulls_in_required_column_reported() {
         result.items
     );
     #[cfg(unix)]
-    insta::assert_snapshot!(common::sanitize(
-        &result.render().join("\n"),
-        yaml.parent().unwrap()
-    ));
+    assert_snapshot!(common::diagnostic(&yaml, &result.render().join("\n")));
 }
 
 #[test]
