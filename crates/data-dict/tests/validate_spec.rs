@@ -218,6 +218,19 @@ fn top_level_description_no_s16() {
     "});
 }
 
+#[test]
+fn restricted_display_is_valid() {
+    assert_clean_dict(indoc! {"
+        tables:
+          people:
+            columns:
+              - name: ssn
+                type: string
+                display: restricted
+                examples: [000-00-0000]
+    "});
+}
+
 // --- warnings ------------------------------------------------------------
 
 // A document missing the recommended `$learn_more` key validates (it is not an
@@ -314,6 +327,20 @@ fn enum_non_string_label() {
     diagnostic.assert_contains(&["YAML Validation Failed"]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
+}
+
+#[test]
+fn unknown_display_value() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          people:
+            columns:
+              - name: ssn
+                type: string
+                display: hidden
+                examples: [000-00-0000]
+    "});
+    diagnostic.assert_contains(&["hidden", "restricted"]);
 }
 
 // --- relationship checks (S01–S06) ---------------------------------------

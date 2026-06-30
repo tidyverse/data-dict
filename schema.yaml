@@ -70,6 +70,8 @@ object:
                           - null
                       description: string
                       details: string
+                      display:
+                        enum: [restricted]
                       units: string
                       # Shape (S15) and placement (S14) are checked semantically
                       time_zone: string

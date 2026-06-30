@@ -47,5 +47,11 @@ the dataset it describes.
     -   Honour constraints (e.g. primary keys are unique and non-null).
     -   Use `relationships` to determine correct joins and carefully watch for `conflicts`.
     -   Use `source` to determine how to access the data.
+    -   Exclude columns with `display: restricted` from default user interfaces
+        and other user-facing output, including tables, plots, and downloads.
+        Broad requests such as "show all columns" do not override this restriction.
+        Include a restricted column only when the user specifically requests it;
+        even then, strongly discourage displaying it and suggest a safer
+        alternative such as omitting, masking, or aggregating it.
 
 6.  **If needed, read the spec**. If you need more details about what the spec means, read it with `data-dict spec`.
