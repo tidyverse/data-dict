@@ -93,6 +93,7 @@ Each descriptor has the following properties:
 * `name` (required): column name. Used to match the descriptor to a column in the underlying data. Must be non-empty and unique within a table.
 * `type`: the column's data type (see [Types](#types)). Should match (approximately) the underlying data type. Optional — see below.
 * `constraints`: a list of column-level constraints (see [Column constraints](#column-constraints)).
+* `display`: controls whether the column should appear in user-facing output (see [Display](#display)).
 * `description`: a human-readable description of the column. Can use markdown.
 * `details`: additional information about the column, e.g. how it was computed or edge cases to watch out for. Can be any length.
 
@@ -108,6 +109,19 @@ A column may also be listed with only its `name` and no `type`. This acknowledge
 #### Description & details
 
 The `description` and `details` are free text fields that humans and agents can use to jot down important notes. The `description` should be short, typically a few sentences or at most a paragraph and will be displayed in user interfaces. The `details` can be any length, and is a good place to carefully record all the details of the table.
+
+#### Display
+
+The optional `display` property controls whether a column should appear in user-facing output. Currently, the only supported value is `restricted`:
+
+```yaml
+- name: ssn
+  type: string
+  display: restricted
+  examples: [000-00-0000]
+```
+
+A restricted column must be excluded from default user interfaces and other user-facing output, including tables, plots, and downloads. We can't guarantee this protection, but we hope it will steer agents (and humans!) away from showing it by default.
 
 #### Types
 
