@@ -103,8 +103,6 @@ pub enum ProblemKind {
     Parquet,
     /// A table name was given but no such table exists.
     TableNotFound { available: Vec<String> },
-    /// No table name was given and the dictionary describes more than one.
-    AmbiguousTable { available: Vec<String> },
     /// A semantic spec check (`S##`) failed; the specific code is in
     /// [`Problem::code`] and the detail in [`Problem::message`].
     Spec,
@@ -116,6 +114,9 @@ pub enum ProblemKind {
     ExtraInData { actual: String },
     /// `M04` — a table validated against data declares no `source`.
     MissingSource,
+    /// `M05` — a table's `source` is declared but its data can't be read (the
+    /// `parquet` file is absent or unreadable).
+    UnreadableSource,
     /// `D01` — a `required` (or `primary_key`) column contains nulls. `rows`
     /// lists the first few offending row numbers (1-based); `count` is the total.
     NullsInRequired { count: usize, rows: Vec<usize> },
@@ -131,6 +132,7 @@ impl ProblemKind {
             ProblemKind::MissingInData => "M02",
             ProblemKind::ExtraInData { .. } => "M03",
             ProblemKind::MissingSource => "M04",
+            ProblemKind::UnreadableSource => "M05",
             ProblemKind::NullsInRequired { .. } => "D01",
             _ => return None,
         })
@@ -144,7 +146,8 @@ impl ProblemKind {
             ProblemKind::TypeMismatch { .. }
             | ProblemKind::MissingInData
             | ProblemKind::ExtraInData { .. }
-            | ProblemKind::MissingSource => Level::Meta,
+            | ProblemKind::MissingSource
+            | ProblemKind::UnreadableSource => Level::Meta,
             ProblemKind::NullsInRequired { .. } => Level::Data,
             _ => return None,
         })
@@ -491,13 +494,13 @@ mod tests {
     #[test]
     fn preflight_problem_json_has_kind_but_no_code() {
         let p = Problem::preflight(
-            ProblemKind::AmbiguousTable {
+            ProblemKind::TableNotFound {
                 available: vec!["a".into(), "b".into()],
             },
-            "the dictionary describes multiple tables",
+            "table \"x\" is not in the data dictionary",
         );
         let v = serde_json::to_value(&p).unwrap();
-        assert_eq!(v["kind"], "ambiguous_table");
+        assert_eq!(v["kind"], "table_not_found");
         assert_eq!(v["available"], serde_json::json!(["a", "b"]));
         assert_eq!(v["severity"], "error");
         assert!(v.get("code").is_none());

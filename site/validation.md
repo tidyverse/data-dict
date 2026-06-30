@@ -12,6 +12,8 @@ Validation happens at three levels, each a strict superset of the one before it:
 
 The last two levels compare the dictionary against the data (or equivalently, the data against the dictionary). When they disagree, we can't tell which side needs to change. If you're creating the dictionary as you learn about the data, then you might need to change the dictionary. If you're using the dictionary to validate a dataset, there might be an upstream issue that you need to resolve.
 
+The metadata and data levels locate each table's data through its [`source`](spec.md#source): they read the file the table's `source.parquet` points at, resolved relative to the dictionary file. They validate **every** table in the dictionary, each against its own source, so a single run checks the whole dictionary. A problem in one table (an unreadable source, a column mismatch) is reported against that table and does not stop the others from being checked.
+
 Each level implies the ones before it: validating the metadata validates the spec first, and validating the data validates both the spec and the metadata first. Validating the spec and metadata are cheap, so they can be run continually while you edit the `data-dict.yaml`; validating the data adds a full scan and get more expensive as the size of the data increases.
 
 Each check has a code prefixed by its level: spec checks are `S01`, `S02`, …; metadata checks `M01`, …; data checks `D01`, …. Severity is independent of level — any level can raise errors or warnings.
@@ -54,6 +56,7 @@ When validating the data's metadata against the dictionary, each column mismatch
 * **Missing column** (M02, error): a column the dictionary describes is absent from the data. This applies even to columns listed by name only — listing a column that doesn't exist is an error.
 * **Undocumented column** (M03, warning): a column present in the data that the dictionary does not describe. This is a warning, not an error: if a production pipeline adds a column, validation should not fail, but you should document it (or at least list it by name) next time you touch the dictionary.
 * **Missing source** (M04, error): a table validated against data does not declare a `source`. `source` is optional at the spec level but required here, so a validated dictionary always records where its data comes from.
+* **Unreadable source** (M05, error): a table declares a `source`, but its data can't be read — the `source.parquet` file is absent, or present but not a readable Parquet file. The path is resolved relative to the dictionary file.
 
 ## Data-validation checks
 

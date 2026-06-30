@@ -32,9 +32,16 @@ pub struct DataDict {
 pub struct Table {
     pub name: Spanned<String>,
     pub columns: Vec<Column>,
-    /// The `source` node's span, when the table declares one. Optional at the
-    /// spec level; the metadata level requires it (M04).
-    pub source: Option<SourceInfo>,
+    /// Where the table's data lives, when it declares a `source`. Optional 
+    /// for spec validation; required for metadata validation (M04).
+    pub source: Option<Source>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Source {
+    pub span: SourceInfo,
+    /// path relative to dictionary
+    pub parquet: Spanned<String>,
 }
 
 impl Table {

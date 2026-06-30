@@ -104,10 +104,10 @@ a plausible-sounding description for a column whose meaning you had to guess.
 
     -   Run `data-dict validate-spec data-dict.yaml` to confirm it is
         structurally valid and passes the spec checks.
-    -   For each parquet table, run
-        `data-dict validate-data data-dict.yaml <file>` to confirm every
-        declared type matches the physical data. Fix any mismatch it reports --
-        change the `type`, not the data.
+    -   Run `data-dict validate-data data-dict.yaml` to confirm every declared
+        type matches the physical data. It reads each table's data through its
+        `source`, so make sure every table declares one. Fix any mismatch it
+        reports -- change the `type`, not the data.
     -   Confirm by inspection: do all column names match? Do primary keys
         actually uniquely identify rows? Do foreign key values exist in the
         referenced table? Are `required` columns truly non-null?
