@@ -312,6 +312,55 @@ fn unreadable_source_reported() {
 }
 
 #[test]
+fn unreadable_source_does_not_stop_other_tables() {
+    let dir = temp_dir();
+    // `plants` has real data; `animals` points at a file that doesn't exist. The
+    // missing source (M05) is reported, but `plants` is still checked, where its
+    // declared `weight` type disagrees with the data (M01).
+    write_parquet(&dir.join("plants.parquet"));
+    let yaml = write_yaml(
+        &dir,
+        indoc! {"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            tables:
+              animals:
+                source:
+                  parquet: missing.parquet
+                columns:
+                  - name: name
+                    type: string
+                    examples: [otter, seal]
+              plants:
+                source:
+                  parquet: plants.parquet
+                columns:
+                  - name: name
+                    type: string
+                    examples: [moss, fern]
+                  - name: weight
+                    type: string
+                    examples: ['1', '2']
+        "},
+    );
+
+    let problems = validate_meta(&yaml, None);
+    assert_eq!(problems.status(), Status::Error);
+    assert!(
+        problems.items.iter().any(|p| p.code == Some("M05")),
+        "expected an M05 unreadable-source error, got {:?}",
+        problems.items
+    );
+    assert!(
+        problems.items.iter().any(|p| p.code == Some("M01")),
+        "expected an M01 type-mismatch error from the readable table, got {:?}",
+        problems.items
+    );
+    #[cfg(unix)]
+    insta::assert_snapshot!(common::sanitize(&problems.render().join("\n"), &dir));
+}
+
+#[test]
 fn unknown_table_name() {
     let dir = temp_dir();
     let parquet = dir.join("data.parquet");
