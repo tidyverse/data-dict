@@ -21,8 +21,8 @@ const SAMPLE_LIMIT: usize = 5;
 /// metadata-level check ([`crate::validate_meta`]) plus the value-level checks
 /// below: reading the columns and pages the checks imply and reporting, for
 /// example, nulls in a required column.
-pub fn validate_data(dict_path: &Path, parquet_path: &Path, table: Option<&str>) -> ProblemSet {
-    crate::compare_dataset(dict_path, parquet_path, table, |table, actual, problems| {
+pub fn validate_data(dict_path: &Path, table: Option<&str>) -> ProblemSet {
+    crate::compare_dataset(dict_path, table, |table, parquet_path, actual, problems| {
         crate::validate_meta::meta_issues(table, actual, problems);
         if let Err(e) = value_issues(table, parquet_path, actual, problems) {
             problems.push(Problem::preflight(ProblemKind::Parquet, e.to_string()));

@@ -19,8 +19,8 @@ fn no_args_lists_all_subcommands() {
 }
 
 /// A fixture that fails schema validation with two errors (S07, S08) and a warning (S09),
-/// in that emission order. Validating it against a parquet file skips the data
-/// comparison (the dictionary has errors), so the parquet path is never read.
+/// in that emission order. Validating its data skips the data comparison (the
+/// dictionary has errors), so no source is ever read.
 fn multi_error_fixture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/multi-error-with-warning.yaml")
 }
@@ -33,7 +33,6 @@ fn multiple_diagnostics_text_output() {
     let output = Command::new(env!("CARGO_BIN_EXE_data-dict"))
         .args(["validate-data"])
         .arg(&fixture)
-        .arg("ignored.parquet")
         .output()
         .expect("failed to run data-dict");
     assert!(!output.status.success());
@@ -49,7 +48,7 @@ fn multiple_diagnostics_json_output() {
     let output = Command::new(env!("CARGO_BIN_EXE_data-dict"))
         .args(["validate-data"])
         .arg(&fixture)
-        .args(["ignored.parquet", "--json"])
+        .arg("--json")
         .output()
         .expect("failed to run data-dict");
     assert!(!output.status.success());

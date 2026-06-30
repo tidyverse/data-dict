@@ -1,0 +1,15 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s14-time-zone-on-non-datetime.yaml\")"
+---
+Error: [S14] A column with `time_zone` must have type `datetime`.
+    ╭─[ spec/s14-time-zone-on-non-datetime.yaml:11:20 ]
+    │
+  7 │   events:
+    │ 
+  9 │       - name: event_day
+ 10 │         type: date
+ 11 │         time_zone: America/New_York
+    │                    ────────┬───────  
+    │                            ╰───────── has `time_zone` but has type `date`
+────╯

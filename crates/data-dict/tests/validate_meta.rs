@@ -35,7 +35,7 @@ fn matching_dict_and_parquet() {
         "},
     );
 
-    let problems = validate_meta(&yaml, &parquet, None);
+    let problems = validate_meta(&yaml, None);
     assert_eq!(problems.status(), Status::Ok, "got {:?}", problems.items);
 }
 
@@ -64,7 +64,7 @@ fn type_mismatch_reported() {
         "},
     );
 
-    let problems = validate_meta(&yaml, &parquet, None);
+    let problems = validate_meta(&yaml, None);
     assert_eq!(problems.status(), Status::Error);
     assert!(matches!(
         problems.items.as_slice(),
@@ -99,7 +99,7 @@ fn extra_column_in_data_is_warning() {
 
     // An undocumented column is a warning, not an error: it is reported but does
     // not fail validation.
-    let problems = validate_meta(&yaml, &parquet, None);
+    let problems = validate_meta(&yaml, None);
     assert_eq!(
         problems.status(),
         Status::Warning,
@@ -138,7 +138,7 @@ fn typeless_column_skips_type_check_for_present_column() {
         "},
     );
 
-    let problems = validate_meta(&yaml, &parquet, None);
+    let problems = validate_meta(&yaml, None);
     assert_eq!(problems.status(), Status::Ok, "got {:?}", problems.items);
 }
 
@@ -169,7 +169,7 @@ fn typeless_column_still_must_exist_in_data() {
         "},
     );
 
-    let problems = validate_meta(&yaml, &parquet, None);
+    let problems = validate_meta(&yaml, None);
     assert_eq!(problems.status(), Status::Error);
     assert!(matches!(
         problems.items.as_slice(),
@@ -208,7 +208,7 @@ fn missing_column_in_data_reported() {
         "},
     );
 
-    let problems = validate_meta(&yaml, &parquet, None);
+    let problems = validate_meta(&yaml, None);
     assert_eq!(problems.status(), Status::Error);
     assert!(matches!(
         problems.items.as_slice(),
@@ -222,10 +222,12 @@ fn missing_column_in_data_reported() {
 }
 
 #[test]
-fn ambiguous_table_without_name() {
+fn validates_every_table() {
     let dir = temp_dir();
-    let parquet = dir.join("data.parquet");
-    write_parquet(&parquet);
+    write_parquet(&dir.join("animals.parquet"));
+    write_parquet(&dir.join("plants.parquet"));
+    // Two tables, each with its own source. `animals` matches its data; `plants`
+    // declares a `height` column its data lacks (M02). One run checks both.
     let yaml = write_yaml(
         &dir,
         indoc! {"
@@ -234,33 +236,128 @@ fn ambiguous_table_without_name() {
             tables:
               animals:
                 source:
-                  parquet: data.parquet
+                  parquet: animals.parquet
                 columns:
                   - name: name
                     type: string
                     examples: [otter, seal]
-              other:
+                  - name: weight
+                    type: number(quantity)
+                    range: [0, 100]
+              plants:
                 source:
-                  parquet: other.parquet
+                  parquet: plants.parquet
                 columns:
-                  - name: id
-                    type: number(id)
-                    examples: [1, 2]
+                  - name: name
+                    type: string
+                    examples: [moss, fern]
+                  - name: weight
+                    type: number(quantity)
+                    range: [0, 100]
+                  - name: height
+                    type: number(quantity)
+                    range: [0, 100]
         "},
     );
 
-    let problems = validate_meta(&yaml, &parquet, None);
+    let problems = validate_meta(&yaml, None);
+    assert_eq!(problems.status(), Status::Error);
+    assert!(
+        problems
+            .items
+            .iter()
+            .any(|p| p.code == Some("M02") && p.severity == Severity::Error),
+        "expected plants/height to be reported as M02, got {:?}",
+        problems.items
+    );
+}
+
+#[test]
+fn unreadable_source_reported() {
+    let dir = temp_dir();
+    // The table declares a `source`, but the parquet file it names does not exist.
+    let yaml = write_yaml(
+        &dir,
+        indoc! {"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            tables:
+              animals:
+                source:
+                  parquet: missing.parquet
+                columns:
+                  - name: name
+                    type: string
+                    examples: [otter, seal]
+        "},
+    );
+
+    let problems = validate_meta(&yaml, None);
+    assert_eq!(problems.status(), Status::Error);
     assert!(
         matches!(
             problems.items.as_slice(),
             [Problem {
-                kind: ProblemKind::AmbiguousTable { .. },
+                code: Some(code),
+                kind: ProblemKind::UnreadableSource,
+                severity: Severity::Error,
                 ..
-            }]
+            }] if *code == "M05"
         ),
         "got {:?}",
         problems.items
     );
+    #[cfg(unix)]
+    insta::assert_snapshot!(common::sanitize(&problems.render().join("\n"), &dir));
+}
+
+#[test]
+fn unreadable_source_does_not_stop_other_tables() {
+    let dir = temp_dir();
+    // `plants` has real data; `animals` points at a file that doesn't exist. The
+    // missing source (M05) is reported, but `plants` is still checked, where its
+    // declared `weight` type disagrees with the data (M01).
+    write_parquet(&dir.join("plants.parquet"));
+    let yaml = write_yaml(
+        &dir,
+        indoc! {"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            tables:
+              animals:
+                source:
+                  parquet: missing.parquet
+                columns:
+                  - name: name
+                    type: string
+                    examples: [otter, seal]
+              plants:
+                source:
+                  parquet: plants.parquet
+                columns:
+                  - name: name
+                    type: string
+                    examples: [moss, fern]
+                  - name: weight
+                    type: string
+                    examples: ['1', '2']
+        "},
+    );
+
+    let problems = validate_meta(&yaml, None);
+    assert_eq!(problems.status(), Status::Error);
+    assert!(
+        problems.items.iter().any(|p| p.code == Some("M05")),
+        "expected an M05 unreadable-source error, got {:?}",
+        problems.items
+    );
+    assert!(
+        problems.items.iter().any(|p| p.code == Some("M01")),
+        "expected an M01 type-mismatch error from the readable table, got {:?}",
+        problems.items
+    );
+    #[cfg(unix)]
+    insta::assert_snapshot!(common::sanitize(&problems.render().join("\n"), &dir));
 }
 
 #[test]
@@ -287,7 +384,7 @@ fn unknown_table_name() {
         "},
     );
 
-    let problems = validate_meta(&yaml, &parquet, Some("nope"));
+    let problems = validate_meta(&yaml, Some("nope"));
     assert!(
         matches!(
             problems.items.as_slice(),
@@ -304,8 +401,6 @@ fn unknown_table_name() {
 #[test]
 fn missing_source_reported() {
     let dir = temp_dir();
-    let parquet = dir.join("data.parquet");
-    write_parquet(&parquet);
     // The table declares no `source`; valid at the spec level, but M04 at meta.
     let yaml = write_yaml(
         &dir,
@@ -324,7 +419,7 @@ fn missing_source_reported() {
         "},
     );
 
-    let problems = validate_meta(&yaml, &parquet, None);
+    let problems = validate_meta(&yaml, None);
     assert!(
         problems
             .items

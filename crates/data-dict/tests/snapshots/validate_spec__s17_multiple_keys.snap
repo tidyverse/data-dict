@@ -2,7 +2,7 @@
 source: crates/data-dict/tests/validate_spec.rs
 expression: rendered
 ---
-Error: [S14] A `version` must give exactly one of `number`, `date`, or `hash`.
+Error: [S17] A `version` must give exactly one of `number`, `date`, or `hash`.
    ╭─[ dict.yaml:5:3 ]
    │
  3 │ version:

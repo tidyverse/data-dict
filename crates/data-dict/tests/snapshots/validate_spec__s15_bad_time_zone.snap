@@ -1,0 +1,15 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: "failing_diagnostic(\"spec/s15-bad-time-zone.yaml\")"
+---
+Error: [S15] A `time_zone` must be `naive`, `UTC`, or an IANA `Area/Location` name.
+    ╭─[ spec/s15-bad-time-zone.yaml:12:20 ]
+    │
+  8 │   events:
+    │ 
+ 10 │       - name: observed_at
+ 11 │         type: datetime
+ 12 │         time_zone: PST
+    │                    ─┬─  
+    │                     ╰─── not a valid time zone
+────╯

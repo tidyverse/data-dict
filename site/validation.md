@@ -12,6 +12,8 @@ Validation happens at three levels, each a strict superset of the one before it:
 
 The last two levels compare the dictionary against the data (or equivalently, the data against the dictionary). When they disagree, we can't tell which side needs to change. If you're creating the dictionary as you learn about the data, then you might need to change the dictionary. If you're using the dictionary to validate a dataset, there might be an upstream issue that you need to resolve.
 
+The metadata and data levels locate each table's data through its [`source`](spec.md#source): they read the file the table's `source.parquet` points at, resolved relative to the dictionary file. They validate **every** table in the dictionary, each against its own source, so a single run checks the whole dictionary. A problem in one table (an unreadable source, a column mismatch) is reported against that table and does not stop the others from being checked.
+
 Each level implies the ones before it: validating the metadata validates the spec first, and validating the data validates both the spec and the metadata first. Validating the spec and metadata are cheap, so they can be run continually while you edit the `data-dict.yaml`; validating the data adds a full scan and get more expensive as the size of the data increases.
 
 Each check has a code prefixed by its level: spec checks are `S01`, `S02`, …; metadata checks `M01`, …; data checks `D01`, …. Severity is independent of level — any level can raise errors or warnings.
@@ -39,11 +41,14 @@ When validating the spec, each problem with the dictionary is one of:
 * **Missing `$learn_more`** (S09, warning): the document omits the recommended `$learn_more` key.
 * **Duplicate column name** (S10, error): two column descriptors within the same table share a `name`.
 * **Empty name** (S11, error): a table name or a column `name` is empty.
-* **Wrong value type** (S12, error): a value in `range` or `examples` does not match the column's `type` — a number type wants numbers; `string` wants strings; `date` and `datetime` want ISO 8601 strings (e.g. `2024-01-31`, `2024-01-31T09:30:00Z`).
+* **Wrong value type** (S12, error): a value in `range` or `examples` does not match the column's `type` — a number type wants numbers; `string` wants strings; `date` wants an ISO 8601 date (e.g. `2024-01-31`); `datetime` wants an ISO 8601 datetime, with an offset (e.g. `2024-01-31T09:30:00Z`) unless the column has a `time_zone`, in which case it's zoneless (e.g. `2024-01-31T09:30:00`).
 * **Descending range** (S13, error): a `range`'s minimum is greater than its maximum.
-* **Malformed version** (S14, error): the top-level `version` does not give exactly one of `number`, `date`, or `hash`, or its `date` is not a valid ISO 8601 date (`YYYY-MM-DD`).
+* **Time zone without datetime** (S14, error): a column has `time_zone` but its type is not `datetime`.
+* **Malformed time zone** (S15, error): a `time_zone` is not `naive`, `UTC`, or an IANA `Area/Location` name with a known area. The shape is checked, not the full tz database, so the accepted set doesn't go stale as zones are added or renamed.
+* **Misplaced single-table description** (S16, warning): a dictionary with exactly one table carries `description` or `details` on that table; for a single-table dictionary these belong at the top level.
+* **Malformed version** (S17, error): the top-level `version` does not give exactly one of `number`, `date`, or `hash`, or its `date` is not a valid ISO 8601 date (`YYYY-MM-DD`).
 
-(An `enum`'s `values` are constrained structurally by the schema rather than by an `S` check: each value must be a scalar, and in the map form each label must be a string. The `version` map's allowed keys and their value types are likewise structural; S14 covers only the semantics the schema can't express.)
+(An `enum`'s `values` are constrained structurally by the schema rather than by an `S` check: each value must be a scalar, and in the map form each label must be a string. The `version` map's allowed keys and their value types are likewise structural; S17 covers only the semantics the schema can't express.)
 
 ## Metadata-validation checks
 
@@ -53,6 +58,7 @@ When validating the data's metadata against the dictionary, each column mismatch
 * **Missing column** (M02, error): a column the dictionary describes is absent from the data. This applies even to columns listed by name only — listing a column that doesn't exist is an error.
 * **Undocumented column** (M03, warning): a column present in the data that the dictionary does not describe. This is a warning, not an error: if a production pipeline adds a column, validation should not fail, but you should document it (or at least list it by name) next time you touch the dictionary.
 * **Missing source** (M04, error): a table validated against data does not declare a `source`. `source` is optional at the spec level but required here, so a validated dictionary always records where its data comes from.
+* **Unreadable source** (M05, error): a table declares a `source`, but its data can't be read — the `source.parquet` file is absent, or present but not a readable Parquet file. The path is resolved relative to the dictionary file.
 
 ## Data-validation checks
 

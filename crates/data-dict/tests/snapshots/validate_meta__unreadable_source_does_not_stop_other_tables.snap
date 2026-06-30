@@ -1,0 +1,25 @@
+---
+source: crates/data-dict/tests/validate_meta.rs
+expression: "common::sanitize(&problems.render().join(\"\\n\"), &dir)"
+---
+Error: [M05] A table's `source` must point at a readable Parquet file.
+   ╭─[ dict.yaml:6:16 ]
+   │
+ 4 │   animals:
+   │ 
+ 6 │       parquet: missing.parquet
+   │                ───────┬───────  
+   │                       ╰───────── Parquet error: Cannot open file: No such file or directory (os error 2)
+   ┆ 
+───╯
+
+Error: [M01] A column's data must match its declared type.
+    ╭─[ dict.yaml:19:15 ]
+    │
+ 11 │   plants:
+    │ 
+ 18 │       - name: weight
+ 19 │         type: string
+    │               ───┬──  
+    │                  ╰──── the data is `number`
+────╯
