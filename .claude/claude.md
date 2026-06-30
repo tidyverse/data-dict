@@ -71,9 +71,16 @@ Implementation, one module per level (entry points re-exported at the crate root
 | metadata (`M##`) | `validate_meta.rs` | `validate-meta` |
 | data (`D##`) | `validate_data.rs` | `validate-data` |
 
-Every level reports through one vocabulary in `problem.rs`: a `Problem` (a `code`, `severity`, `message`, optional `expected`/`column`/`hint`/`span`, and a flattened `ProblemKind` tag covering pre-flight, spec, metadata, and data findings alike) and a `ProblemSet` (one vector of them plus the `SourceContext` for rendering). `serde` derives the JSON wire format directly; there is no separate error type. "Fatal" is not a field — a level pushes its problems and returns early to stop the run, and the meta/data levels descend only while `ProblemSet::has_errors()` is false. `Level` and the `select_table` helper live in `lib.rs`. Each level's entry point drives its own flow (no central dispatcher).
+Every level reports through one vocabulary in `problem.rs`: a `Problem` (a `code`, `severity`, `message`, optional `expected`/`column`/`hint`/`span`, and a flattened `ProblemKind` tag covering pre-flight, spec, metadata, and data findings alike) and a `ProblemSet` (one vector of them plus the `SourceContext` for rendering). `serde` derives the JSON wire format directly; there is no separate error type. "Fatal" is not a field — a level pushes its problems and returns early to stop the run, and the meta/data levels descend only while `ProblemSet::has_errors()` is false. `Level`, the `select_tables` helper, and the `compare_dataset`/`read_parquet` driver live in `lib.rs`. Each level's entry point drives its own flow (no central dispatcher).
 
 Test fixtures for the spec rules are in `crates/data-dict/tests/fixtures/{valid,invalid,spec}/`. Each fixture has a `# expected: ...` header documenting the intended outcome. Integration tests mirror the levels: `tests/validate_spec.rs` / `validate_meta.rs` / `validate_data.rs`.
+
+### Problem reporting
+
+Two principles guide how problems are surfaced:
+
+- **Full context.** A problem should carry enough context that the user can see at a glance where it comes from — point at the offending span and fade in its enclosing nodes (e.g. the table and column a bad value sits in), so the location is unambiguous without re-reading the file.
+- **Report as many problems as possible at once.** Prefer collecting all the problems in a pass over bailing on the first, so the user fixes them together rather than rerunning repeatedly. Not always possible (a problem can block the checks that would follow it), but worth striving for.
 
 ### Diagnostic wording
 
