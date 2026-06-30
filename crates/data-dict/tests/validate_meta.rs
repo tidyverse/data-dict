@@ -6,7 +6,7 @@
 //! one against the other.
 
 mod common;
-use common::{temp_dir, write_parquet, write_yaml};
+use common::{temp_dir, write_dict, write_parquet};
 
 use data_dict::{Problem, ProblemKind, Severity, Status, validate_meta};
 use indoc::indoc;
@@ -16,11 +16,9 @@ fn matching_dict_and_parquet() {
     let dir = temp_dir();
     let parquet = dir.join("data.parquet");
     write_parquet(&parquet);
-    let yaml = write_yaml(
+    let yaml = write_dict(
         &dir,
         indoc! {"
-            $version: 0.1.0
-            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -45,11 +43,9 @@ fn type_mismatch_reported() {
     let parquet = dir.join("data.parquet");
     write_parquet(&parquet);
     // `weight` is a double in the data but declared as a string here.
-    let yaml = write_yaml(
+    let yaml = write_dict(
         &dir,
         indoc! {"
-            $version: 0.1.0
-            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -81,11 +77,9 @@ fn extra_column_in_data_is_warning() {
     let parquet = dir.join("data.parquet");
     write_parquet(&parquet);
     // Dictionary omits `weight`, which is present in the parquet file.
-    let yaml = write_yaml(
+    let yaml = write_dict(
         &dir,
         indoc! {"
-            $version: 0.1.0
-            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -121,11 +115,9 @@ fn typeless_column_skips_type_check_for_present_column() {
     write_parquet(&parquet);
     // `weight` is a double in the data but listed without a `type`, so its type
     // is not checked; and because it is listed it is not flagged as undocumented.
-    let yaml = write_yaml(
+    let yaml = write_dict(
         &dir,
         indoc! {"
-            $version: 0.1.0
-            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -149,11 +141,9 @@ fn typeless_column_still_must_exist_in_data() {
     write_parquet(&parquet);
     // `height` is listed (without a `type`) but absent from the data. Listing a
     // column that doesn't exist is an error, even when it isn't described.
-    let yaml = write_yaml(
+    let yaml = write_dict(
         &dir,
         indoc! {"
-            $version: 0.1.0
-            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -186,11 +176,9 @@ fn missing_column_in_data_reported() {
     let parquet = dir.join("data.parquet");
     write_parquet(&parquet);
     // Dictionary describes `height`, which is absent from the parquet file.
-    let yaml = write_yaml(
+    let yaml = write_dict(
         &dir,
         indoc! {"
-            $version: 0.1.0
-            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -228,11 +216,9 @@ fn validates_every_table() {
     write_parquet(&dir.join("plants.parquet"));
     // Two tables, each with its own source. `animals` matches its data; `plants`
     // declares a `height` column its data lacks (M02). One run checks both.
-    let yaml = write_yaml(
+    let yaml = write_dict(
         &dir,
         indoc! {"
-            $version: 0.1.0
-            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -276,11 +262,9 @@ fn validates_every_table() {
 fn unreadable_source_reported() {
     let dir = temp_dir();
     // The table declares a `source`, but the parquet file it names does not exist.
-    let yaml = write_yaml(
+    let yaml = write_dict(
         &dir,
         indoc! {"
-            $version: 0.1.0
-            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -318,11 +302,9 @@ fn unreadable_source_does_not_stop_other_tables() {
     // missing source (M05) is reported, but `plants` is still checked, where its
     // declared `weight` type disagrees with the data (M01).
     write_parquet(&dir.join("plants.parquet"));
-    let yaml = write_yaml(
+    let yaml = write_dict(
         &dir,
         indoc! {"
-            $version: 0.1.0
-            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -365,11 +347,9 @@ fn unknown_table_name() {
     let dir = temp_dir();
     let parquet = dir.join("data.parquet");
     write_parquet(&parquet);
-    let yaml = write_yaml(
+    let yaml = write_dict(
         &dir,
         indoc! {"
-            $version: 0.1.0
-            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 source:
@@ -402,11 +382,9 @@ fn unknown_table_name() {
 fn missing_source_reported() {
     let dir = temp_dir();
     // The table declares no `source`; valid at the spec level, but M04 at meta.
-    let yaml = write_yaml(
+    let yaml = write_dict(
         &dir,
         indoc! {"
-            $version: 0.1.0
-            $learn_more: http://data-dict.tidyverse.org/
             tables:
               animals:
                 columns:

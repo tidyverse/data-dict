@@ -1,25 +1,34 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "failing_diagnostic(\"spec/s07-range-type-missing-range.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  table:
+    columns:
+      - name: weight
+        type: number(quantity)
+      - name: recorded_at
+        type: date
+────────────────────────────────────────
 Error: [S07] A `number(quantity)` column must describe its bounds with `range`.
-   ╭─[ spec/s07-range-type-missing-range.yaml:9:15 ]
+   ╭─[ dict.yaml:7:15 ]
    │
- 6 │   table:
+ 4 │   table:
    │ 
- 8 │       - name: weight
- 9 │         type: number(quantity)
+ 6 │       - name: weight
+ 7 │         type: number(quantity)
    │               ────────┬───────  
    │                       ╰───────── has type `number(quantity)` but is missing `range`
 ───╯
 
 Error: [S07] A `date` column must describe its bounds with `range`.
-    ╭─[ spec/s07-range-type-missing-range.yaml:11:15 ]
-    │
-  6 │   table:
-    │ 
- 10 │       - name: recorded_at
- 11 │         type: date
-    │               ──┬─  
-    │                 ╰─── has type `date` but is missing `range`
-────╯
+   ╭─[ dict.yaml:9:15 ]
+   │
+ 4 │   table:
+   │ 
+ 8 │       - name: recorded_at
+ 9 │         type: date
+   │               ──┬─  
+   │                 ╰─── has type `date` but is missing `range`
+───╯

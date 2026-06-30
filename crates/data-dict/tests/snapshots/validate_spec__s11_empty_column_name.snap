@@ -1,13 +1,21 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "failing_diagnostic(\"spec/s11-empty-column-name.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  table:
+    columns:
+      - name: ""
+        type: string
+        examples: [a, b, c]
+────────────────────────────────────────
 Error: [S11] Every column must have a non-empty `name`.
-   ╭─[ spec/s11-empty-column-name.yaml:9:15 ]
+   ╭─[ dict.yaml:6:15 ]
    │
- 7 │   table:
+ 4 │   table:
    │ 
- 9 │       - name: ""
+ 6 │       - name: ""
    │               │ 
    │               ╰─ the `name` is empty
 ───╯

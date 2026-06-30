@@ -6,7 +6,7 @@
 //! and data levels are genuinely distinct.
 
 mod common;
-use common::{temp_dir, write_yaml};
+use common::{temp_dir, write_dict};
 
 use std::fs::File;
 use std::path::PathBuf;
@@ -61,11 +61,9 @@ fn build_column(
         .map(|line| format!("      {line}"))
         .collect::<Vec<_>>()
         .join("\n");
-    write_yaml(
+    write_dict(
         &dir,
         &formatdoc! {"
-            $version: 0.1.0
-            $learn_more: http://data-dict.tidyverse.org/
             tables:
               t:
                 source:

@@ -1,11 +1,15 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "invalid_diagnostic(\"invalid/non-string-glossary-value.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+glossary:
+  term: 42
+────────────────────────────────────────
 Error: [Q-1-11] YAML Validation Failed
-   ╭─[ invalid/non-string-glossary-value.yaml:6:9 ]
+   ╭─[ dict.yaml:4:9 ]
    │
- 6 │   term: 42
+ 4 │   term: 42
    │         ─┬  
    │          ╰── Expected string, got integer
 ───╯

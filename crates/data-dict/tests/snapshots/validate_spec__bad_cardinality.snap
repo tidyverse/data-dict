@@ -1,12 +1,16 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-assertion_line: 250
-expression: "failing_diagnostic(\"invalid/bad-cardinality.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+relationships:
+  - cardinality: many-to-many
+    join: a.x = b.y
+────────────────────────────────────────
 Error: [Q-1-12] YAML Validation Failed
-   ╭─[ invalid/bad-cardinality.yaml:7:18 ]
+   ╭─[ dict.yaml:4:18 ]
    │
- 7 │   - cardinality: many-to-many
+ 4 │   - cardinality: many-to-many
    │                  ──────┬─────  
    │                        ╰─────── Value must be one of: "one-to-one", "one-to-many", "many-to-one", got '"many-to-many"'
 ───╯

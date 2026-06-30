@@ -1,7 +1,12 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: rendered
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+version:
+  date: 2024-01-31
+  hash: a1b2c3d
+────────────────────────────────────────
 Error: [S17] A `version` must give exactly one of `number`, `date`, or `hash`.
    ╭─[ dict.yaml:5:3 ]
    │

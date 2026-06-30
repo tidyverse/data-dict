@@ -1,15 +1,23 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "failing_diagnostic(\"spec/s07-examples-on-boolean.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  table:
+    columns:
+      - name: active
+        type: boolean
+        examples: [true, false]
+────────────────────────────────────────
 Error: [S07] A `boolean` column must not have `values`, `range`, or `examples`.
-    ╭─[ spec/s07-examples-on-boolean.yaml:11:19 ]
-    │
-  7 │   table:
-    │ 
-  9 │       - name: active
-    │ 
- 11 │         examples: [true, false]
-    │                   ──────┬─────  
-    │                         ╰─────── has type `boolean` but uses `examples`
-────╯
+   ╭─[ dict.yaml:8:19 ]
+   │
+ 4 │   table:
+   │ 
+ 6 │       - name: active
+   │ 
+ 8 │         examples: [true, false]
+   │                   ──────┬─────  
+   │                         ╰─────── has type `boolean` but uses `examples`
+───╯

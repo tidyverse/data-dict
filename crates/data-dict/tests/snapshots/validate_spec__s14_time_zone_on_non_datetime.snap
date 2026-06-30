@@ -1,15 +1,24 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "failing_diagnostic(\"spec/s14-time-zone-on-non-datetime.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  events:
+    columns:
+      - name: event_day
+        type: date
+        time_zone: America/New_York
+        range: [2020-01-01, 2024-12-31]
+────────────────────────────────────────
 Error: [S14] A column with `time_zone` must have type `datetime`.
-    ╭─[ spec/s14-time-zone-on-non-datetime.yaml:11:20 ]
-    │
-  7 │   events:
-    │ 
-  9 │       - name: event_day
- 10 │         type: date
- 11 │         time_zone: America/New_York
-    │                    ────────┬───────  
-    │                            ╰───────── has `time_zone` but has type `date`
-────╯
+   ╭─[ dict.yaml:8:20 ]
+   │
+ 4 │   events:
+   │ 
+ 6 │       - name: event_day
+ 7 │         type: date
+ 8 │         time_zone: America/New_York
+   │                    ────────┬───────  
+   │                            ╰───────── has `time_zone` but has type `date`
+───╯

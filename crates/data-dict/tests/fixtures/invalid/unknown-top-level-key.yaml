@@ -1,4 +1,0 @@
-# expected: fails - the top-level object is closed; `bogus` is not a known key.
-
-$version: 0.1.0
-bogus: 1

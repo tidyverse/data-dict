@@ -1,14 +1,21 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "failing_diagnostic(\"spec/s07-enum-without-values.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  table:
+    columns:
+      - name: c
+        type: enum
+────────────────────────────────────────
 Error: [S07] An `enum` column must list its categories with `values`.
-   ╭─[ spec/s07-enum-without-values.yaml:9:15 ]
+   ╭─[ dict.yaml:7:15 ]
    │
- 6 │   table:
+ 4 │   table:
    │ 
- 8 │       - name: c
- 9 │         type: enum
+ 6 │       - name: c
+ 7 │         type: enum
    │               ──┬─  
    │                 ╰─── has type `enum` but is missing `values`
 ───╯

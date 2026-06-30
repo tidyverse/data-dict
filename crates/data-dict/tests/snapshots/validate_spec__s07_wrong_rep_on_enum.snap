@@ -1,26 +1,34 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "failing_diagnostic(\"spec/s07-wrong-rep-on-enum.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  table:
+    columns:
+      - name: status
+        type: enum
+        range: [0, 10]
+────────────────────────────────────────
 Error: [S07] An `enum` column must list its categories with `values`.
-   ╭─[ spec/s07-wrong-rep-on-enum.yaml:9:15 ]
+   ╭─[ dict.yaml:7:15 ]
    │
- 6 │   table:
+ 4 │   table:
    │ 
- 8 │       - name: status
- 9 │         type: enum
+ 6 │       - name: status
+ 7 │         type: enum
    │               ──┬─  
    │                 ╰─── has type `enum` but is missing `values`
 ───╯
 
 Error: [S07] An `enum` column must use `values`, not `range`.
-    ╭─[ spec/s07-wrong-rep-on-enum.yaml:10:16 ]
-    │
-  6 │   table:
-    │ 
-  8 │       - name: status
-    │ 
- 10 │         range: [0, 10]
-    │                ───┬──  
-    │                   ╰──── has type `enum` but uses `range`
-────╯
+   ╭─[ dict.yaml:8:16 ]
+   │
+ 4 │   table:
+   │ 
+ 6 │       - name: status
+   │ 
+ 8 │         range: [0, 10]
+   │                ───┬──  
+   │                   ╰──── has type `enum` but uses `range`
+───╯

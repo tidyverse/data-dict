@@ -1,12 +1,16 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "failing_diagnostic(\"invalid/unknown-top-level-key.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+bogus: 1
+────────────────────────────────────────
 Error: [Q-1-18] YAML Validation Failed
-   ╭─[ invalid/unknown-top-level-key.yaml:3:1 ]
+   ╭─[ dict.yaml:1:1 ]
    │
- 3 │ ╭─▶ $version: 0.1.0
- 4 │ ├─▶ bogus: 1
+ 1 │ ╭─▶ $version: "0.1.0"
+   ┆ ┆   
+ 3 │ ├─▶ bogus: 1
    │ │              
    │ ╰────────────── Unknown property 'bogus'
 ───╯

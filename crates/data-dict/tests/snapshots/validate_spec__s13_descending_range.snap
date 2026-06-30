@@ -1,15 +1,24 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "failing_diagnostic(\"spec/s13-descending-range.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  table:
+    columns:
+      - name: mass
+        type: number(quantity)
+        units: kg
+        range: [100, 10]
+────────────────────────────────────────
 Error: [S13] A range's minimum must be less than or equal to its maximum.
-    ╭─[ spec/s13-descending-range.yaml:12:17 ]
-    │
-  7 │   table:
-    │ 
-  9 │       - name: mass
-    │ 
- 12 │         range: [100, 10]
-    │                 ─┬─  
-    │                  ╰─── is greater than the maximum
-────╯
+   ╭─[ dict.yaml:9:17 ]
+   │
+ 4 │   table:
+   │ 
+ 6 │       - name: mass
+   │ 
+ 9 │         range: [100, 10]
+   │                 ─┬─  
+   │                  ╰─── is greater than the maximum
+───╯

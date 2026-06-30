@@ -1,9 +1,0 @@
-# expected: fails S07 - when `type: enum`, the column must also have a `values` key.
-
-$version: 0.1.0
-
-tables:
-  table:
-    columns:
-      - name: c
-        type: enum

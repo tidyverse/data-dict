@@ -1,22 +1,32 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "warning_diagnostic(\"spec/s16-single-table-description.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  food:
+    description: Each row is a food item.
+    details: Collected from the USDA FoodData Central database.
+    columns:
+      - name: id
+        type: number(id)
+        examples: [1, 2, 3]
+────────────────────────────────────────
 Warning: [S16] A single-table dictionary's description and details belong at the top level.
-   ╭─[ spec/s16-single-table-description.yaml:9:5 ]
+   ╭─[ dict.yaml:5:5 ]
    │
- 8 │   food:
- 9 │     description: Each row is a food item.
+ 4 │   food:
+ 5 │     description: Each row is a food item.
    │     ─────┬─────  
    │          ╰─────── table `food` has a `description`
 ───╯
 
 Warning: [S16] A single-table dictionary's description and details belong at the top level.
-    ╭─[ spec/s16-single-table-description.yaml:10:5 ]
-    │
-  8 │   food:
-    │ 
- 10 │     details: Collected from the USDA FoodData Central database.
-    │     ───┬───  
-    │        ╰───── table `food` has a `details`
-────╯
+   ╭─[ dict.yaml:6:5 ]
+   │
+ 4 │   food:
+   │ 
+ 6 │     details: Collected from the USDA FoodData Central database.
+   │     ───┬───  
+   │        ╰───── table `food` has a `details`
+───╯

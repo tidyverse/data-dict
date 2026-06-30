@@ -1,15 +1,24 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "failing_diagnostic(\"spec/s15-bad-time-zone.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  events:
+    columns:
+      - name: observed_at
+        type: datetime
+        time_zone: PST
+        range: [2020-01-01T00:00:00, 2024-12-31T23:59:59]
+────────────────────────────────────────
 Error: [S15] A `time_zone` must be `naive`, `UTC`, or an IANA `Area/Location` name.
-    ╭─[ spec/s15-bad-time-zone.yaml:12:20 ]
-    │
-  8 │   events:
-    │ 
- 10 │       - name: observed_at
- 11 │         type: datetime
- 12 │         time_zone: PST
-    │                    ─┬─  
-    │                     ╰─── not a valid time zone
-────╯
+   ╭─[ dict.yaml:8:20 ]
+   │
+ 4 │   events:
+   │ 
+ 6 │       - name: observed_at
+ 7 │         type: datetime
+ 8 │         time_zone: PST
+   │                    ─┬─  
+   │                     ╰─── not a valid time zone
+───╯

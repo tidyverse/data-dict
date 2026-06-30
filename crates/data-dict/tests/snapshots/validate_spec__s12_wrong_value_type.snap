@@ -1,15 +1,23 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "failing_diagnostic(\"spec/s12-wrong-value-type.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  table:
+    columns:
+      - name: count
+        type: number
+        examples: [1, two, 3]
+────────────────────────────────────────
 Error: [S12] Each `examples` value of a `number` column must be a number.
-    ╭─[ spec/s12-wrong-value-type.yaml:11:23 ]
-    │
-  7 │   table:
-    │ 
-  9 │       - name: count
-    │ 
- 11 │         examples: [1, two, 3]
-    │                       ─┬─  
-    │                        ╰─── is a string
-────╯
+   ╭─[ dict.yaml:8:23 ]
+   │
+ 4 │   table:
+   │ 
+ 6 │       - name: count
+   │ 
+ 8 │         examples: [1, two, 3]
+   │                       ─┬─  
+   │                        ╰─── is a string
+───╯

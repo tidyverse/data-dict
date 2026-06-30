@@ -1,11 +1,19 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "failing_diagnostic(\"spec/s11-empty-table-name.yaml\")"
 ---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  "":
+    columns:
+      - name: id
+        type: number(id)
+        examples: [1, 2, 3]
+────────────────────────────────────────
 Error: [S11] A table must have a non-empty name.
-   ╭─[ spec/s11-empty-table-name.yaml:7:3 ]
+   ╭─[ dict.yaml:4:3 ]
    │
- 7 │   "":
+ 4 │   "":
    │   │ 
    │   ╰─ table name is empty
 ───╯

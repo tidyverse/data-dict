@@ -1,7 +1,39 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
-expression: "failing_diagnostic(\"spec/s05-conflicts-not-on-both-sides.yaml\")"
 ---
+# expected: S05
+# `conflicts: [amount]` claims `amount` appears in both `food` and
+# `food_nutrient`, but `food` has no `amount` column.
+
+$version: "0.1.0"
+
+tables:
+  food:
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2]
+
+  food_nutrient:
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2]
+      - name: food_id
+        type: number(id)
+        constraints: [foreign_key]
+        examples: [1, 2]
+      - name: amount
+        type: number(quantity)
+        range: [0, 100]
+
+relationships:
+  - cardinality: one-to-many
+    join: food.id = food_nutrient.food_id
+    conflicts: [amount]
+────────────────────────────────────────
 Error: [S05] A `conflicts` entry must name a column on both sides of the join.
     ╭─[ spec/s05-conflicts-not-on-both-sides.yaml:32:17 ]
     │
