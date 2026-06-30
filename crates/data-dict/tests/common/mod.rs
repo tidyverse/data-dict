@@ -85,11 +85,16 @@ pub fn write_dict(dir: &Path, body: &str) -> PathBuf {
 }
 
 /// Make a source-highlighted diagnostic snapshottable: strip terminal styling
-/// (ANSI escapes and OSC-8 hyperlinks) and rewrite the absolute temp-dir path to
-/// the bare `dict.yaml`, both of which vary per run.
+/// (ANSI escapes and OSC-8 hyperlinks) and rewrite the absolute `dir` prefix off
+/// its paths, both of which vary per run. `dir` is the temp dir for inline
+/// documents (leaving the bare `dict.yaml`) or the fixtures root for fixture
+/// documents (leaving e.g. `spec/s01-….yaml`). Backslashes are normalized to
+/// `/` so Windows paths match the snapshots.
 pub fn sanitize(rendered: &str, dir: &Path) -> String {
-    let dir_prefix = format!("{}/", dir.display());
-    strip_terminal_escapes(rendered).replace(&dir_prefix, "")
+    let dir_prefix = format!("{}/", dir.display()).replace('\\', "/");
+    strip_terminal_escapes(rendered)
+        .replace('\\', "/")
+        .replace(&dir_prefix, "")
 }
 
 /// Remove ANSI SGR sequences (`ESC [ ... m`) and OSC-8 hyperlink wrappers
