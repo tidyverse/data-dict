@@ -121,7 +121,7 @@ The optional `display` property controls whether a column should appear in user-
   examples: [000-00-0000]
 ```
 
-A restricted column must be excluded from default user interfaces and other user-facing output, including tables, plots, and downloads. A restricted column should only be included when the user specifically requests that column; even then, an agent should strongly discourage displaying it and suggest a safer alternative, such as omitting, masking, or aggregating it.
+A restricted column must be excluded from default user interfaces and other user-facing output, including tables, plots, and downloads. We can't guarantee this protection, but we hope it will steer agents (and humans!) away from showing it by default.
 
 #### Types
 
