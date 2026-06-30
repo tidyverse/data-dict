@@ -215,11 +215,13 @@ glossary:
 
 `version` is optional. It's a map with exactly one of three keys, which names both the kind of version and its value:
 
-* `number`: a hand-curated version number, such as `1.2.0`.
+* `number`: a hand-curated version number with three dot-separated numeric components, optionally followed by a pre-release (`-…`) and/or build (`+…`) suffix, such as `1.2.0` or `1.2.0-rc.1`.
 * `date`: a release date in ISO 8601 form (`YYYY-MM-DD`), such as `2024-01-31`, for data refreshed on a schedule.
 * `hash`: an opaque identifier, such as `a1b2c3d`, derived from the data itself.
 
-`data-dict` checks that exactly one key is present and that a `date` is a valid ISO 8601 date, but otherwise treats the version as opaque.
+If you use a `number`, we recommend [semantic versioning](https://datapackage.org/recipes/data-package-version/): increment the first component for incompatible changes, the second for backwards-compatible additions, and the third for backwards-compatible fixes.
+
+`data-dict` checks that exactly one key is present, that a `number` has three dot-separated numeric components (with an optional suffix), and that a `date` is a valid ISO 8601 date, but otherwise treats the version as opaque.
 
 ```yaml
 version:

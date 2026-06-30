@@ -904,10 +904,11 @@ fn validate_s09_learn_more(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
 
 /// Check the optional top-level `version`. The schema has already fixed its
 /// shape (a map whose only keys are `number`, `date`, or `hash`, each with the
-/// right value type); S17 enforces the two semantic rules the schema can't: a
-/// `version` must carry exactly one of those keys, and a `date` must be a valid
-/// ISO 8601 date. Like S09, it reads the raw AST because `version` is top-level
-/// metadata the lowered [`DataDict`] does not carry.
+/// right value type); S17 enforces the semantic rules the schema can't: a
+/// `version` must carry exactly one of those keys, a `number` must have three
+/// dot-separated numeric components (with an optional suffix), and a `date` must
+/// be a valid ISO 8601 date. Like S09, it reads the raw AST because `version` is
+/// top-level metadata the lowered [`DataDict`] does not carry.
 fn validate_s17_version(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
     let Some(entries) = root.as_hash() else {
         return;
@@ -954,9 +955,21 @@ fn validate_s17_version(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
     }
 
     let field = &fields[0];
-    if field.key.yaml.as_str() == Some("date") {
-        let text = field.value.yaml.as_str();
-        if text.is_none_or(|s| parse_date(s).is_none()) {
+    let spans = || [version.key_span.clone(), field.value_span.clone()];
+    let text = field.value.yaml.as_str();
+    match field.key.yaml.as_str() {
+        Some("number") if text.is_none_or(|s| !is_version_number(s)) => {
+            out.push_spec_error(
+                "S17",
+                "A `version` `number` must have three dot-separated numeric components, with an optional pre-release/build suffix.",
+                match text {
+                    Some(s) => format!("`{s}` is not a valid version number"),
+                    None => "is not a valid version number".to_string(),
+                },
+                spans(),
+            );
+        }
+        Some("date") if text.is_none_or(|s| parse_date(s).is_none()) => {
             out.push_spec_error(
                 "S17",
                 "A `version` `date` must be an ISO 8601 date (YYYY-MM-DD).",
@@ -964,10 +977,39 @@ fn validate_s17_version(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
                     Some(s) => format!("`{s}` is not an ISO 8601 date"),
                     None => "is not an ISO 8601 date".to_string(),
                 },
-                [version.key_span.clone(), field.value_span.clone()],
+                spans(),
             );
         }
+        _ => {}
     }
+}
+
+/// A version `number` per the spec: three dot-separated numeric components
+/// (`MAJOR.MINOR.PATCH`), with an optional semver pre-release (`-…`) and/or
+/// build (`+…`) suffix whose dot-separated identifiers are alphanumeric or `-`.
+fn is_version_number(s: &str) -> bool {
+    let (rest, build) = match s.split_once('+') {
+        Some((rest, build)) => (rest, Some(build)),
+        None => (s, None),
+    };
+    let (core, pre) = match rest.split_once('-') {
+        Some((core, pre)) => (core, Some(pre)),
+        None => (rest, None),
+    };
+
+    let mut parts = core.split('.');
+    let numeric = |p: &str| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit());
+    let core_ok = matches!(
+        (parts.next(), parts.next(), parts.next(), parts.next()),
+        (Some(a), Some(b), Some(c), None) if numeric(a) && numeric(b) && numeric(c)
+    );
+
+    let suffix_ok = |s: &str| {
+        s.split('.')
+            .all(|id| !id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'))
+    };
+
+    core_ok && pre.is_none_or(suffix_ok) && build.is_none_or(suffix_ok)
 }
 
 #[cfg(test)]

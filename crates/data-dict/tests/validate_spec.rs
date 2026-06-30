@@ -628,6 +628,17 @@ fn version_number_ok() {
     "#}));
 }
 
+// A `number` may carry a semver pre-release and/or build suffix.
+#[test]
+fn version_number_suffix_ok() {
+    assert_valid(inline(indoc! {r#"
+        $version: 0.1.0
+        $learn_more: http://data-dict.tidyverse.org/
+        version:
+          number: "1.2.0-rc.1+build.5"
+    "#}));
+}
+
 #[test]
 fn version_hash_ok() {
     assert_valid(inline(indoc! {"
@@ -699,6 +710,52 @@ fn s17_date_not_iso_errors() {
               date: "31/01/2024"
         "#}),
         &["S17", "ISO 8601 date", "31/01/2024"],
+    );
+}
+
+// A `number` with too many components stays a string, so the diagnostic echoes
+// the offending text.
+#[test]
+#[cfg(unix)]
+fn s17_number_not_three_components() {
+    let rendered = failing_inline(indoc! {r#"
+        $version: 0.1.0
+        $learn_more: http://data-dict.tidyverse.org/
+        version:
+          number: "1.2.0.0"
+    "#});
+    insta::assert_snapshot!(rendered);
+}
+
+#[test]
+fn s17_number_not_three_components_errors() {
+    assert_invalid(
+        inline(indoc! {r#"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            version:
+              number: "1.2.0.0"
+        "#}),
+        &[
+            "S17",
+            "three dot-separated numeric components",
+            "`1.2.0.0` is not a valid version number",
+        ],
+    );
+}
+
+// A two-component `number` is coerced to a YAML float, so it can't be echoed;
+// the rule still flags it.
+#[test]
+fn s17_number_too_few_components_errors() {
+    assert_invalid(
+        inline(indoc! {"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            version:
+              number: 1.2
+        "}),
+        &["S17", "three dot-separated numeric components"],
     );
 }
 
