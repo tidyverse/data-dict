@@ -223,166 +223,97 @@ fn top_level_description_no_s16() {
 // A document missing the recommended `$learn_more` key validates (it is not an
 // error) but surfaces a S09 warning.
 #[test]
-#[cfg(unix)]
 fn warn_missing_learn_more() {
-    assert_snapshot!(warning_raw("$version: 0.1.0\n"));
-}
-
-#[test]
-fn warn_missing_learn_more_text() {
-    let warnings = diagnostics(&raw("$version: 0.1.0\n"), Severity::Warning);
-    assert!(
-        warnings
-            .iter()
-            .any(|w| w.contains("S09") && w.contains("$learn_more")),
-        "expected a S09 `$learn_more` warning, got: {warnings:?}"
-    );
+    let diagnostic = warning_raw("$version: 0.1.0\n");
+    diagnostic.assert_contains(&["S09", "$learn_more"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 // A single-table dictionary that puts `description`/`details` on the table
 // rather than at the top level validates, but surfaces one S16 warning per
 // misplaced key.
-const S16_TABLE_DESCRIPTION: &str = indoc! {"
-    tables:
-      food:
-        description: Each row is a food item.
-        details: Collected from the USDA FoodData Central database.
-        columns:
-          - name: id
-            type: number(id)
-            examples: [1, 2, 3]
-"};
-
 #[test]
-#[cfg(unix)]
 fn warn_single_table_description() {
-    assert_snapshot!(warning_dict(S16_TABLE_DESCRIPTION));
-}
-
-#[test]
-fn warn_single_table_description_text() {
-    let warnings = diagnostics(&dict(S16_TABLE_DESCRIPTION), Severity::Warning);
-    assert!(
-        warnings
-            .iter()
-            .any(|w| w.contains("S16") && w.contains("description")),
-        "expected a S16 `description` warning, got: {warnings:?}"
-    );
-    assert!(
-        warnings
-            .iter()
-            .any(|w| w.contains("S16") && w.contains("details")),
-        "expected a S16 `details` warning, got: {warnings:?}"
-    );
+    let diagnostic = warning_dict(indoc! {"
+        tables:
+          food:
+            description: Each row is a food item.
+            details: Collected from the USDA FoodData Central database.
+            columns:
+              - name: id
+                type: number(id)
+                examples: [1, 2, 3]
+    "});
+    diagnostic.assert_contains(&["S16", "description", "details"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 // --- structural (pre-flight) checks --------------------------------------
 //
-// Each invalid case is tested at two levels:
+// Each invalid case asserts at two levels in one test: `assert_contains` checks
+// the key phrases on every platform, and `assert_snapshot!` guards the exact
+// rendered diagnostic on Unix only. The snapshot is Unix-gated because the
+// upstream renderer measures Unicode box-drawing characters differently on
+// Windows, shifting pointer arrows by one column; the cross-platform phrase
+// check still runs there. Regenerate snapshots after intentional message
+// changes with:
 //
-// 1. A snapshot test (Unix only) that guards the exact rendered diagnostic,
-//    including formatting. Gated to Unix because the upstream renderer measures
-//    Unicode box-drawing characters differently on Windows, shifting pointer
-//    arrows by one column. Regenerate after intentional message changes with:
-//
-//        INSTA_UPDATE=always cargo test -p data-dict
-//
-// 2. A cross-platform test that verifies the right error is reported on all
-//    platforms by checking for key phrases in the diagnostic text.
+//     INSTA_UPDATE=always cargo test -p data-dict
 
 #[test]
-#[cfg(unix)]
 fn missing_version() {
-    assert_snapshot!(failing_raw("tables: {}\n"));
+    let diagnostic = failing_raw("tables: {}\n");
+    diagnostic.assert_contains(&["Missing required property '$version'"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 #[test]
-fn missing_version_errors() {
-    assert_invalid(
-        raw("tables: {}\n"),
-        &["Missing required property '$version'"],
-    );
-}
-
-#[test]
-#[cfg(unix)]
 fn unknown_top_level_key() {
-    assert_snapshot!(failing_dict("bogus: 1\n"));
+    let diagnostic = failing_dict("bogus: 1\n");
+    diagnostic.assert_contains(&["Unknown property 'bogus'"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 #[test]
-fn unknown_top_level_key_errors() {
-    assert_invalid_dict("bogus: 1\n", &["Unknown property 'bogus'"]);
-}
-
-#[test]
-#[cfg(unix)]
 fn bad_cardinality() {
-    assert_snapshot!(failing_dict(indoc! {"
+    let diagnostic = failing_dict(indoc! {"
         relationships:
           - cardinality: many-to-many
             join: a.x = b.y
-    "}));
+    "});
+    diagnostic.assert_contains(&["many-to-many"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 #[test]
-fn bad_cardinality_errors() {
-    assert_invalid_dict(
-        indoc! {"
-            relationships:
-              - cardinality: many-to-many
-                join: a.x = b.y
-        "},
-        &["many-to-many"],
-    );
-}
-
-#[test]
-#[cfg(unix)]
 fn non_string_glossary_value() {
-    assert_snapshot!(failing_dict(indoc! {"
+    let diagnostic = failing_dict(indoc! {"
         glossary:
           term: 42
-    "}));
+    "});
+    diagnostic.assert_contains(&["Expected string"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 #[test]
-fn non_string_glossary_value_errors() {
-    assert_invalid_dict(
-        indoc! {"
-            glossary:
-              term: 42
-        "},
-        &["Expected string"],
-    );
-}
-
-#[test]
-#[cfg(unix)]
 fn enum_non_string_label() {
-    assert_snapshot!(failing_dict(indoc! {"
+    let diagnostic = failing_dict(indoc! {"
         tables:
           table:
             columns:
               - name: status
                 type: enum
                 values: {active: 1, inactive: 2}
-    "}));
-}
-
-#[test]
-fn enum_non_string_label_errors() {
-    assert_invalid_dict(
-        indoc! {"
-            tables:
-              table:
-                columns:
-                  - name: status
-                    type: enum
-                    values: {active: 1, inactive: 2}
-        "},
-        &["YAML Validation Failed"],
-    );
+    "});
+    diagnostic.assert_contains(&["YAML Validation Failed"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 // --- relationship checks (S01–S06) ---------------------------------------
@@ -530,31 +461,18 @@ fn s07_range_on_string_type() {
 }
 
 #[test]
-#[cfg(unix)]
 fn s07_examples_on_boolean() {
-    assert_snapshot!(failing_dict(indoc! {"
+    let diagnostic = failing_dict(indoc! {"
         tables:
           table:
             columns:
               - name: active
                 type: boolean
                 examples: [true, false]
-    "}));
-}
-
-#[test]
-fn s07_examples_on_boolean_errors() {
-    assert_invalid_dict(
-        indoc! {"
-            tables:
-              table:
-                columns:
-                  - name: active
-                    type: boolean
-                    examples: [true, false]
-        "},
-        &["S07", "type `boolean`", "examples"],
-    );
+    "});
+    diagnostic.assert_contains(&["S07", "type `boolean`", "examples"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 // --- units (S08) ---------------------------------------------------------
@@ -590,9 +508,8 @@ fn s08_units_on_non_quantity() {
 // --- names (S10, S11) ----------------------------------------------------
 
 #[test]
-#[cfg(unix)]
 fn s10_duplicate_column_name() {
-    assert_snapshot!(failing_dict(indoc! {"
+    let diagnostic = failing_dict(indoc! {"
         tables:
           table:
             columns:
@@ -602,143 +519,76 @@ fn s10_duplicate_column_name() {
               - name: id
                 type: string
                 examples: [a, b, c]
-    "}));
+    "});
+    diagnostic.assert_contains(&[
+        "S10",
+        "Column names must be unique",
+        "appears more than once",
+    ]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 #[test]
-fn s10_duplicate_column_name_errors() {
-    assert_invalid_dict(
-        indoc! {"
-            tables:
-              table:
-                columns:
-                  - name: id
-                    type: number(id)
-                    examples: [1, 2, 3]
-                  - name: id
-                    type: string
-                    examples: [a, b, c]
-        "},
-        &[
-            "S10",
-            "Column names must be unique",
-            "appears more than once",
-        ],
-    );
-}
-
-#[test]
-#[cfg(unix)]
 fn s11_empty_table_name() {
-    assert_snapshot!(failing_dict(indoc! {r#"
+    let diagnostic = failing_dict(indoc! {r#"
         tables:
           "":
             columns:
               - name: id
                 type: number(id)
                 examples: [1, 2, 3]
-    "#}));
+    "#});
+    diagnostic.assert_contains(&["S11", "table name is empty"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 #[test]
-fn s11_empty_table_name_errors() {
-    assert_invalid_dict(
-        indoc! {r#"
-            tables:
-              "":
-                columns:
-                  - name: id
-                    type: number(id)
-                    examples: [1, 2, 3]
-        "#},
-        &["S11", "table name is empty"],
-    );
-}
-
-#[test]
-#[cfg(unix)]
 fn s11_empty_column_name() {
-    assert_snapshot!(failing_dict(indoc! {r#"
+    let diagnostic = failing_dict(indoc! {r#"
         tables:
           table:
             columns:
               - name: ""
                 type: string
                 examples: [a, b, c]
-    "#}));
-}
-
-#[test]
-fn s11_empty_column_name_errors() {
-    assert_invalid_dict(
-        indoc! {r#"
-            tables:
-              table:
-                columns:
-                  - name: ""
-                    type: string
-                    examples: [a, b, c]
-        "#},
-        &["S11", "the `name` is empty"],
-    );
+    "#});
+    diagnostic.assert_contains(&["S11", "the `name` is empty"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 // --- representation values (S12, S13) ------------------------------------
 
 #[test]
-#[cfg(unix)]
 fn s12_wrong_value_type() {
-    assert_snapshot!(failing_dict(indoc! {"
+    let diagnostic = failing_dict(indoc! {"
         tables:
           table:
             columns:
               - name: count
                 type: number
                 examples: [1, two, 3]
-    "}));
+    "});
+    diagnostic.assert_contains(&["S12", "must be a number"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 #[test]
-fn s12_wrong_value_type_errors() {
-    assert_invalid_dict(
-        indoc! {"
-            tables:
-              table:
-                columns:
-                  - name: count
-                    type: number
-                    examples: [1, two, 3]
-        "},
-        &["S12", "must be a number"],
-    );
-}
-
-#[test]
-#[cfg(unix)]
 fn s12_date_not_iso() {
-    assert_snapshot!(failing_dict(indoc! {r#"
+    let diagnostic = failing_dict(indoc! {r#"
         tables:
           table:
             columns:
               - name: seen_on
                 type: date
                 range: ["2020-01-01", "20-01-2021"]
-    "#}));
-}
-
-#[test]
-fn s12_date_not_iso_errors() {
-    assert_invalid_dict(
-        indoc! {r#"
-            tables:
-              table:
-                columns:
-                  - name: seen_on
-                    type: date
-                    range: ["2020-01-01", "20-01-2021"]
-        "#},
-        &["S12", "ISO 8601 date"],
-    );
+    "#});
+    diagnostic.assert_contains(&["S12", "ISO 8601 date"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 #[test]
@@ -757,9 +607,8 @@ fn s12_datetime_requires_timezone_errors() {
 }
 
 #[test]
-#[cfg(unix)]
 fn s13_descending_range() {
-    assert_snapshot!(failing_dict(indoc! {"
+    let diagnostic = failing_dict(indoc! {"
         tables:
           table:
             columns:
@@ -767,23 +616,10 @@ fn s13_descending_range() {
                 type: number(quantity)
                 units: kg
                 range: [100, 10]
-    "}));
-}
-
-#[test]
-fn s13_descending_range_errors() {
-    assert_invalid_dict(
-        indoc! {"
-            tables:
-              table:
-                columns:
-                  - name: mass
-                    type: number(quantity)
-                    units: kg
-                    range: [100, 10]
-        "},
-        &["S13", "is greater than the maximum"],
-    );
+    "});
+    diagnostic.assert_contains(&["S13", "is greater than the maximum"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 // Guards that valid representation values and ascending ranges across every
@@ -833,25 +669,15 @@ fn version_hash_ok() {
 }
 
 #[test]
-#[cfg(unix)]
 fn s17_multiple_keys() {
-    assert_snapshot!(failing_dict(indoc! {"
+    let diagnostic = failing_dict(indoc! {"
         version:
           date: 2024-01-31
           hash: a1b2c3d
-    "}));
-}
-
-#[test]
-fn s17_multiple_keys_errors() {
-    assert_invalid_dict(
-        indoc! {"
-            version:
-              date: 2024-01-31
-              hash: a1b2c3d
-        "},
-        &["S17", "exactly one", "`date` has already been supplied"],
-    );
+    "});
+    diagnostic.assert_contains(&["S17", "exactly one", "`date` has already been supplied"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 #[test]
@@ -865,49 +691,31 @@ fn s17_empty_errors() {
 }
 
 #[test]
-#[cfg(unix)]
 fn s17_date_not_iso() {
-    assert_snapshot!(failing_dict(indoc! {r#"
+    let diagnostic = failing_dict(indoc! {r#"
         version:
           date: "31/01/2024"
-    "#}));
-}
-
-#[test]
-fn s17_date_not_iso_errors() {
-    assert_invalid_dict(
-        indoc! {r#"
-            version:
-              date: "31/01/2024"
-        "#},
-        &["S17", "ISO 8601 date", "31/01/2024"],
-    );
+    "#});
+    diagnostic.assert_contains(&["S17", "ISO 8601 date", "31/01/2024"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 // A `number` with too many components stays a string, so the diagnostic echoes
 // the offending text.
 #[test]
-#[cfg(unix)]
 fn s17_number_not_three_components() {
-    assert_snapshot!(failing_dict(indoc! {r#"
+    let diagnostic = failing_dict(indoc! {r#"
         version:
           number: "1.2.0.0"
-    "#}));
-}
-
-#[test]
-fn s17_number_not_three_components_errors() {
-    assert_invalid_dict(
-        indoc! {r#"
-            version:
-              number: "1.2.0.0"
-        "#},
-        &[
-            "S17",
-            "three dot-separated numeric components",
-            "`1.2.0.0` is not a valid version number",
-        ],
-    );
+    "#});
+    diagnostic.assert_contains(&[
+        "S17",
+        "three dot-separated numeric components",
+        "`1.2.0.0` is not a valid version number",
+    ]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 // A two-component `number` is coerced to a YAML float, so it can't be echoed;
@@ -965,9 +773,8 @@ fn s14_time_zone_ok_on_datetime() {
 }
 
 #[test]
-#[cfg(unix)]
 fn s14_time_zone_on_non_datetime() {
-    assert_snapshot!(failing_dict(indoc! {"
+    let diagnostic = failing_dict(indoc! {"
         tables:
           events:
             columns:
@@ -975,31 +782,17 @@ fn s14_time_zone_on_non_datetime() {
                 type: date
                 time_zone: America/New_York
                 range: [2020-01-01, 2024-12-31]
-    "}));
-}
-
-#[test]
-fn s14_time_zone_on_non_datetime_errors() {
-    assert_invalid_dict(
-        indoc! {"
-            tables:
-              events:
-                columns:
-                  - name: event_day
-                    type: date
-                    time_zone: America/New_York
-                    range: [2020-01-01, 2024-12-31]
-        "},
-        &["S14", "type `date`"],
-    );
+    "});
+    diagnostic.assert_contains(&["S14", "type `date`"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }
 
 // A `time_zone` outside the accepted shape (bare abbreviation, unknown area) is
 // rejected by S15, which names the offending value.
 #[test]
-#[cfg(unix)]
 fn s15_bad_time_zone() {
-    assert_snapshot!(failing_dict(indoc! {"
+    let diagnostic = failing_dict(indoc! {"
         tables:
           events:
             columns:
@@ -1007,21 +800,8 @@ fn s15_bad_time_zone() {
                 type: datetime
                 time_zone: PST
                 range: [2020-01-01T00:00:00, 2024-12-31T23:59:59]
-    "}));
-}
-
-#[test]
-fn s15_bad_time_zone_errors() {
-    assert_invalid_dict(
-        indoc! {"
-            tables:
-              events:
-                columns:
-                  - name: observed_at
-                    type: datetime
-                    time_zone: PST
-                    range: [2020-01-01T00:00:00, 2024-12-31T23:59:59]
-        "},
-        &["S15", "not a valid time zone"],
-    );
+    "});
+    diagnostic.assert_contains(&["S15", "not a valid time zone"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
 }

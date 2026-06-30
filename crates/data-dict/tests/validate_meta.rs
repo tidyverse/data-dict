@@ -8,14 +8,22 @@
 mod common;
 use common::{assert_snapshot, temp_dir, write_dict, write_parquet};
 
+use std::path::PathBuf;
+
 use data_dict::{Problem, ProblemKind, Severity, Status, validate_meta};
 use indoc::indoc;
 
+/// A fresh temp dir with the standard two-column parquet (`name`, `weight`)
+/// written to `data.parquet`, ready for a dictionary that sources it.
+fn dir_with_parquet() -> PathBuf {
+    let dir = temp_dir();
+    write_parquet(&dir.join("data.parquet"));
+    dir
+}
+
 #[test]
 fn matching_dict_and_parquet() {
-    let dir = temp_dir();
-    let parquet = dir.join("data.parquet");
-    write_parquet(&parquet);
+    let dir = dir_with_parquet();
     let yaml = write_dict(
         &dir,
         indoc! {"
@@ -39,9 +47,7 @@ fn matching_dict_and_parquet() {
 
 #[test]
 fn type_mismatch_reported() {
-    let dir = temp_dir();
-    let parquet = dir.join("data.parquet");
-    write_parquet(&parquet);
+    let dir = dir_with_parquet();
     // `weight` is a double in the data but declared as a string here.
     let yaml = write_dict(
         &dir,
@@ -73,9 +79,7 @@ fn type_mismatch_reported() {
 
 #[test]
 fn extra_column_in_data_is_warning() {
-    let dir = temp_dir();
-    let parquet = dir.join("data.parquet");
-    write_parquet(&parquet);
+    let dir = dir_with_parquet();
     // Dictionary omits `weight`, which is present in the parquet file.
     let yaml = write_dict(
         &dir,
@@ -110,9 +114,7 @@ fn extra_column_in_data_is_warning() {
 
 #[test]
 fn typeless_column_skips_type_check_for_present_column() {
-    let dir = temp_dir();
-    let parquet = dir.join("data.parquet");
-    write_parquet(&parquet);
+    let dir = dir_with_parquet();
     // `weight` is a double in the data but listed without a `type`, so its type
     // is not checked; and because it is listed it is not flagged as undocumented.
     let yaml = write_dict(
@@ -136,9 +138,7 @@ fn typeless_column_skips_type_check_for_present_column() {
 
 #[test]
 fn typeless_column_still_must_exist_in_data() {
-    let dir = temp_dir();
-    let parquet = dir.join("data.parquet");
-    write_parquet(&parquet);
+    let dir = dir_with_parquet();
     // `height` is listed (without a `type`) but absent from the data. Listing a
     // column that doesn't exist is an error, even when it isn't described.
     let yaml = write_dict(
@@ -172,9 +172,7 @@ fn typeless_column_still_must_exist_in_data() {
 
 #[test]
 fn missing_column_in_data_reported() {
-    let dir = temp_dir();
-    let parquet = dir.join("data.parquet");
-    write_parquet(&parquet);
+    let dir = dir_with_parquet();
     // Dictionary describes `height`, which is absent from the parquet file.
     let yaml = write_dict(
         &dir,
@@ -344,9 +342,7 @@ fn unreadable_source_does_not_stop_other_tables() {
 
 #[test]
 fn unknown_table_name() {
-    let dir = temp_dir();
-    let parquet = dir.join("data.parquet");
-    write_parquet(&parquet);
+    let dir = dir_with_parquet();
     let yaml = write_dict(
         &dir,
         indoc! {"

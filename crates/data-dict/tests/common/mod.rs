@@ -114,6 +114,19 @@ impl Diagnostic {
     pub fn body(&self) -> String {
         format!("{}{RULE}\n{}", self.source, self.rendered)
     }
+
+    /// Assert the rendered diagnostic contains every fragment in `expected`.
+    /// Runs unconditionally, so it carries the cross-platform error coverage on
+    /// the platforms where the (Unix-only) snapshot does not run.
+    pub fn assert_contains(&self, expected: &[&str]) {
+        for fragment in expected {
+            assert!(
+                self.rendered.contains(fragment),
+                "expected {fragment:?} in diagnostic, got:\n{}",
+                self.rendered,
+            );
+        }
+    }
 }
 
 /// Capture a validation result for snapshotting: read the validated YAML from
