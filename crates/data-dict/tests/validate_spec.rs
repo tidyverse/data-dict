@@ -47,6 +47,24 @@ fn assert_valid_dict(body: &str) {
     assert_valid(dict(body));
 }
 
+/// Assert `body` validates with neither errors nor warnings — entirely clean.
+/// Stronger than [`assert_valid_dict`], which only checks for errors.
+fn assert_clean_dict(body: &str) {
+    let path = dict(body);
+    let errors = diagnostics(&path, Severity::Error);
+    assert!(
+        errors.is_empty(),
+        "expected a clean document, but it errored:\n{}",
+        errors.join("\n"),
+    );
+    let warnings = diagnostics(&path, Severity::Warning);
+    assert!(
+        warnings.is_empty(),
+        "expected a clean document, but it warned:\n{}",
+        warnings.join("\n"),
+    );
+}
+
 fn assert_invalid_dict(body: &str, expected: &[&str]) {
     assert_invalid(dict(body), expected);
 }
@@ -164,16 +182,7 @@ fn failing_diagnostic(rel: &str) -> Diagnostic {
 // recommended `$learn_more` (both from the header), and no tables.
 #[test]
 fn minimal() {
-    let path = dict("");
-    assert!(
-        diagnostics(&path, Severity::Error).is_empty(),
-        "minimal must validate"
-    );
-    let warnings = diagnostics(&path, Severity::Warning);
-    assert!(
-        warnings.is_empty(),
-        "minimal carries `$learn_more`, so it must validate without warnings, got: {warnings:?}"
-    );
+    assert_clean_dict("");
 }
 
 // A column with only a `name` and no `type` is acknowledged but not described,
@@ -196,7 +205,7 @@ fn typeless_column_needs_no_representation() {
 // recommends, so it must validate without an S16 warning.
 #[test]
 fn top_level_description_no_s16() {
-    let path = dict(indoc! {"
+    assert_clean_dict(indoc! {"
         name: FoodData Central
         description: A snapshot of the USDA FoodData Central database.
         details: Includes both branded and foundation foods.
@@ -207,15 +216,6 @@ fn top_level_description_no_s16() {
                 type: number(id)
                 examples: [1, 2, 3]
     "});
-    assert!(
-        diagnostics(&path, Severity::Error).is_empty(),
-        "top-level descriptions must validate"
-    );
-    let warnings = diagnostics(&path, Severity::Warning);
-    assert!(
-        warnings.is_empty(),
-        "top-level descriptions must not trigger S16, got: {warnings:?}"
-    );
 }
 
 // --- warnings ------------------------------------------------------------
