@@ -1,0 +1,12 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: rendered
+---
+Error: [S17] A `version` `date` must be an ISO 8601 date (YYYY-MM-DD).
+   ╭─[ dict.yaml:4:9 ]
+   │
+ 3 │ version:
+ 4 │   date: "31/01/2024"
+   │         ─────┬────  
+   │              ╰────── `31/01/2024` is not an ISO 8601 date
+───╯

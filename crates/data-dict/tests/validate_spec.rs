@@ -12,10 +12,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
+mod common;
+
 use data_dict::Severity;
 use indoc::indoc;
-
-mod common;
 
 fn fixture(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -580,6 +580,210 @@ fn s13_descending_range_errors() {
 #[test]
 fn s12_s13_valid_ok() {
     assert_valid(fixture("spec/s12-s13-valid-ok.yaml"));
+}
+
+// --- version (S17) -------------------------------------------------------
+//
+// The optional top-level `version` has a small, self-contained grammar, so its
+// tests use inline YAML (written to a temp file) rather than fixture files.
+
+/// Write inline `yaml` to a temp file and return its path, for the path-based
+/// `assert_valid` / `assert_invalid` helpers.
+fn inline(yaml: &str) -> PathBuf {
+    common::write_yaml(&common::temp_dir(), yaml)
+}
+
+/// Validate inline `yaml` expected to fail, returning its rendered errors with
+/// the temp path rewritten to the bare `dict.yaml` so they can be snapshotted.
+fn failing_inline(yaml: &str) -> String {
+    let path = inline(yaml);
+    let errors = diagnostics(&path, Severity::Error);
+    assert!(
+        !errors.is_empty(),
+        "expected inline document to fail validation, but it passed"
+    );
+    common::sanitize(&errors.join("\n"), path.parent().unwrap())
+}
+
+// The three valid forms of the optional top-level `version`: a date, a
+// (quoted) version number, and an opaque hash.
+#[test]
+fn version_date_ok() {
+    assert_valid(inline(indoc! {"
+        $version: 0.1.0
+        $learn_more: http://data-dict.tidyverse.org/
+        version:
+          date: 2024-01-31
+    "}));
+}
+
+#[test]
+fn version_number_ok() {
+    // Quoted so its exact text (1.10, not 1.1) survives YAML parsing.
+    assert_valid(inline(indoc! {r#"
+        $version: 0.1.0
+        $learn_more: http://data-dict.tidyverse.org/
+        version:
+          number: "1.10.0"
+    "#}));
+}
+
+// A `number` may carry a semver pre-release and/or build suffix.
+#[test]
+fn version_number_suffix_ok() {
+    assert_valid(inline(indoc! {r#"
+        $version: 0.1.0
+        $learn_more: http://data-dict.tidyverse.org/
+        version:
+          number: "1.2.0-rc.1+build.5"
+    "#}));
+}
+
+#[test]
+fn version_hash_ok() {
+    assert_valid(inline(indoc! {"
+        $version: 0.1.0
+        $learn_more: http://data-dict.tidyverse.org/
+        version:
+          hash: a1b2c3d
+    "}));
+}
+
+#[test]
+#[cfg(unix)]
+fn s17_multiple_keys() {
+    let rendered = failing_inline(indoc! {"
+        $version: 0.1.0
+        $learn_more: http://data-dict.tidyverse.org/
+        version:
+          date: 2024-01-31
+          hash: a1b2c3d
+    "});
+    insta::assert_snapshot!(rendered);
+}
+
+#[test]
+fn s17_multiple_keys_errors() {
+    assert_invalid(
+        inline(indoc! {"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            version:
+              date: 2024-01-31
+              hash: a1b2c3d
+        "}),
+        &["S17", "exactly one", "`date` has already been supplied"],
+    );
+}
+
+#[test]
+fn s17_empty_errors() {
+    assert_invalid(
+        inline(indoc! {"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            version: {}
+        "}),
+        &["S17", "exactly one", "names none"],
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn s17_date_not_iso() {
+    let rendered = failing_inline(indoc! {r#"
+        $version: 0.1.0
+        $learn_more: http://data-dict.tidyverse.org/
+        version:
+          date: "31/01/2024"
+    "#});
+    insta::assert_snapshot!(rendered);
+}
+
+#[test]
+fn s17_date_not_iso_errors() {
+    assert_invalid(
+        inline(indoc! {r#"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            version:
+              date: "31/01/2024"
+        "#}),
+        &["S17", "ISO 8601 date", "31/01/2024"],
+    );
+}
+
+// A `number` with too many components stays a string, so the diagnostic echoes
+// the offending text.
+#[test]
+#[cfg(unix)]
+fn s17_number_not_three_components() {
+    let rendered = failing_inline(indoc! {r#"
+        $version: 0.1.0
+        $learn_more: http://data-dict.tidyverse.org/
+        version:
+          number: "1.2.0.0"
+    "#});
+    insta::assert_snapshot!(rendered);
+}
+
+#[test]
+fn s17_number_not_three_components_errors() {
+    assert_invalid(
+        inline(indoc! {r#"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            version:
+              number: "1.2.0.0"
+        "#}),
+        &[
+            "S17",
+            "three dot-separated numeric components",
+            "`1.2.0.0` is not a valid version number",
+        ],
+    );
+}
+
+// A two-component `number` is coerced to a YAML float, so it can't be echoed;
+// the rule still flags it.
+#[test]
+fn s17_number_too_few_components_errors() {
+    assert_invalid(
+        inline(indoc! {"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            version:
+              number: 1.2
+        "}),
+        &["S17", "three dot-separated numeric components"],
+    );
+}
+
+// The schema fixes `version`'s shape, so an unknown kind or a non-map value
+// fails structurally (pre-flight) rather than at S14.
+#[test]
+fn version_unknown_key_errors() {
+    assert_invalid(
+        inline(indoc! {"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            version:
+              tag: release-7
+        "}),
+        &["Unknown property 'tag'"],
+    );
+}
+
+#[test]
+fn version_not_a_map_errors() {
+    assert_invalid(
+        inline(indoc! {"
+            $version: 0.1.0
+            $learn_more: http://data-dict.tidyverse.org/
+            version: 2024-01-31
+        "}),
+        &["object"],
+    );
 }
 
 // `time_zone` is valid only on `datetime`. A datetime column with a time zone —

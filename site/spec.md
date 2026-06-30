@@ -22,6 +22,7 @@ The content keys all hold the actual information about the data:
 * [`tables`](#tables) is where the bulk of most data-dict.yaml files will be. It describes the tables and their columns.
 * [`relationships`](#relationships) describes the relationships between tables. It gives the details you need to safely create joins.
 * [`glossary`](#glossary) provides a place to define important domain-specific terms. This is a good place to write down those special words that your company loves to use.
+* [`version`](#version) records the version of the data the dictionary describes — a version number, a date, or an opaque hash.
 
 `name`, `description`, and `details` form a consistent trio that recurs at every level of the dictionary: the dataset as a whole (here), each [table](#tables), and each [column](#columns). `description` and `details` are always optional and mean the same thing at every level — a short summary and a longer free-text note. Only `name` differs in how it's written: it's an optional key here, the map key for a table, and the required `name` property for a column.
 
@@ -206,4 +207,23 @@ glossary:
   foundation food: >
     A food whose nutrient and food component values are derived
     primarily by chemical analysis.
+```
+
+## Version
+
+`version` records the version of the data this dictionary describes, so people and tools can tell two snapshots of the data apart and know which one a given dictionary goes with. (This is distinct from `$version`, which records the version of the *spec* the document conforms to.)
+
+`version` is optional. It's a map with exactly one of three keys, which names both the kind of version and its value:
+
+* `number`: a hand-curated version number with three dot-separated numeric components, optionally followed by a pre-release (`-…`) and/or build (`+…`) suffix, such as `1.2.0` or `1.2.0-rc.1`.
+* `date`: a release date in ISO 8601 form (`YYYY-MM-DD`), such as `2024-01-31`, for data refreshed on a schedule.
+* `hash`: an opaque identifier, such as `a1b2c3d`, derived from the data itself.
+
+If you use a `number`, we recommend [semantic versioning](https://datapackage.org/recipes/data-package-version/): increment the first component for incompatible changes, the second for backwards-compatible additions, and the third for backwards-compatible fixes.
+
+`data-dict` checks that exactly one key is present, that a `number` has three dot-separated numeric components (with an optional suffix), and that a `date` is a valid ISO 8601 date, but otherwise treats the version as opaque.
+
+```yaml
+version:
+  date: 2024-01-31
 ```

@@ -1,0 +1,12 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+expression: rendered
+---
+Error: [S17] A `version` `number` must have three dot-separated numeric components, with an optional pre-release/build suffix.
+   ╭─[ dict.yaml:4:11 ]
+   │
+ 3 │ version:
+ 4 │   number: "1.2.0.0"
+   │           ───┬───  
+   │              ╰───── `1.2.0.0` is not a valid version number
+───╯
