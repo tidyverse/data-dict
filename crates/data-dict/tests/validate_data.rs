@@ -25,20 +25,20 @@ fn check_column(
     write: impl FnOnce(&mut SerializedColumnWriter),
     column: &str,
 ) -> ProblemSet {
-    let (yaml, parquet) = build_column(schema_col, write, column);
-    validate_data(&yaml, &parquet, None)
+    let yaml = build_column(schema_col, write, column);
+    validate_data(&yaml, None)
 }
 
 /// Write a one-column parquet file (`schema_col` is that column's line in a
 /// parquet message-type schema, e.g. `OPTIONAL DOUBLE weight`; `write` fills in
 /// its data) and wrap `column` — the YAML for one `columns:` entry — in an
-/// otherwise-minimal one-table dictionary. Returns their paths so a test can run
-/// more than one validation level against the same pair.
+/// otherwise-minimal one-table dictionary whose `source` points at that file.
+/// Returns the dictionary path.
 fn build_column(
     schema_col: &str,
     write: impl FnOnce(&mut SerializedColumnWriter),
     column: &str,
-) -> (PathBuf, PathBuf) {
+) -> PathBuf {
     let dir = temp_dir();
     let parquet = dir.join("data.parquet");
 
@@ -61,7 +61,7 @@ fn build_column(
         .map(|line| format!("      {line}"))
         .collect::<Vec<_>>()
         .join("\n");
-    let yaml = write_yaml(
+    write_yaml(
         &dir,
         &formatdoc! {"
             $version: 0.1.0
@@ -73,9 +73,7 @@ fn build_column(
                 columns:
             {column}
         "},
-    );
-
-    (yaml, parquet)
+    )
 }
 
 /// Write an optional double column whose second row (1-based) is null.
@@ -92,7 +90,7 @@ fn write_double_with_null(col: &mut SerializedColumnWriter) {
 /// reads only names and types) but caught by `validate-data` (which scans).
 #[test]
 fn meta_ignores_null_values_that_data_catches() {
-    let (yaml, parquet) = build_column(
+    let yaml = build_column(
         "OPTIONAL DOUBLE weight",
         write_double_with_null,
         indoc! {"
@@ -104,11 +102,11 @@ fn meta_ignores_null_values_that_data_catches() {
     );
 
     // Metadata level: the column exists with a compatible type, so it's clean.
-    let meta = validate_meta(&yaml, &parquet, None);
+    let meta = validate_meta(&yaml, None);
     assert_eq!(meta.status(), Status::Ok, "meta got {:?}", meta.items);
 
     // Data level: the null in a required column is an error.
-    let data = validate_data(&yaml, &parquet, None);
+    let data = validate_data(&yaml, None);
     assert_eq!(data.status(), Status::Error);
     assert!(
         matches!(
@@ -126,7 +124,7 @@ fn meta_ignores_null_values_that_data_catches() {
 
 #[test]
 fn nulls_in_required_column_reported() {
-    let (yaml, parquet) = build_column(
+    let yaml = build_column(
         "OPTIONAL DOUBLE weight",
         write_double_with_null,
         indoc! {"
@@ -136,7 +134,7 @@ fn nulls_in_required_column_reported() {
               range: [0, 100]
         "},
     );
-    let result = validate_data(&yaml, &parquet, None);
+    let result = validate_data(&yaml, None);
 
     assert_eq!(result.status(), Status::Error);
     assert!(

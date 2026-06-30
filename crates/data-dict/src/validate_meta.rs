@@ -2,21 +2,23 @@
 //!
 //! [`validate_meta`] is the entry point; [`meta_issues`] is the reusable core
 //! that the data level ([`crate::validate_data`]) runs before its own value checks.
+//! The source checks (M04, M05) live in [`crate::compare_dataset`], which locates
+//! and reads each table's data before these column checks run.
 
 use std::path::Path;
 
 use crate::model::Table;
 use crate::problem::{Problem, ProblemKind, ProblemSet, Severity};
 
-/// Validate a parquet file's column names and types against a data dictionary.
+/// Validate every table's column names and types against a data dictionary.
 ///
-/// Validates the spec first, then — when it is free of errors — compares the
-/// parquet file's column schema against the selected table, reporting type
+/// Validates the spec first, then — when it is free of errors — compares each
+/// table's `source` data against its dictionary entry, reporting type
 /// mismatches, columns described but absent from the data, and columns in the
 /// data the dictionary does not describe. Values are never read; see
 /// [`crate::validate_data::validate_data`] for the level that does.
-pub fn validate_meta(dict_path: &Path, parquet_path: &Path, table: Option<&str>) -> ProblemSet {
-    crate::compare_dataset(dict_path, parquet_path, table, |table, actual, problems| {
+pub fn validate_meta(dict_path: &Path, table: Option<&str>) -> ProblemSet {
+    crate::compare_dataset(dict_path, table, |table, _parquet, actual, problems| {
         meta_issues(table, actual, problems);
     })
 }
@@ -25,22 +27,9 @@ pub fn validate_meta(dict_path: &Path, parquet_path: &Path, table: Option<&str>)
 /// the data, pushing the metadata-level problems into `out`. Reused by the data
 /// level, which appends its value-level problems to the same set.
 pub(crate) fn meta_issues(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {
-    validate_m04_source(table, out);
     validate_m01_column_types(table, actual, out);
     validate_m02_missing_columns(table, actual, out);
     validate_m03_extra_columns(table, actual, out);
-}
-
-fn validate_m04_source(table: &Table, out: &mut ProblemSet) {
-    if table.source.is_none() {
-        out.push_located(
-            ProblemKind::MissingSource,
-            Severity::Error,
-            "A table validated against data must declare a `source`.",
-            "has no `source`",
-            [table.name.span.clone()],
-        );
-    }
 }
 
 fn validate_m01_column_types(table: &Table, actual: &[(String, String)], out: &mut ProblemSet) {

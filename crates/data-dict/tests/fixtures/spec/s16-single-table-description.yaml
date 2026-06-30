@@ -1,5 +1,5 @@
 # expected: validates with warnings - a single-table dictionary should carry
-# its description and details at the top level, not on the table (S14).
+# its description and details at the top level, not on the table (S16).
 
 $version: 0.1.0
 $learn_more: http://data-dict.tidyverse.org/

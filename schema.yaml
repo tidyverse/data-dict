@@ -71,6 +71,8 @@ object:
                       description: string
                       details: string
                       units: string
+                      # Shape (S15) and placement (S14) are checked semantically
+                      time_zone: string
                       type:
                         enum: ["enum", "number(ordinal)", "number(quantity)", "date",
                                "datetime", "number", "number(id)", "string", "boolean"]

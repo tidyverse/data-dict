@@ -29,8 +29,9 @@ The `data-dict` CLI validates dictionaries at [three levels](https://data-dict.t
 * Check that a file is structurally valid and internally consistent
   (`validate-spec`). Pass a file, or a directory containing a
   `data-dict.yaml` (defaults to the current directory).
-* Compare a dictionary against a real Parquet file's column names and types
-  (`validate-meta`), or against its values too (`validate-data`).
+* Compare a dictionary against its tables' data — column names and types
+  (`validate-meta`), or values too (`validate-data`). The data is located
+  through each table's `source`, so only the dictionary is passed.
 * Print the column types of a Parquet file (`types parquet`).
 * Print an embedded agent skill for reading or writing data dictionaries
   (`skill read` / `skill write`).

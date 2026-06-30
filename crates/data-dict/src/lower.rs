@@ -10,7 +10,8 @@ use quarto_yaml::YamlWithSourceInfo;
 
 use crate::join_expr::JoinExpr;
 use crate::model::{
-    Cardinality, Column, Constraint, DataDict, Relationship, Representation, Scalar, Spanned, Table,
+    Cardinality, Column, Constraint, DataDict, Relationship, Representation, Scalar, Source,
+    Spanned, Table,
 };
 use crate::problem::{Problem, ProblemSet, Severity};
 
@@ -56,9 +57,14 @@ fn lower_table(name: &str, name_span: &SourceInfo, value: &YamlWithSourceInfo) -
             }
         }
     }
-    let source = value
-        .get_hash_value("source")
-        .map(|n| n.source_info.clone());
+    let source = value.get_hash_value("source").and_then(|n| {
+        let parquet = n.get_hash_value("parquet")?;
+        let path = parquet.yaml.as_str()?;
+        Some(Source {
+            span: n.source_info.clone(),
+            parquet: Spanned::new(path.to_string(), parquet.source_info.clone()),
+        })
+    });
     let key_span = |key: &str| {
         value.as_hash().and_then(|entries| {
             entries
@@ -85,6 +91,7 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
     let mut range: Option<Representation> = None;
     let mut examples: Option<Representation> = None;
     let mut units: Option<Spanned<String>> = None;
+    let mut time_zone: Option<Spanned<String>> = None;
     for entry in entries {
         let Some(key) = entry.key.yaml.as_str() else {
             continue;
@@ -119,6 +126,11 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
                     units = Some(Spanned::new(s.to_string(), entry.value_span.clone()));
                 }
             }
+            "time_zone" => {
+                if let Some(s) = entry.value.yaml.as_str() {
+                    time_zone = Some(Spanned::new(s.to_string(), entry.value_span.clone()));
+                }
+            }
             "constraints" => {
                 if let Some(items) = entry.value.as_array() {
                     for c in items {
@@ -141,6 +153,7 @@ fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {
         range,
         examples,
         units,
+        time_zone,
     })
 }
 
