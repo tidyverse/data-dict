@@ -10,7 +10,8 @@ use quarto_yaml::YamlWithSourceInfo;
 
 use crate::join_expr::JoinExpr;
 use crate::model::{
-    Cardinality, Column, Constraint, DataDict, Relationship, Representation, Scalar, Spanned, Table,
+    Cardinality, Column, Constraint, DataDict, Relationship, Representation, Scalar, Source,
+    Spanned, Table,
 };
 use crate::problem::{Problem, ProblemSet, Severity};
 
@@ -56,9 +57,14 @@ fn lower_table(name: &str, name_span: &SourceInfo, value: &YamlWithSourceInfo) -
             }
         }
     }
-    let source = value
-        .get_hash_value("source")
-        .map(|n| n.source_info.clone());
+    let source = value.get_hash_value("source").and_then(|n| {
+        let parquet = n.get_hash_value("parquet")?;
+        let path = parquet.yaml.as_str()?;
+        Some(Source {
+            span: n.source_info.clone(),
+            parquet: Spanned::new(path.to_string(), parquet.source_info.clone()),
+        })
+    });
     Table {
         name: Spanned::new(name.to_string(), name_span.clone()),
         columns,

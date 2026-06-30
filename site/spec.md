@@ -69,11 +69,11 @@ source:
   parquet: inst/parquet/food.parquet
 ```
 
-* `parquet`: path to a Parquet file (may include globs).
+* `parquet`: path to a Parquet file (may include globs). Relative paths are resolved relative to the dictionary file.
 
 Parquet is the only source `data-dict` can currently validate against, so it's the only one the spec defines. We expect to add more access methods in the future — most importantly `SQL` (a schema-qualified table name such as `foodbank.food`, or a full `SELECT` query), and likely others such as R, Python, and Posit Connect pins.
 
-`source` is optional while you're only validating the spec, letting you sketch a table before its data exists. But the metadata and data levels validate the dictionary against real data, so they require every table they check to declare a `source`.
+`source` is optional while you're only validating the spec, letting you sketch a table before its data exists. But the metadata and data levels validate the dictionary against real data, so every table they check must declare a `source` whose file exists and is readable.
 
 ### Columns
 

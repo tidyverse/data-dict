@@ -33,11 +33,11 @@ enum Command {
     },
 }
 
-/// Shared arguments for `validate-meta` and `validate-data`.
+/// Shared arguments for `validate-meta` and `validate-data`. 
 #[derive(clap::Args)]
 struct ValidateArgs {
     dict: PathBuf,
-    parquet: PathBuf,
+    /// Validate only this table, instead of every table in the dictionary
     #[arg(long)]
     table: Option<String>,
     /// Emit results as JSON
@@ -176,7 +176,7 @@ fn resolve_dict_path(path: Option<PathBuf>) -> Result<PathBuf, String> {
 
 /// A validation entry point: `validate_meta` or `validate_data`. Both share the
 /// signature, so `run_validate` is generic over which one it drives.
-type ValidateFn = fn(&Path, &Path, Option<&str>) -> ProblemSet;
+type ValidateFn = fn(&Path, Option<&str>) -> ProblemSet;
 
 /// Run a meta or data validation and turn its outcome into rendered output and
 /// an exit code.
@@ -188,7 +188,7 @@ fn run_validate(args: ValidateArgs, validate: ValidateFn) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let problems = validate(&dict, &args.parquet, args.table.as_deref());
+    let problems = validate(&dict, args.table.as_deref());
     let status = problems.status();
     if args.json {
         println!("{}", problems_to_json(&problems));
@@ -197,7 +197,7 @@ fn run_validate(args: ValidateArgs, validate: ValidateFn) -> ExitCode {
             eprintln!("{line}");
         }
         if !status.failed() {
-            println!("{}: ok", args.parquet.display());
+            println!("{}: ok", dict.display());
         }
     }
     if status.failed() {
@@ -370,14 +370,14 @@ mod tests {
     #[test]
     fn json_reports_error_status() {
         let problems = ProblemSet::from_preflight(
-            data_dict::ProblemKind::AmbiguousTable {
+            data_dict::ProblemKind::TableNotFound {
                 available: vec!["a".to_string(), "b".to_string()],
             },
-            "the data dictionary describes multiple tables",
+            "table \"x\" is not in the data dictionary",
         );
         let json = problems_to_json(&problems);
         assert_eq!(json["status"], "error");
-        assert_eq!(json["problems"][0]["kind"], "ambiguous_table");
+        assert_eq!(json["problems"][0]["kind"], "table_not_found");
         assert_eq!(json["problems"][0]["available"][1], "b");
     }
 }
