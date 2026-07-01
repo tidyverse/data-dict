@@ -4,7 +4,7 @@ source: crates/data-dict/tests/validate_meta.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  animals:
+  - name: animals
     source:
       parquet: data.parquet
     columns:
@@ -18,7 +18,7 @@ tables:
 Error: [M01] A column's data must match its declared type.
     ╭─[ dict.yaml:12:15 ]
     │
-  4 │   animals:
+  4 │   - name: animals
     │ 
  11 │       - name: weight
  12 │         type: string

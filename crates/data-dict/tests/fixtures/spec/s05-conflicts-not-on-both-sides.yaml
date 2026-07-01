@@ -5,14 +5,14 @@
 $version: "0.1.0"
 
 tables:
-  food:
+  - name: food
     columns:
       - name: id
         type: number(id)
         constraints: [primary_key]
         examples: [1, 2]
 
-  food_nutrient:
+  - name: food_nutrient
     columns:
       - name: id
         type: number(id)

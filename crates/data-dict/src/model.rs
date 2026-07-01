@@ -5,7 +5,6 @@
 //! input. Each significant node carries a `SourceInfo` so schema-check diagnostics
 //! can point back at the source.
 
-use indexmap::IndexMap;
 use quarto_source_map::SourceInfo;
 
 use crate::join_expr::JoinExpr;
@@ -24,8 +23,16 @@ impl<T> Spanned<T> {
 
 #[derive(Debug, Clone)]
 pub struct DataDict {
-    pub tables: IndexMap<String, Table>,
+    pub tables: Vec<Table>,
     pub relationships: Vec<Relationship>,
+}
+
+impl DataDict {
+    /// The first table with the given name, or `None`. Duplicate names are an
+    /// error (S10); lookups resolve to the first so downstream checks still run.
+    pub fn table(&self, name: &str) -> Option<&Table> {
+        self.tables.iter().find(|t| t.name.value == name)
+    }
 }
 
 #[derive(Debug, Clone)]

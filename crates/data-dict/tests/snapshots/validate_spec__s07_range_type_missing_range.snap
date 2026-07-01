@@ -4,7 +4,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  table:
+  - name: table
     columns:
       - name: weight
         type: number(quantity)
@@ -14,7 +14,7 @@ tables:
 Error: [S07] A `number(quantity)` column must describe its bounds with `range`.
    ╭─[ dict.yaml:7:15 ]
    │
- 4 │   table:
+ 4 │   - name: table
    │ 
  6 │       - name: weight
  7 │         type: number(quantity)
@@ -25,7 +25,7 @@ Error: [S07] A `number(quantity)` column must describe its bounds with `range`.
 Error: [S07] A `date` column must describe its bounds with `range`.
    ╭─[ dict.yaml:9:15 ]
    │
- 4 │   table:
+ 4 │   - name: table
    │ 
  8 │       - name: recorded_at
  9 │         type: date

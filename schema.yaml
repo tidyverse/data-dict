@@ -36,70 +36,74 @@ object:
     details: string
 
     tables:
-      object:
-        # Keys are arbitrary table names, so no fixed `properties` — every
-        # value must match the table schema.
-        additionalProperties:
-          object:
-            closed: true
-            required: [columns]
-            properties:
+      arrayOf:
+        object:
+          closed: true
+          required: [name, columns]
+          properties:
 
-              description: string
-              details: string
+            # `anyOf: [string, null]` lets an empty/null name through to the
+            # semantic layer, where S11 reports it with a clear message; the
+            # YAML parser collapses `""` to null. Uniqueness is S10's job.
+            name:
+              anyOf:
+                - string
+                - null
+            description: string
+            details: string
 
-              source:
+            source:
+              object:
+                closed: true
+                minProperties: 1
+                properties:
+                  parquet: string
+
+            columns:
+              arrayOf:
                 object:
                   closed: true
-                  minProperties: 1
+                  required: [name]
                   properties:
-                    parquet: string
-
-              columns:
-                arrayOf:
-                  object:
-                    closed: true
-                    required: [name]
-                    properties:
-                      # `anyOf: [string, null]` lets an empty/null name through
-                      # to the semantic layer, where S11 reports it with a clear
-                      # message; the YAML parser collapses `""` to null.
-                      name:
-                        anyOf:
-                          - string
-                          - null
-                      description: string
-                      details: string
-                      display:
-                        enum: [restricted]
-                      units: string
-                      # Shape (S15) and placement (S14) are checked semantically
-                      time_zone: string
-                      type:
-                        enum: ["enum", "number(ordinal)", "number(quantity)", "date",
-                               "datetime", "number", "number(id)", "string", "boolean"]
-                      values:
-                        anyOf:
-                          - arrayOf:                  # [M, F, U]
-                              anyOf:
-                                - string
-                                - number
-                                - boolean
-                          - object:                   # {M: Male, F: Female, ...}
-                              additionalProperties: string
-                      range:
-                        anyOf:
-                          - arrayOf:
-                              schema: number
-                              length: 2
-                          - arrayOf:
-                              schema: string
-                              length: 2
-                      constraints:
-                        arrayOf:
-                          enum: [primary_key, foreign_key, required, unique]
-                      examples:
-                        arrayOf: any
+                    # `anyOf: [string, null]` lets an empty/null name through
+                    # to the semantic layer, where S11 reports it with a clear
+                    # message; the YAML parser collapses `""` to null.
+                    name:
+                      anyOf:
+                        - string
+                        - null
+                    description: string
+                    details: string
+                    display:
+                      enum: [restricted]
+                    units: string
+                    # Shape (S15) and placement (S14) are checked semantically
+                    time_zone: string
+                    type:
+                      enum: ["enum", "number(ordinal)", "number(quantity)", "date",
+                             "datetime", "number", "number(id)", "string", "boolean"]
+                    values:
+                      anyOf:
+                        - arrayOf:                  # [M, F, U]
+                            anyOf:
+                              - string
+                              - number
+                              - boolean
+                        - object:                   # {M: Male, F: Female, ...}
+                            additionalProperties: string
+                    range:
+                      anyOf:
+                        - arrayOf:
+                            schema: number
+                            length: 2
+                        - arrayOf:
+                            schema: string
+                            length: 2
+                    constraints:
+                      arrayOf:
+                        enum: [primary_key, foreign_key, required, unique]
+                    examples:
+                      arrayOf: any
 
     relationships:
       arrayOf:

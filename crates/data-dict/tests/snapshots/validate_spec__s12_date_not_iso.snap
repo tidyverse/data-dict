@@ -4,7 +4,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  table:
+  - name: table
     columns:
       - name: seen_on
         type: date
@@ -13,7 +13,7 @@ tables:
 Error: [S12] Each `range` value of a `date` column must be an ISO 8601 date (YYYY-MM-DD).
    ╭─[ dict.yaml:8:31 ]
    │
- 4 │   table:
+ 4 │   - name: table
    │ 
  6 │       - name: seen_on
    │ 

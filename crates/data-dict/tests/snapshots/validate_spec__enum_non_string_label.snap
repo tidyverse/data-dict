@@ -4,7 +4,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  table:
+  - name: table
     columns:
       - name: status
         type: enum
@@ -17,6 +17,6 @@ Error: [Q-1-11] YAML Validation Failed
    │                  ───────────┬──────────  
    │                             ╰──────────── Expected array, got object
 ───╯
-✖ At document path: `tables.table.columns.[0].values`
-ℹ Schema constraint: object > object > object > array > object > anyOf > array
+✖ At document path: `tables.[0].columns.[0].values`
+ℹ Schema constraint: object > array > object > array > object > anyOf > array
 ℹ Use YAML array syntax: `[item1, item2]` or list format?

@@ -9,7 +9,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 
 tables:
-  food:
+  - name: food
     columns:
       - name: id
         type: number(id)
@@ -19,7 +19,7 @@ tables:
         type: number(id)
         examples: [1, 2]
 
-  food_category:
+  - name: food_category
     columns:
       - name: id
         type: number(id)

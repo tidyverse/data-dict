@@ -311,7 +311,6 @@ version = "0.0.1"
 dependencies = [
  "chrono",
  "data-dict-parquet",
- "indexmap",
  "indoc",
  "insta",
  "parquet",

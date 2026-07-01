@@ -9,7 +9,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 
 tables:
-  otters:
+  - name: otters
     columns:
       - name: otter_no
         type: number(id)
