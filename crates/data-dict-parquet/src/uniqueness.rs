@@ -135,6 +135,9 @@ fn plan_columns(
 /// into either scalar `i64`s or byte strings. Byte values keep the [`ByteArray`]
 /// handles the reader produced, so [`ColumnBatch::bytes`] is a zero-copy slice
 /// into Parquet's decoded page (or dictionary) buffer rather than a re-copy.
+///
+/// `null` is empty when the column is `REQUIRED` (it can't contain nulls), which
+/// skips a per-batch mask allocation on the common path.
 enum ColumnBatch {
     Scalar {
         values: Vec<i64>,
@@ -149,13 +152,16 @@ enum ColumnBatch {
 impl ColumnBatch {
     fn len(&self) -> usize {
         match self {
-            ColumnBatch::Scalar { null, .. } | ColumnBatch::Bytes { null, .. } => null.len(),
+            ColumnBatch::Scalar { values, .. } => values.len(),
+            ColumnBatch::Bytes { values, .. } => values.len(),
         }
     }
 
     fn is_null(&self, row: usize) -> bool {
         match self {
-            ColumnBatch::Scalar { null, .. } | ColumnBatch::Bytes { null, .. } => null[row],
+            ColumnBatch::Scalar { null, .. } | ColumnBatch::Bytes { null, .. } => {
+                !null.is_empty() && null[row]
+            }
         }
     }
 
@@ -190,12 +196,13 @@ fn read_batch(
             let mut raw = Vec::new();
             let (records, _, _) = typed.read_records(BATCH_ROWS, Some(&mut def), None, &mut raw)?;
             let mut values = vec![0i64; records];
-            let mut null = vec![false; records];
+            let mut null = Vec::new();
             if max_def == 0 {
                 for (out, value) in values.iter_mut().zip(&raw) {
                     *out = $map(value);
                 }
             } else {
+                null = vec![false; records];
                 let mut cursor = 0;
                 for row in 0..records {
                     if def[row] == max_def {
@@ -254,7 +261,7 @@ fn expand_bytes(nonnull: Vec<ByteArray>, def: &[i16], max_def: i16, records: usi
     if max_def == 0 {
         return ColumnBatch::Bytes {
             values: nonnull,
-            null: vec![false; records],
+            null: Vec::new(),
         };
     }
     let mut values = Vec::with_capacity(records);
