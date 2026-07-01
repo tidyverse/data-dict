@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use data_dict::{Problem, ProblemKind, ProblemSet, Status, validate_data, validate_meta};
 use indoc::{formatdoc, indoc};
-use parquet::data_type::DoubleType;
+use parquet::data_type::{ByteArray, ByteArrayType, DoubleType};
 use parquet::file::properties::{EnabledStatistics, WriterProperties};
 use parquet::file::writer::{SerializedColumnWriter, SerializedFileWriter};
 use parquet::schema::parser::parse_message_type;
@@ -95,6 +95,50 @@ fn write_double_with_null(col: &mut SerializedColumnWriter) {
     col.typed::<DoubleType>()
         .write_batch(&[1.0_f64, 2.0], Some(&[1, 0, 1]), None)
         .unwrap();
+}
+
+fn build_composite_key(first: &[f64], second: &[f64]) -> PathBuf {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    let schema = Arc::new(
+        parse_message_type("message schema { REQUIRED DOUBLE a; REQUIRED DOUBLE b; }").unwrap(),
+    );
+    let file = File::create(&parquet).unwrap();
+    let mut writer =
+        SerializedFileWriter::new(file, schema, Arc::new(WriterProperties::builder().build()))
+            .unwrap();
+    let mut row_group = writer.next_row_group().unwrap();
+    let mut a = row_group.next_column().unwrap().unwrap();
+    a.typed::<DoubleType>()
+        .write_batch(first, None, None)
+        .unwrap();
+    a.close().unwrap();
+    let mut b = row_group.next_column().unwrap().unwrap();
+    b.typed::<DoubleType>()
+        .write_batch(second, None, None)
+        .unwrap();
+    b.close().unwrap();
+    row_group.close().unwrap();
+    writer.close().unwrap();
+
+    write_dict(
+        &dir,
+        indoc! {"
+            tables:
+              t:
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: a
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+                  - name: b
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+        "},
+    )
 }
 
 /// The defining difference between the two levels: a `required` column with
@@ -251,4 +295,112 @@ fn primary_key_implies_required_for_nulls() {
         "got {:?}",
         result.items
     );
+}
+
+#[test]
+fn duplicate_values_in_unique_column_reported() {
+    let result = check_column(
+        "REQUIRED DOUBLE id",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0, 1.0, 2.0], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: id
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    assert!(matches!(
+        result.items.as_slice(),
+        [Problem {
+            code: Some("D02"),
+            kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+            ..
+        }] if columns == &["id"] && rows == &[2]
+    ));
+}
+
+/// Write a single required string column whose values are split across the
+/// given row groups, so the scan accumulates row offsets across group
+/// boundaries and exercises the variable-length byte-key path.
+fn build_string_groups(groups: &[&[&str]]) -> PathBuf {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    let schema = Arc::new(
+        parse_message_type("message schema { REQUIRED BYTE_ARRAY code (UTF8); }").unwrap(),
+    );
+    let file = File::create(&parquet).unwrap();
+    let mut writer =
+        SerializedFileWriter::new(file, schema, Arc::new(WriterProperties::builder().build()))
+            .unwrap();
+    for group in groups {
+        let values = group
+            .iter()
+            .map(|s| ByteArray::from(*s))
+            .collect::<Vec<_>>();
+        let mut row_group = writer.next_row_group().unwrap();
+        let mut col = row_group.next_column().unwrap().unwrap();
+        col.typed::<ByteArrayType>()
+            .write_batch(&values, None, None)
+            .unwrap();
+        col.close().unwrap();
+        row_group.close().unwrap();
+    }
+    writer.close().unwrap();
+
+    write_dict(
+        &dir,
+        indoc! {"
+            tables:
+              t:
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: code
+                    type: string
+                    constraints: [unique]
+                    examples: [a, b]
+        "},
+    )
+}
+
+#[test]
+fn duplicate_string_values_across_row_groups_reported() {
+    // No duplicates across two groups.
+    let unique = build_string_groups(&[&["a", "b"], &["c", "d"]]);
+    assert_eq!(validate_data(&unique, None).status(), Status::Ok);
+
+    // "a" recurs in the second group, so the duplicate sits at row 4 — proving
+    // row numbers carry across the row-group boundary.
+    let duplicate = build_string_groups(&[&["a", "b"], &["c", "a"]]);
+    let result = validate_data(&duplicate, None);
+    assert!(matches!(
+        result.items.as_slice(),
+        [Problem {
+            code: Some("D02"),
+            kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+            ..
+        }] if columns == &["code"] && rows == &[4]
+    ));
+}
+
+#[test]
+fn composite_primary_key_is_checked_collectively() {
+    let unique = build_composite_key(&[1.0, 1.0, 2.0], &[1.0, 2.0, 1.0]);
+    assert_eq!(validate_data(&unique, None).status(), Status::Ok);
+
+    let duplicate = build_composite_key(&[1.0, 1.0, 2.0], &[1.0, 1.0, 2.0]);
+    let result = validate_data(&duplicate, None);
+    assert!(matches!(
+        result.items.as_slice(),
+        [Problem {
+            code: Some("D02"),
+            kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+            ..
+        }] if columns == &["a", "b"] && rows == &[2]
+    ));
 }

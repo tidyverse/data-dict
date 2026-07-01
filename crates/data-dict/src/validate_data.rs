@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use data_dict_parquet::{ColumnMeta, ColumnNeeds, ColumnStats};
+use data_dict_parquet::{ColumnMeta, ColumnNeeds, ColumnStats, UniquenessCheck, UniquenessStats};
 
 use crate::model::{Column, Constraint, Table};
 use crate::problem::{Problem, ProblemKind, ProblemSet, Severity};
@@ -85,6 +85,50 @@ fn value_issues(
             for check in pending.get(&col.name.value).into_iter().flatten() {
                 if let Some(problem) = check.check_data(table, col, stat) {
                     out.push(problem);
+                }
+            }
+        }
+    }
+
+    let mut uniqueness = Vec::new();
+    for col in table
+        .columns
+        .iter()
+        .filter(|col| col.has(Constraint::Unique) && present(&col.name.value))
+    {
+        let Some(meta) = metadata.get(&col.name.value) else {
+            continue;
+        };
+        match crate::validate_meta::validate_d02_unique_column(table, col, meta) {
+            CheckResult::Pass => {}
+            CheckResult::Inconclusive => uniqueness.push(UniquenessTarget::Column(col)),
+            CheckResult::Fail(problem) => out.push(*problem),
+        }
+    }
+    let primary_key = table
+        .columns
+        .iter()
+        .filter(|col| col.has(Constraint::PrimaryKey))
+        .collect::<Vec<_>>();
+    if !primary_key.is_empty() && primary_key.iter().all(|col| present(&col.name.value)) {
+        uniqueness.push(UniquenessTarget::PrimaryKey(primary_key));
+    }
+    if !uniqueness.is_empty() {
+        let checks = uniqueness
+            .iter()
+            .map(UniquenessTarget::check)
+            .collect::<Vec<_>>();
+        let results = data_dict_parquet::uniqueness_stats(parquet_path, &checks, SAMPLE_LIMIT)?;
+        for (target, stats) in uniqueness.iter().zip(&results) {
+            if stats.duplicate_count == 0 {
+                continue;
+            }
+            match target {
+                UniquenessTarget::Column(col) => {
+                    out.push(duplicates_in_unique_column(table, col, stats));
+                }
+                UniquenessTarget::PrimaryKey(columns) => {
+                    out.push(duplicates_in_primary_key(table, columns, stats));
                 }
             }
         }
@@ -171,5 +215,87 @@ fn nulls_in_required_data(table: &Table, col: &Column, count: usize, rows: Vec<u
         span: Some(constraint_span),
         context: vec![table.name.span.clone(), col.name.span.clone()],
         kind: ProblemKind::NullsInRequired { count, rows },
+    }
+}
+
+fn duplicates_in_unique_column(table: &Table, col: &Column, stats: &UniquenessStats) -> Problem {
+    let count = stats.duplicate_count;
+    let detail = crate::problem::format_rows(&stats.duplicate_rows, count);
+    let plural = if count == 1 { "" } else { "s" };
+    let constraint_span = col
+        .constraints
+        .iter()
+        .find(|constraint| constraint.value == Constraint::Unique)
+        .map_or_else(
+            || col.name.span.clone(),
+            |constraint| constraint.span.clone(),
+        );
+    Problem {
+        code: Some("D02"),
+        severity: Severity::Error,
+        message: format!("has {count} repeated occurrence{plural} ({detail})"),
+        column: None,
+        expected: Some("A unique column must not contain duplicate values.".into()),
+        span: Some(constraint_span),
+        context: vec![table.name.span.clone(), col.name.span.clone()],
+        kind: ProblemKind::DuplicateValues {
+            columns: vec![col.name.value.clone()],
+            count,
+            rows: stats.duplicate_rows.clone(),
+        },
+    }
+}
+
+fn duplicates_in_primary_key(
+    table: &Table,
+    columns: &[&Column],
+    stats: &UniquenessStats,
+) -> Problem {
+    let count = stats.duplicate_count;
+    let detail = crate::problem::format_rows(&stats.duplicate_rows, count);
+    let plural = if count == 1 { "" } else { "s" };
+    let last = columns
+        .last()
+        .expect("a primary key has at least one column");
+    let constraint_span = last
+        .constraints
+        .iter()
+        .find(|constraint| constraint.value == Constraint::PrimaryKey)
+        .map_or_else(
+            || last.name.span.clone(),
+            |constraint| constraint.span.clone(),
+        );
+    Problem {
+        code: Some("D02"),
+        severity: Severity::Error,
+        message: format!("has {count} repeated occurrence{plural} ({detail})"),
+        column: None,
+        expected: Some("The primary key must uniquely identify every row.".into()),
+        span: Some(constraint_span),
+        context: std::iter::once(table.name.span.clone())
+            .chain(columns.iter().map(|col| col.name.span.clone()))
+            .collect(),
+        kind: ProblemKind::DuplicateValues {
+            columns: columns.iter().map(|col| col.name.value.clone()).collect(),
+            count,
+            rows: stats.duplicate_rows.clone(),
+        },
+    }
+}
+
+enum UniquenessTarget<'a> {
+    Column(&'a Column),
+    PrimaryKey(Vec<&'a Column>),
+}
+
+impl UniquenessTarget<'_> {
+    fn check(&self) -> UniquenessCheck {
+        let columns = match self {
+            UniquenessTarget::Column(col) => vec![col.name.value.clone()],
+            UniquenessTarget::PrimaryKey(columns) => {
+                columns.iter().map(|col| col.name.value.clone()).collect()
+            }
+        };
+        UniquenessCheck { columns }
     }
 }

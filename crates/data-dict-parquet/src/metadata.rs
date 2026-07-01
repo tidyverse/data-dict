@@ -21,6 +21,11 @@ pub struct ColumnMeta {
     /// Total nulls across all row groups, or `None` when any row group omits
     /// null-count statistics. Required Parquet fields always report `Some(0)`.
     pub null_count: Option<usize>,
+    /// Number of rows in the file.
+    pub row_count: usize,
+    /// Distinct values when a single row group's footer provides the count.
+    /// Multiple row-group counts cannot prove file-wide uniqueness.
+    pub distinct_count: Option<usize>,
 }
 
 /// Read the inexpensive, footer-only statistics for each top-level column.
@@ -47,7 +52,22 @@ pub fn column_meta(path: &Path) -> Result<HashMap<String, ColumnMeta>, ParquetEr
                         .map(|count| total + count as usize)
                 })
             };
-            (field.name().to_string(), ColumnMeta { null_count })
+            let distinct_count = match meta.row_groups() {
+                [row_group] => row_group
+                    .column(idx)
+                    .statistics()
+                    .and_then(|statistics| statistics.distinct_count_opt())
+                    .map(|count| count as usize),
+                _ => None,
+            };
+            (
+                field.name().to_string(),
+                ColumnMeta {
+                    null_count,
+                    row_count: meta.file_metadata().num_rows() as usize,
+                    distinct_count,
+                },
+            )
         })
         .collect())
 }
