@@ -15,7 +15,7 @@ Error: [S13] A range's minimum must be less than or equal to its maximum.
    ╭─[ dict.yaml:9:17 ]
    │
  4 │   - name: table
-   │ 
+ 5 │     columns:
  6 │       - name: mass
    │ 
  9 │         range: [100, 10]

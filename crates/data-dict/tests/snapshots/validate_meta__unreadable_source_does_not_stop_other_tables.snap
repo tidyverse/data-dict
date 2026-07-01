@@ -26,7 +26,7 @@ Error: [M05] A table's `source` must point at a readable Parquet file.
    ╭─[ dict.yaml:6:16 ]
    │
  4 │   - name: animals
-   │ 
+ 5 │     source:
  6 │       parquet: missing.parquet
    │                ───────┬───────  
    │                       ╰───────── Parquet error: Cannot open file: No such file or directory (os error 2)

@@ -15,7 +15,7 @@ Error: [S15] A `time_zone` must be `naive`, `UTC`, or an IANA `Area/Location` na
    ╭─[ dict.yaml:8:20 ]
    │
  4 │   - name: events
-   │ 
+ 5 │     columns:
  6 │       - name: observed_at
  7 │         type: datetime
  8 │         time_zone: PST

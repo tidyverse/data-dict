@@ -25,7 +25,7 @@ Warning: [S16] A single-table dictionary's description and details belong at the
    ╭─[ dict.yaml:6:5 ]
    │
  4 │   - name: food
-   │ 
+ 5 │     description: Each row is a food item.
  6 │     details: Collected from the USDA FoodData Central database.
    │     ───┬───  
    │        ╰───── table `food` has a `details`
