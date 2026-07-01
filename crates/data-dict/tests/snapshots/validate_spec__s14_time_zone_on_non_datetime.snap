@@ -15,7 +15,7 @@ Error: [S14] A column with `time_zone` must have type `datetime`.
    ╭─[ dict.yaml:8:20 ]
    │
  4 │   events:
-   │ 
+ 5 │     columns:
  6 │       - name: event_day
  7 │         type: date
  8 │         time_zone: America/New_York

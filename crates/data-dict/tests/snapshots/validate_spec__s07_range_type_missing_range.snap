@@ -15,7 +15,7 @@ Error: [S07] A `number(quantity)` column must describe its bounds with `range`.
    ╭─[ dict.yaml:7:15 ]
    │
  4 │   table:
-   │ 
+ 5 │     columns:
  6 │       - name: weight
  7 │         type: number(quantity)
    │               ────────┬───────  

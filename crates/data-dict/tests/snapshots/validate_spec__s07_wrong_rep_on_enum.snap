@@ -14,7 +14,7 @@ Error: [S07] An `enum` column must list its categories with `values`.
    ╭─[ dict.yaml:7:15 ]
    │
  4 │   table:
-   │ 
+ 5 │     columns:
  6 │       - name: status
  7 │         type: enum
    │               ──┬─  
@@ -25,9 +25,9 @@ Error: [S07] An `enum` column must use `values`, not `range`.
    ╭─[ dict.yaml:8:16 ]
    │
  4 │   table:
-   │ 
+ 5 │     columns:
  6 │       - name: status
-   │ 
+ 7 │         type: enum
  8 │         range: [0, 10]
    │                ───┬──  
    │                   ╰──── has type `enum` but uses `range`

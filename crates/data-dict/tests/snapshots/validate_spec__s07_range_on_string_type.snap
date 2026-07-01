@@ -15,7 +15,7 @@ Error: [S07] A `string` column must not use `range`.
    ╭─[ dict.yaml:9:16 ]
    │
  4 │   table:
-   │ 
+ 5 │     columns:
  6 │       - name: c
    │ 
  9 │         range: ["a", "z"]

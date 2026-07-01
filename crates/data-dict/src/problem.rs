@@ -14,7 +14,7 @@
 //! descending. Fatality is control flow, not data.
 
 use quarto_error_reporting::DiagnosticMessageBuilder;
-use quarto_source_map::{SourceContext, SourceInfo};
+use quarto_source_map::{FileId, SourceContext, SourceInfo};
 
 use crate::Level;
 
@@ -247,6 +247,9 @@ impl Problem {
         for ctx_span in &self.context {
             builder = builder.add_faded_at("", ctx_span.clone());
         }
+        for gap_span in gap_fill_spans(&self.context, span, ctx) {
+            builder = builder.add_faded_at("", gap_span);
+        }
         builder = builder
             .problem(self.message.clone())
             .with_location(span.clone());
@@ -268,6 +271,55 @@ impl Problem {
         }
         line
     }
+}
+
+/// Fill any single-line gap between the context chunks
+fn gap_fill_spans(
+    context: &[SourceInfo],
+    primary: &SourceInfo,
+    ctx: &SourceContext,
+) -> Vec<SourceInfo> {
+    use std::collections::{BTreeSet, HashMap};
+
+    let mut rows_by_file: HashMap<FileId, BTreeSet<usize>> = HashMap::new();
+    for span in context.iter().chain(std::iter::once(primary)) {
+        if let Some(loc) = span.map_offset(0, ctx) {
+            rows_by_file
+                .entry(loc.file_id)
+                .or_default()
+                .insert(loc.location.row);
+        }
+    }
+
+    let mut fills = Vec::new();
+    for (file_id, rows) in rows_by_file {
+        let Some(content) = ctx.get_file(file_id).and_then(|f| f.content.as_deref()) else {
+            continue;
+        };
+        let rows: Vec<usize> = rows.into_iter().collect();
+        for pair in rows.windows(2) {
+            if pair[1] == pair[0] + 2
+                && let Some(span) = line_span(file_id, content, pair[0] + 1)
+            {
+                fills.push(span);
+            }
+        }
+    }
+    fills
+}
+
+/// A span covering the content of 0-based `row` in `content` (excluding the
+/// trailing newline), or `None` if the file has no such line.
+fn line_span(file_id: FileId, content: &str, row: usize) -> Option<SourceInfo> {
+    let mut start = 0;
+    for (i, line) in content.split_inclusive('\n').enumerate() {
+        if i == row {
+            let end = start + line.trim_end_matches(['\r', '\n']).len();
+            return Some(SourceInfo::original(file_id, start, end));
+        }
+        start += line.len();
+    }
+    None
 }
 
 /// Every problem found while validating a document, with the [`SourceContext`]

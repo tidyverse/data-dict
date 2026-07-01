@@ -15,9 +15,9 @@ Error: [S08] A column with `units` must have type `number(quantity)`.
    ╭─[ dict.yaml:8:16 ]
    │
  4 │   races:
-   │ 
+ 5 │     columns:
  6 │       - name: finish_rank
-   │ 
+ 7 │         type: number(ordinal)
  8 │         units: place
    │                ──┬──  
    │                  ╰──── has `units` but has type `number(ordinal)`

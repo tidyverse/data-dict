@@ -14,7 +14,7 @@ Error: [S11] Every column must have a non-empty `name`.
    ╭─[ dict.yaml:6:15 ]
    │
  4 │   table:
-   │ 
+ 5 │     columns:
  6 │       - name: ""
    │               │ 
    │               ╰─ the `name` is empty

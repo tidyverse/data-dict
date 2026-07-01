@@ -19,7 +19,7 @@ Error: [D01] A required column must not contain nulls.
   4 │   t:
     │ 
   8 │       - name: weight
-    │ 
+  9 │         type: number(quantity)
  10 │         constraints: [required]
     │                       ────┬───  
     │                           ╰───── has 1 null value
