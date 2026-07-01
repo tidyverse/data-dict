@@ -51,7 +51,7 @@ fn animals_dict(dir: &Path, parquet: &str, columns: &str) -> PathBuf {
         dir,
         &formatdoc! {"
             tables:
-              animals:
+              - name: animals
                 source:
                   parquet: {parquet}
                 columns:
@@ -194,7 +194,7 @@ fn validates_every_table() {
         &dir,
         indoc! {"
             tables:
-              animals:
+              - name: animals
                 source:
                   parquet: animals.parquet
                 columns:
@@ -204,7 +204,7 @@ fn validates_every_table() {
                   - name: weight
                     type: number(quantity)
                     range: [0, 100]
-              plants:
+              - name: plants
                 source:
                   parquet: plants.parquet
                 columns:
@@ -268,14 +268,14 @@ fn unreadable_source_does_not_stop_other_tables() {
         &dir,
         indoc! {"
             tables:
-              animals:
+              - name: animals
                 source:
                   parquet: missing.parquet
                 columns:
                   - name: name
                     type: string
                     examples: [otter, seal]
-              plants:
+              - name: plants
                 source:
                   parquet: plants.parquet
                 columns:
@@ -331,7 +331,7 @@ fn missing_source_reported() {
         &dir,
         indoc! {"
             tables:
-              animals:
+              - name: animals
                 columns:
                   - name: name
                     type: string

@@ -79,7 +79,7 @@ fn build_column_with_properties(
         &dir,
         &formatdoc! {"
             tables:
-              t:
+              - name: t
                 source:
                   parquet: data.parquet
                 columns:

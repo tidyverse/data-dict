@@ -304,7 +304,7 @@ mod tests {
     fn explicit_file_is_returned_as_is() {
         let dir = temp_dir("file");
         let file = dir.join("custom.yaml");
-        fs::write(&file, "tables: {}\n").unwrap();
+        fs::write(&file, "tables: []\n").unwrap();
         assert_eq!(resolve_dict_path(Some(file.clone())).unwrap(), file);
     }
 
@@ -312,7 +312,7 @@ mod tests {
     fn directory_resolves_to_data_dict_yaml() {
         let dir = temp_dir("dir");
         let dict = dir.join("data-dict.yaml");
-        fs::write(&dict, "tables: {}\n").unwrap();
+        fs::write(&dict, "tables: []\n").unwrap();
         assert_eq!(resolve_dict_path(Some(dir)).unwrap(), dict);
     }
 

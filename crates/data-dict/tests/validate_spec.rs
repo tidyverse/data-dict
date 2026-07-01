@@ -191,7 +191,7 @@ fn minimal() {
 fn typeless_column_needs_no_representation() {
     assert_valid_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: label
                 type: string
@@ -210,7 +210,7 @@ fn top_level_description_no_s16() {
         description: A snapshot of the USDA FoodData Central database.
         details: Includes both branded and foundation foods.
         tables:
-          food:
+          - name: food
             columns:
               - name: id
                 type: number(id)
@@ -222,7 +222,7 @@ fn top_level_description_no_s16() {
 fn restricted_display_is_valid() {
     assert_clean_dict(indoc! {"
         tables:
-          people:
+          - name: people
             columns:
               - name: ssn
                 type: string
@@ -250,7 +250,7 @@ fn warn_missing_learn_more() {
 fn warn_single_table_description() {
     let diagnostic = warning_dict(indoc! {"
         tables:
-          food:
+          - name: food
             description: Each row is a food item.
             details: Collected from the USDA FoodData Central database.
             columns:
@@ -277,7 +277,7 @@ fn warn_single_table_description() {
 
 #[test]
 fn missing_version() {
-    let diagnostic = failing_raw("tables: {}\n");
+    let diagnostic = failing_raw("tables: []\n");
     diagnostic.assert_contains(&["Missing required property '$version'"]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
@@ -318,7 +318,7 @@ fn non_string_glossary_value() {
 fn enum_non_string_label() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: status
                 type: enum
@@ -333,7 +333,7 @@ fn enum_non_string_label() {
 fn unknown_display_value() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          people:
+          - name: people
             columns:
               - name: ssn
                 type: string
@@ -409,7 +409,7 @@ fn s06_self_join_one_to_many() {
 fn s07_enum_without_values() {
     assert_snapshot!(failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: c
                 type: enum
@@ -420,7 +420,7 @@ fn s07_enum_without_values() {
 fn s07_range_type_missing_range() {
     assert_snapshot!(failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: weight
                 type: number(quantity)
@@ -433,7 +433,7 @@ fn s07_range_type_missing_range() {
 fn s07_other_type_missing_examples() {
     assert_snapshot!(failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: label
                 type: string
@@ -449,7 +449,7 @@ fn s07_other_type_missing_examples() {
 fn s07_boolean_no_examples_ok() {
     assert_valid_dict(indoc! {"
         tables:
-          account:
+          - name: account
             columns:
               - name: id
                 type: number(id)
@@ -464,7 +464,7 @@ fn s07_boolean_no_examples_ok() {
 fn s07_wrong_rep_on_enum() {
     assert_snapshot!(failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: status
                 type: enum
@@ -478,7 +478,7 @@ fn s07_wrong_rep_on_enum() {
 fn s07_range_on_string_type() {
     assert_snapshot!(failing_dict(indoc! {r#"
         tables:
-          table:
+          - name: table
             columns:
               - name: c
                 type: string
@@ -491,7 +491,7 @@ fn s07_range_on_string_type() {
 fn s07_examples_on_boolean() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: active
                 type: boolean
@@ -510,7 +510,7 @@ fn s07_examples_on_boolean() {
 fn s08_units_ok_on_quantity() {
     assert_valid_dict(indoc! {"
         tables:
-          measurements:
+          - name: measurements
             columns:
               - name: mass
                 type: number(quantity)
@@ -523,7 +523,7 @@ fn s08_units_ok_on_quantity() {
 fn s08_units_on_non_quantity() {
     assert_snapshot!(failing_dict(indoc! {"
         tables:
-          races:
+          - name: races
             columns:
               - name: finish_rank
                 type: number(ordinal)
@@ -538,7 +538,7 @@ fn s08_units_on_non_quantity() {
 fn s10_duplicate_column_name() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: id
                 type: number(id)
@@ -556,11 +556,38 @@ fn s10_duplicate_column_name() {
     assert_snapshot!(diagnostic);
 }
 
+// Table names must be unique across the dictionary. This was structurally
+// guaranteed while tables were a map keyed by name; as a list of `name`d
+// descriptors it is S10's job, mirroring the column case.
+#[test]
+fn s10_duplicate_table_name() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: food
+            columns:
+              - name: id
+                type: number(id)
+                examples: [1, 2, 3]
+          - name: food
+            columns:
+              - name: id
+                type: number(id)
+                examples: [1, 2, 3]
+    "});
+    diagnostic.assert_contains(&[
+        "S10",
+        "Table names must be unique",
+        "appears more than once",
+    ]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
 #[test]
 fn s11_empty_table_name() {
     let diagnostic = failing_dict(indoc! {r#"
         tables:
-          "":
+          - name: ""
             columns:
               - name: id
                 type: number(id)
@@ -575,7 +602,7 @@ fn s11_empty_table_name() {
 fn s11_empty_column_name() {
     let diagnostic = failing_dict(indoc! {r#"
         tables:
-          table:
+          - name: table
             columns:
               - name: ""
                 type: string
@@ -592,7 +619,7 @@ fn s11_empty_column_name() {
 fn s12_wrong_value_type() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: count
                 type: number
@@ -607,7 +634,7 @@ fn s12_wrong_value_type() {
 fn s12_date_not_iso() {
     let diagnostic = failing_dict(indoc! {r#"
         tables:
-          table:
+          - name: table
             columns:
               - name: seen_on
                 type: date
@@ -623,7 +650,7 @@ fn s12_datetime_requires_timezone_errors() {
     assert_invalid_dict(
         indoc! {r#"
             tables:
-              table:
+              - name: table
                 columns:
                   - name: seen_at
                     type: datetime
@@ -637,7 +664,7 @@ fn s12_datetime_requires_timezone_errors() {
 fn s13_descending_range() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: mass
                 type: number(quantity)
@@ -790,7 +817,7 @@ fn version_not_a_map_errors() {
 fn s14_time_zone_ok_on_datetime() {
     assert_valid_dict(indoc! {"
         tables:
-          events:
+          - name: events
             columns:
               - name: observed_at
                 type: datetime
@@ -803,7 +830,7 @@ fn s14_time_zone_ok_on_datetime() {
 fn s14_time_zone_on_non_datetime() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          events:
+          - name: events
             columns:
               - name: event_day
                 type: date
@@ -821,7 +848,7 @@ fn s14_time_zone_on_non_datetime() {
 fn s15_bad_time_zone() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          events:
+          - name: events
             columns:
               - name: observed_at
                 type: datetime

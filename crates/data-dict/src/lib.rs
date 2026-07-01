@@ -122,10 +122,14 @@ fn select_tables<'a>(
     out: &mut ProblemSet,
 ) -> Option<Vec<&'a Table>> {
     match table {
-        Some(name) => match dict.tables.get(name) {
+        Some(name) => match dict.table(name) {
             Some(table) => Some(vec![table]),
             None => {
-                let available = dict.tables.keys().cloned().collect::<Vec<_>>();
+                let available = dict
+                    .tables
+                    .iter()
+                    .map(|t| t.name.value.clone())
+                    .collect::<Vec<_>>();
                 out.push(Problem::preflight(
                     ProblemKind::TableNotFound {
                         available: available.clone(),
@@ -138,6 +142,6 @@ fn select_tables<'a>(
                 None
             }
         },
-        None => Some(dict.tables.values().collect()),
+        None => Some(dict.tables.iter().collect()),
     }
 }

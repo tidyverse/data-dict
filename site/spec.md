@@ -24,12 +24,13 @@ The content keys all hold the actual information about the data:
 * [`glossary`](#glossary) provides a place to define important domain-specific terms. This is a good place to write down those special words that your company loves to use.
 * [`version`](#version) records the version of the data the dictionary describes — a version number, a date, or an opaque hash.
 
-`name`, `description`, and `details` form a consistent trio that recurs at every level of the dictionary: the dataset as a whole (here), each [table](#tables), and each [column](#columns). `description` and `details` are always optional and mean the same thing at every level — a short summary and a longer free-text note. Only `name` differs in how it's written: it's an optional key here, the map key for a table, and the required `name` property for a column.
+`name`, `description`, and `details` form a consistent trio that recurs at every level of the dictionary: the dataset as a whole (here), each [table](#tables), and each [column](#columns). `description` and `details` are always optional and mean the same thing at every level — a short summary and a longer free-text note.
 
 ## Tables
 
-`tables` is a named list that describes each table in the dataset. Each key is the table's name, which must be non-empty and unique. Each table represents a rectangle of data with observations in the rows and variables in the columns. Each table has the following properties:
+`tables` is a list that describes each table in the dataset. Each table represents a rectangle of data with observations in the rows and variables in the columns. Each table has the following properties:
 
+* `name` (required): the table's name. Used to match the table to the underlying data and to refer to it from `relationships`. Must be non-empty and unique within the dictionary.
 * `description`: a human-readable description of the table. May contain markdown, and is usually a few sentences or a paragraph. A good description answers two questions:
     * **What's the grain?** What does a row represent? (e.g. "each row is a food item", "each row is one patient visit").
     * **What's the population?** What's been included or filtered out to produce this dataset? (e.g. "only completed orders from 2020 onwards", "excludes test accounts").
@@ -41,7 +42,7 @@ For example:
 
 ```yaml
 tables:
-  food:
+  - name: food
     description: >
       Each row is a food item in the USDA FoodData Central database.
       Includes both branded and foundation foods.

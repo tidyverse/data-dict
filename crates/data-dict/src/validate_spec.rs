@@ -131,8 +131,11 @@ fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
     validate_s06_cardinality_consistency(dict, out);
     validate_s16_single_table_description(dict, out);
 
-    for table in dict.tables.values() {
-        validate_s11_table_name(table, out);
+    let mut seen_tables: HashSet<String> = HashSet::new();
+    for table in &dict.tables {
+        if validate_s11_table_name(table, out) {
+            validate_s10_unique_table_name(table, &mut seen_tables, out);
+        }
         let mut seen: HashSet<String> = HashSet::new();
         for col in &table.columns {
             validate_s01_foreign_key(dict, table, col, out);
@@ -157,7 +160,7 @@ fn validate_s02_relationship_table_refs(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
         for q in join.qcols() {
-            if !dict.tables.contains_key(&q.table) {
+            if dict.table(&q.table).is_none() {
                 let span = subspan(&rel.join_text.span, q.start, q.end)
                     .unwrap_or_else(|| rel.join_text.span.clone());
                 out.push_spec_error(
@@ -179,7 +182,7 @@ fn validate_s03_relationship_column_refs(dict: &DataDict, out: &mut ProblemSet) 
             for q in join.qcols() {
                 // Skip if the table doesn't exist — S02 handles that case
                 // and a column report would be noise.
-                let Some(table) = dict.tables.get(&q.table) else {
+                let Some(table) = dict.table(&q.table) else {
                     continue;
                 };
                 if table.column(&q.column).is_none() {
@@ -238,7 +241,7 @@ fn validate_s01_foreign_key(dict: &DataDict, table: &Table, col: &Column, out: &
                 if fk_side.table != table_name || fk_side.column != col.name.value {
                     return false;
                 }
-                let Some(other_tbl) = dict.tables.get(&pk_side.table) else {
+                let Some(other_tbl) = dict.table(&pk_side.table) else {
                     return false;
                 };
                 let Some(other_col) = other_tbl.column(&pk_side.column) else {
@@ -277,7 +280,7 @@ fn validate_s05_conflicts_present_on_both_sides(dict: &DataDict, out: &mut Probl
         for c in &rel.conflicts {
             let mut missing_from: Vec<&str> = Vec::new();
             for t_name in &tables {
-                let Some(table) = dict.tables.get(*t_name) else {
+                let Some(table) = dict.table(t_name) else {
                     // S02 already flagged the missing table; skip to avoid
                     // a cascade of confusing reports.
                     continue;
@@ -325,8 +328,7 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
         // cardinality against a column that doesn't exist would just produce a
         // redundant, confusing S06.
         let all_cols_resolve = join.qcols().all(|q| {
-            dict.tables
-                .get(&q.table)
+            dict.table(&q.table)
                 .is_some_and(|t| t.column(&q.column).is_some())
         });
         if !all_cols_resolve {
@@ -410,7 +412,7 @@ fn side_has_unique_implied(
     join: &JoinExpr,
     use_lhs: bool,
 ) -> bool {
-    let Some(table) = dict.tables.get(table_name) else {
+    let Some(table) = dict.table(table_name) else {
         return false;
     };
     join.conjuncts.iter().any(|conj| {
@@ -667,9 +669,21 @@ fn validate_s10_unique_name(
     }
 }
 
+fn validate_s10_unique_table_name(table: &Table, seen: &mut HashSet<String>, out: &mut ProblemSet) {
+    if !seen.insert(table.name.value.clone()) {
+        out.push_spec_error(
+            "S10",
+            "Table names must be unique within the dictionary.",
+            "appears more than once",
+            [table.name.span.clone()],
+        );
+    }
+}
+
 // --- S11 --------------------------------------------------------------
 
-fn validate_s11_table_name(table: &Table, out: &mut ProblemSet) {
+/// Returns whether the table has a name (so its uniqueness may be checked).
+fn validate_s11_table_name(table: &Table, out: &mut ProblemSet) -> bool {
     if table.name.value.is_empty() {
         out.push_spec_error(
             "S11",
@@ -677,7 +691,9 @@ fn validate_s11_table_name(table: &Table, out: &mut ProblemSet) {
             "table name is empty",
             [table.name.span.clone()],
         );
+        return false;
     }
+    true
 }
 
 /// Returns whether the column has a name (so its uniqueness may be checked).
@@ -858,7 +874,7 @@ fn validate_s16_single_table_description(dict: &DataDict, out: &mut ProblemSet) 
     if dict.tables.len() != 1 {
         return;
     }
-    let table = dict.tables.values().next().expect("one table");
+    let table = dict.tables.first().expect("one table");
     for (key, span) in [
         ("description", &table.description),
         ("details", &table.details),

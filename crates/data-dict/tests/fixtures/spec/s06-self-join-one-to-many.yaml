@@ -6,7 +6,7 @@
 $version: "0.1.0"
 
 tables:
-  otters:
+  - name: otters
     columns:
       - name: otter_no
         type: number(id)

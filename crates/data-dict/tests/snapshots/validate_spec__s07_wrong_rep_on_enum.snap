@@ -4,7 +4,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  table:
+  - name: table
     columns:
       - name: status
         type: enum
@@ -13,7 +13,7 @@ tables:
 Error: [S07] An `enum` column must list its categories with `values`.
    ╭─[ dict.yaml:7:15 ]
    │
- 4 │   table:
+ 4 │   - name: table
    │ 
  6 │       - name: status
  7 │         type: enum
@@ -24,7 +24,7 @@ Error: [S07] An `enum` column must list its categories with `values`.
 Error: [S07] An `enum` column must use `values`, not `range`.
    ╭─[ dict.yaml:8:16 ]
    │
- 4 │   table:
+ 4 │   - name: table
    │ 
  6 │       - name: status
    │ 
