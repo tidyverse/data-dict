@@ -120,6 +120,12 @@ pub enum ProblemKind {
     /// `D01` — a `required` (or `primary_key`) column contains nulls. `rows`
     /// lists the first few offending row numbers (1-based); `count` is the total.
     NullsInRequired { count: usize, rows: Vec<usize> },
+    /// `D02` — a unique column or composite primary key contains duplicates.
+    DuplicateValues {
+        columns: Vec<String>,
+        count: usize,
+        rows: Vec<usize>,
+    },
 }
 
 impl ProblemKind {
@@ -134,6 +140,7 @@ impl ProblemKind {
             ProblemKind::MissingSource => "M04",
             ProblemKind::UnreadableSource => "M05",
             ProblemKind::NullsInRequired { .. } => "D01",
+            ProblemKind::DuplicateValues { .. } => "D02",
             _ => return None,
         })
     }
@@ -148,7 +155,9 @@ impl ProblemKind {
             | ProblemKind::ExtraInData { .. }
             | ProblemKind::MissingSource
             | ProblemKind::UnreadableSource => Level::Meta,
-            ProblemKind::NullsInRequired { .. } => Level::Data,
+            ProblemKind::NullsInRequired { .. } | ProblemKind::DuplicateValues { .. } => {
+                Level::Data
+            }
             _ => return None,
         })
     }
@@ -517,6 +526,15 @@ mod tests {
             }
             .level(),
             Some(Level::Data)
+        );
+        assert_eq!(
+            ProblemKind::DuplicateValues {
+                columns: vec!["id".into()],
+                count: 1,
+                rows: vec![2],
+            }
+            .code(),
+            Some("D02")
         );
         assert_eq!(ProblemKind::Io.code(), None);
         assert_eq!(ProblemKind::Io.level(), None);

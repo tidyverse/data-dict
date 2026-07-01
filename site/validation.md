@@ -65,3 +65,4 @@ When validating the data's metadata against the dictionary, each column mismatch
 When validating the data's values against the dictionary, each column mismatch is one of:
 
 * **Nulls in a required column** (D01, error): a `required` or `primary_key` column contains nulls.
+* **Duplicate values** (D02, error): a `unique` column contains duplicate values, or the combination of all `primary_key` columns does not uniquely identify every row.

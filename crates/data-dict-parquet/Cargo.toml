@@ -14,3 +14,5 @@ parquet = { workspace = true, features = [
   "zstd",
   "brotli"
 ] }
+rayon = "1"
+hashbrown = "0.15"
