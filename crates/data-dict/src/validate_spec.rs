@@ -368,7 +368,7 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the join columns on `{}` or `{}` are not marked `primary_key` or `unique`",
                             lhs_table, rhs_table
                         ),
-                        [card_span, rel.join_text.span.clone()],
+                        [rel.join_text.span.clone(), card_span],
                     );
                 }
             }
@@ -383,7 +383,7 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the left-side join column on `{}` is not marked `primary_key` or `unique`",
                             lhs_table
                         ),
-                        [card_span, rel.join_text.span.clone()],
+                        [rel.join_text.span.clone(), card_span],
                     );
                 }
             }
@@ -396,7 +396,7 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the right-side join column on `{}` is not marked `primary_key` or `unique`",
                             rhs_table
                         ),
-                        [card_span, rel.join_text.span.clone()],
+                        [rel.join_text.span.clone(), card_span],
                     );
                 }
             }

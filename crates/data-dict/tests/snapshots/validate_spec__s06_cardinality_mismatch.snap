@@ -29,14 +29,14 @@ tables:
         examples: [1, 2]
 
 relationships:
-  - cardinality: many-to-one
-    join: transaction.account_id = account.account_id
+  - join: transaction.account_id = account.account_id
+    cardinality: many-to-one
 ────────────────────────────────────────
 Error: [S06] A `many-to-one` join must have a `primary_key` or `unique` column on its right ("one") side.
-    ╭─[ spec/s06-cardinality-mismatch.yaml:30:11 ]
+    ╭─[ spec/s06-cardinality-mismatch.yaml:30:18 ]
     │
- 29 │   - cardinality: many-to-one
- 30 │     join: transaction.account_id = account.account_id
-    │           ─────────────────────┬─────────────────────  
-    │                                ╰─────────────────────── the right-side join column on `account` is not marked `primary_key` or `unique`
+ 29 │   - join: transaction.account_id = account.account_id
+ 30 │     cardinality: many-to-one
+    │                  ─────┬─────  
+    │                       ╰─────── the right-side join column on `account` is not marked `primary_key` or `unique`
 ────╯

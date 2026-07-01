@@ -24,5 +24,5 @@ tables:
         examples: [1, 2]
 
 relationships:
-  - cardinality: many-to-one
-    join: food.food_category_id ~ food_category.id
+  - join: food.food_category_id ~ food_category.id
+    cardinality: many-to-one

@@ -27,13 +27,13 @@ tables:
         examples: [1, 2]
 
 relationships:
-  - cardinality: many-to-one
-    join: food.food_category_id = food_category.identifier
+  - join: food.food_category_id = food_category.identifier
+    cardinality: many-to-one
 ────────────────────────────────────────
 Error: [S03] A `join` must refer to known columns.
-    ╭─[ spec/s03-missing-column.yaml:28:35 ]
+    ╭─[ spec/s03-missing-column.yaml:27:35 ]
     │
- 28 │     join: food.food_category_id = food_category.identifier
+ 27 │   - join: food.food_category_id = food_category.identifier
     │                                   ────────────┬───────────  
     │                                               ╰───────────── table `food_category` has no column `identifier`
 ────╯

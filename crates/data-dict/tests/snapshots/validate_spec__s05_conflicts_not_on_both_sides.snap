@@ -30,14 +30,15 @@ tables:
         range: [0, 100]
 
 relationships:
-  - cardinality: one-to-many
-    join: food.id = food_nutrient.food_id
+  - join: food.id = food_nutrient.food_id
+    cardinality: one-to-many
     conflicts: [amount]
 ────────────────────────────────────────
 Error: [S05] A `conflicts` entry must name a column on both sides of the join.
     ╭─[ spec/s05-conflicts-not-on-both-sides.yaml:32:17 ]
     │
- 31 │     join: food.id = food_nutrient.food_id
+ 30 │   - join: food.id = food_nutrient.food_id
+ 31 │     cardinality: one-to-many
  32 │     conflicts: [amount]
     │                 ───┬──  
     │                    ╰──── `amount` is not a column of `food`

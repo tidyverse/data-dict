@@ -198,8 +198,8 @@ The `constraints` property is a list of constraint names. The supported constrai
 
 `relationships` is a list of join descriptors. Each entry describes how two tables are related.
 
-* `cardinality` (required): either `one-to-one`, `one-to-many`, or `many-to-one`. Describes the relationship from the left table to the right table in the join expression.
 * `join` (required): a join expression of the form `table1.column = table2.column`, or `table1.date >= table2.start AND table1.date <= table2.end`.
+* `cardinality` (required): either `one-to-one`, `one-to-many`, or `many-to-one`. Describes the relationship from the left table to the right table in the join expression.
 * `description`: human-readable description of the relationship. Only needed if it's not clear from the context.
 * `conflicts`: a list of column names that appear in both tables with different meanings. These fields would cause ambiguity in a join and may need to be renamed or dropped.
 
@@ -207,8 +207,8 @@ For example:
 
 ```yaml
 relationships:
+  - join: food.food_category_id = food_category.id
     cardinality: many-to-one
-    join: food.food_category_id = food_category.id
     conflicts: [description]
 ```
 

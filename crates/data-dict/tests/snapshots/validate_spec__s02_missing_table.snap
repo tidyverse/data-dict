@@ -27,13 +27,13 @@ tables:
         examples: [1, 2]
 
 relationships:
-  - cardinality: many-to-one
-    join: food.food_category_id = category.id
+  - join: food.food_category_id = category.id
+    cardinality: many-to-one
 ────────────────────────────────────────
 Error: [S02] A `join` must refer to known tables.
-    ╭─[ spec/s02-missing-table.yaml:28:35 ]
+    ╭─[ spec/s02-missing-table.yaml:27:35 ]
     │
- 28 │     join: food.food_category_id = category.id
+ 27 │   - join: food.food_category_id = category.id
     │                                   ─────┬─────  
     │                                        ╰─────── table `category` is not defined
 ────╯
