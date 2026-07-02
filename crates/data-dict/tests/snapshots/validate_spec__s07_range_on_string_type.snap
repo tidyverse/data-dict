@@ -4,7 +4,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  table:
+  - name: table
     columns:
       - name: c
         type: string
@@ -14,7 +14,7 @@ tables:
 Error: [S07] A `string` column must not use `range`.
    ╭─[ dict.yaml:9:16 ]
    │
- 4 │   table:
+ 4 │   - name: table
  5 │     columns:
  6 │       - name: c
    │ 

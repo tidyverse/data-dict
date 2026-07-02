@@ -13,7 +13,7 @@ Warning: [S09] A document should point readers to the spec with `$learn_more: ht
 Error: [S07] A `number(id)` column must describe its data with `examples`.
    ╭─[ <fixture>:9:15 ]
    │
- 4 │   measurements:
+ 4 │   - name: measurements
    │ 
  8 │       - name: id
  9 │         type: number(id)
@@ -24,7 +24,7 @@ Error: [S07] A `number(id)` column must describe its data with `examples`.
 Error: [S08] A column with `units` must have type `number(quantity)`.
     ╭─[ <fixture>:13:16 ]
     │
-  4 │   measurements:
+  4 │   - name: measurements
     │ 
  10 │       - name: name
     │ 

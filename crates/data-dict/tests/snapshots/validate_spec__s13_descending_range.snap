@@ -4,7 +4,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  table:
+  - name: table
     columns:
       - name: mass
         type: number(quantity)
@@ -14,7 +14,7 @@ tables:
 Error: [S13] A range's minimum must be less than or equal to its maximum.
    ╭─[ dict.yaml:9:17 ]
    │
- 4 │   table:
+ 4 │   - name: table
  5 │     columns:
  6 │       - name: mass
    │ 

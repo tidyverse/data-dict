@@ -4,7 +4,7 @@ source: crates/data-dict/tests/validate_meta.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  animals:
+  - name: animals
     source:
       parquet: missing.parquet
     columns:
@@ -15,7 +15,7 @@ tables:
 Error: [M05] A table's `source` must point at a readable Parquet file.
    ╭─[ dict.yaml:6:16 ]
    │
- 4 │   animals:
+ 4 │   - name: animals
  5 │     source:
  6 │       parquet: missing.parquet
    │                ───────┬───────  

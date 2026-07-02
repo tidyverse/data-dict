@@ -1,12 +1,12 @@
 ---
 source: crates/data-dict/tests/validate_spec.rs
 ---
-tables: {}
+tables: []
 ────────────────────────────────────────
 Error: [Q-1-10] YAML Validation Failed
    ╭─[ dict.yaml:1:1 ]
    │
- 1 │ tables: {}
+ 1 │ tables: []
    │ ─────┬─────  
    │      ╰─────── Missing required property '$version' (must be one of: "0.1.0")
 ───╯

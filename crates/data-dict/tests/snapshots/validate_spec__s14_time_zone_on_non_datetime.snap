@@ -4,7 +4,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  events:
+  - name: events
     columns:
       - name: event_day
         type: date
@@ -14,7 +14,7 @@ tables:
 Error: [S14] A column with `time_zone` must have type `datetime`.
    ╭─[ dict.yaml:8:20 ]
    │
- 4 │   events:
+ 4 │   - name: events
  5 │     columns:
  6 │       - name: event_day
  7 │         type: date

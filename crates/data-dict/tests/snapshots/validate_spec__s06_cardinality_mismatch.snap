@@ -10,7 +10,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 
 tables:
-  transaction:
+  - name: transaction
     columns:
       - name: id
         type: number(id)
@@ -21,7 +21,7 @@ tables:
         constraints: [required]
         examples: [1, 2]
 
-  account:
+  - name: account
     columns:
       - name: account_id
         type: number(id)

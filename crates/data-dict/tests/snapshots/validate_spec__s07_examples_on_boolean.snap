@@ -4,7 +4,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  table:
+  - name: table
     columns:
       - name: active
         type: boolean
@@ -13,7 +13,7 @@ tables:
 Error: [S07] A `boolean` column must not have `values`, `range`, or `examples`.
    ╭─[ dict.yaml:8:19 ]
    │
- 4 │   table:
+ 4 │   - name: table
  5 │     columns:
  6 │       - name: active
  7 │         type: boolean

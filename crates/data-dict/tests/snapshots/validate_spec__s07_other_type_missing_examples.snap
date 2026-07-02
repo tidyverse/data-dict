@@ -4,7 +4,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  table:
+  - name: table
     columns:
       - name: label
         type: string
@@ -14,7 +14,7 @@ tables:
 Error: [S07] A `string` column must describe its data with `examples`.
    ╭─[ dict.yaml:7:15 ]
    │
- 4 │   table:
+ 4 │   - name: table
  5 │     columns:
  6 │       - name: label
  7 │         type: string
@@ -25,7 +25,7 @@ Error: [S07] A `string` column must describe its data with `examples`.
 Error: [S07] A `number(id)` column must describe its data with `examples`.
    ╭─[ dict.yaml:9:15 ]
    │
- 4 │   table:
+ 4 │   - name: table
    │ 
  8 │       - name: code
  9 │         type: number(id)
