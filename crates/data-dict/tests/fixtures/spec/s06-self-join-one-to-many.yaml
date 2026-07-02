@@ -20,5 +20,5 @@ tables:
         examples: ["found in river", "tagged"]
 
 relationships:
-  - cardinality: one-to-many
-    join: otters.pup_number = otters.otter_no
+  - join: otters.pup_number = otters.otter_no
+    cardinality: one-to-many

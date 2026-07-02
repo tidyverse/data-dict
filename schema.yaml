@@ -92,13 +92,12 @@ object:
                         - object:                   # {M: Male, F: Female, ...}
                             additionalProperties: string
                     range:
-                      anyOf:
-                        - arrayOf:
-                            schema: number
-                            length: 2
-                        - arrayOf:
-                            schema: string
-                            length: 2
+                      arrayOf:
+                        schema:
+                          anyOf:
+                            - number
+                            - string
+                        length: 2
                     constraints:
                       arrayOf:
                         enum: [primary_key, foreign_key, required, unique]

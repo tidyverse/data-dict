@@ -27,6 +27,6 @@ tables:
         range: [0, 100]
 
 relationships:
-  - cardinality: one-to-many
-    join: food.id = food_nutrient.food_id
+  - join: food.id = food_nutrient.food_id
+    cardinality: one-to-many
     conflicts: [amount]

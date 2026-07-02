@@ -168,8 +168,11 @@ fn nulls_in_required_data(table: &Table, col: &Column, count: usize, rows: Vec<u
         message: format!("has {count} null value{plural} ({detail})"),
         column: None,
         expected: Some("A required column must not contain nulls.".into()),
-        span: Some(constraint_span),
-        context: vec![table.name.span.clone(), col.name.span.clone()],
+        context: vec![
+            table.name.span.clone(),
+            col.name.span.clone(),
+            constraint_span,
+        ],
         kind: ProblemKind::NullsInRequired { count, rows },
     }
 }

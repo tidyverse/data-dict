@@ -33,7 +33,7 @@ Error: [S01] Every `foreign_key` column must have a matching relationship to a `
   9 │   - name: food
     │ 
  15 │       - name: food_category_id
-    │ 
+ 16 │         type: number(id)
  17 │         constraints: [foreign_key]
     │                       ─────┬─────  
     │                            ╰─────── is `foreign_key` but no relationship points it at a `primary_key`

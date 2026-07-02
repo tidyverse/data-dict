@@ -684,6 +684,42 @@ fn s12_s13_valid_ok() {
     assert_valid(fixture("spec/s12-s13-valid-ok.yaml"));
 }
 
+// An open-ended range: `-.inf`/`.inf` leave a bound open on any range type,
+// including temporal columns whose other bound is an ISO 8601 string.
+#[test]
+fn s12_s13_infinite_bounds_ok() {
+    assert_valid_dict(indoc! {"
+        tables:
+          - name: table
+            columns:
+              - name: mass
+                type: number(quantity)
+                units: kg
+                range: [0, .inf]
+              - name: seen_on
+                type: date
+                range: [2019-04-01, .inf]
+              - name: seen_at
+                type: datetime
+                range: [-.inf, \"2024-02-01T00:00:00Z\"]
+    "});
+}
+
+// `.inf` as a minimum runs backwards even on a temporal column, where the
+// maximum is a finite ISO 8601 date.
+#[test]
+fn s13_infinite_bound_wrong_end() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: table
+            columns:
+              - name: seen_on
+                type: date
+                range: [.inf, 2019-04-01]
+    "});
+    diagnostic.assert_contains(&["S13", "is greater than the maximum"]);
+}
+
 // --- version (S17) -------------------------------------------------------
 
 // The three valid forms of the optional top-level `version`: a date, a

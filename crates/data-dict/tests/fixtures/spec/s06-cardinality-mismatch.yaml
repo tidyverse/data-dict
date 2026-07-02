@@ -26,5 +26,5 @@ tables:
         examples: [1, 2]
 
 relationships:
-  - cardinality: many-to-one
-    join: transaction.account_id = account.account_id
+  - join: transaction.account_id = account.account_id
+    cardinality: many-to-one

@@ -370,7 +370,7 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the join columns on `{}` or `{}` are not marked `primary_key` or `unique`",
                             lhs_table, rhs_table
                         ),
-                        [card_span, rel.join_text.span.clone()],
+                        [rel.join_text.span.clone(), card_span],
                     );
                 }
             }
@@ -385,7 +385,7 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the left-side join column on `{}` is not marked `primary_key` or `unique`",
                             lhs_table
                         ),
-                        [card_span, rel.join_text.span.clone()],
+                        [rel.join_text.span.clone(), card_span],
                     );
                 }
             }
@@ -398,7 +398,7 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the right-side join column on `{}` is not marked `primary_key` or `unique`",
                             rhs_table
                         ),
-                        [card_span, rel.join_text.span.clone()],
+                        [rel.join_text.span.clone(), card_span],
                     );
                 }
             }
@@ -762,6 +762,10 @@ fn validate_s12_value_types(table: &Table, col: &Column, out: &mut ProblemSet) -
     ok
 }
 
+fn is_infinite(value: &Scalar) -> bool {
+    matches!(value, Scalar::Number(f) if f.is_infinite())
+}
+
 fn value_matches_type(type_name: &str, value: &Scalar, tz_present: bool) -> bool {
     match type_name {
         "number" | "number(id)" | "number(ordinal)" | "number(quantity)" => {
@@ -771,8 +775,15 @@ fn value_matches_type(type_name: &str, value: &Scalar, tz_present: bool) -> bool
         // number and a quoted `'null'` as null; we can't tell those from a real
         // string. So `string` accepts any scalar and only rejects a list/map.
         "string" => !matches!(value, Scalar::Compound),
-        "date" => matches!(value, Scalar::String(s) if parse_date(s).is_some()),
-        "datetime" => matches!(value, Scalar::String(s) if datetime_parses(s, tz_present)),
+        // An infinite bound leaves that end of a temporal range open (spec:
+        // Representative values), so accept it alongside a real ISO 8601 value.
+        "date" => {
+            is_infinite(value) || matches!(value, Scalar::String(s) if parse_date(s).is_some())
+        }
+        "datetime" => {
+            is_infinite(value)
+                || matches!(value, Scalar::String(s) if datetime_parses(s, tz_present))
+        }
         _ => true,
     }
 }
@@ -842,7 +853,14 @@ fn validate_s13_range_order(table: &Table, col: &Column, out: &mut ProblemSet) {
 /// report). Numbers compare numerically; dates and datetimes compare as parsed
 /// instants, so mixed timezone offsets are handled correctly. A datetime column
 /// with a `time_zone` (`tz_present`) has zoneless bounds, compared as wall-clock.
+/// An infinite bound orders as `-inf` < any value < `+inf`, so it runs backwards
+/// only when it sits on the wrong end (`+inf` as minimum, `-inf` as maximum).
 fn range_descending(type_name: &str, lo: &Scalar, hi: &Scalar, tz_present: bool) -> bool {
+    if is_infinite(lo) || is_infinite(hi) {
+        let is_pos = |v: &Scalar| matches!(v, Scalar::Number(f) if *f == f64::INFINITY);
+        let is_neg = |v: &Scalar| matches!(v, Scalar::Number(f) if *f == f64::NEG_INFINITY);
+        return (is_pos(lo) && !is_pos(hi)) || (is_neg(hi) && !is_neg(lo));
+    }
     match (type_name, lo, hi) {
         ("date", Scalar::String(a), Scalar::String(b)) => match (parse_date(a), parse_date(b)) {
             (Some(a), Some(b)) => a > b,

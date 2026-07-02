@@ -34,6 +34,6 @@ tables:
         examples: [Dairy, Fruit, Grain, Meat, Vegetable]
 
 relationships:
-  - description: Each food belongs to one category.
+  - join: food.food_category_id = food_category.id
     cardinality: many-to-one
-    join: food.food_category_id = food_category.id
+    description: Each food belongs to one category.
