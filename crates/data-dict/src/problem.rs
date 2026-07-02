@@ -13,8 +13,7 @@
 //! next level is caught by the driver checking [`ProblemSet::status`] before
 //! descending. Fatality is control flow, not data.
 
-use quarto_error_reporting::DiagnosticMessageBuilder;
-use quarto_source_map::{FileId, SourceContext, SourceInfo};
+use quarto_source_map::{SourceContext, SourceInfo};
 
 use crate::Level;
 
@@ -69,12 +68,21 @@ pub struct Problem {
     /// what was found instead.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expected: Option<String>,
+    /// Advisory text shown as a `help:` line below the excerpt. For a concrete
+    /// edit, prefer [`suggestion`](Self::suggestion), which renders a patch.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
+    /// A suggested fix, rendered below the excerpt as an annotate-snippets patch
+    /// (a `+`/`-` diff) under a `help:` title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<Suggestion>,
     /// The YAML spans this problem points at, ordered outermost-first: the
-    /// **last** span is the primary label (carrying `message`) and any preceding
-    /// spans are enclosing source lines shown faded to locate it (e.g. the table
-    /// and column a bad value sits in). Empty for problems with no location
-    /// (column-located and pre-flight failures). Display-only; see the type-level
-    /// note on how the primary span reaches the JSON output.
+    /// **last** span is the primary highlight (carrying `message`) and any
+    /// preceding spans are the enclosing nodes that locate it (e.g. the table
+    /// and column a bad value sits in), shown as unlabelled context lines.
+    /// Empty for problems with no location (column-located and pre-flight
+    /// failures). Display-only; see the type-level note on how the primary span
+    /// reaches the JSON output.
     #[serde(skip)]
     pub context: Vec<SourceInfo>,
     #[serde(flatten)]
@@ -82,15 +90,25 @@ pub struct Problem {
 }
 
 impl Problem {
-    /// The primary (labelled) span, or `None` for unlocated problems.
+    /// The primary (highlighted) span, or `None` for unlocated problems.
     fn primary_span(&self) -> Option<&SourceInfo> {
         self.context.last()
     }
 
-    /// The faded context spans surrounding the primary label, outermost-first.
-    fn faded_spans(&self) -> &[SourceInfo] {
+    /// The enclosing context spans surrounding the primary highlight, outermost-first.
+    fn context_spans(&self) -> &[SourceInfo] {
         self.context.split_last().map_or(&[], |(_, rest)| rest)
     }
+}
+
+/// A suggested fix: splice `replacement` into the source at `span` (an empty
+/// span inserts). `title` is a lowercase description shown as the `help:` line.
+#[derive(Debug, serde::Serialize)]
+pub struct Suggestion {
+    pub title: String,
+    pub replacement: String,
+    #[serde(skip)]
+    pub span: SourceInfo,
 }
 
 /// A resolved source span as 0-based line/column bounds, for JSON consumers.
@@ -186,6 +204,8 @@ impl Problem {
             message: message.into(),
             column: None,
             expected: None,
+            hint: None,
+            suggestion: None,
             context: vec![span],
             kind: ProblemKind::Spec,
         }
@@ -204,6 +224,8 @@ impl Problem {
             expected: Some(
                 "Every column in the data should be described in the dictionary.".into(),
             ),
+            hint: None,
+            suggestion: None,
             context: Vec::new(),
             kind: ProblemKind::ExtraInData { actual },
         }
@@ -217,8 +239,33 @@ impl Problem {
             message: message.into(),
             column: None,
             expected: None,
+            hint: None,
+            suggestion: None,
             context: Vec::new(),
             kind,
+        }
+    }
+
+    /// A structural schema-validation failure, lifted from
+    /// `quarto-yaml-validation` into the shared vocabulary so it renders like
+    /// every other diagnostic. `span` is the offending node, when the error
+    /// carries one; `hint` is its fix suggestion.
+    pub(crate) fn schema(
+        code: &'static str,
+        message: impl Into<String>,
+        span: Option<SourceInfo>,
+        hint: Option<String>,
+    ) -> Self {
+        Problem {
+            code: Some(code),
+            severity: Severity::Error,
+            message: message.into(),
+            column: None,
+            expected: None,
+            hint,
+            suggestion: None,
+            context: span.into_iter().collect(),
+            kind: ProblemKind::Schema,
         }
     }
 
@@ -249,27 +296,84 @@ impl Problem {
     }
 
     fn render_with_source(&self, span: &SourceInfo, ctx: &SourceContext) -> String {
+        use annotate_snippets::{AnnotationKind, Group, Level, Patch, Renderer, Snippet};
+
         let header = match (self.code, &self.expected) {
             (Some(c), Some(e)) => format!("[{c}] {e}"),
             (Some(c), None) => format!("[{c}]"),
             (None, Some(e)) => e.clone(),
             (None, None) => String::new(),
         };
-        let mut builder = match self.severity {
-            Severity::Error => DiagnosticMessageBuilder::error(header),
-            Severity::Warning => DiagnosticMessageBuilder::warning(header),
+
+        // The excerpt is drawn from the primary span's root file; drop to the
+        // plain rendering if it (or its offsets) can't be resolved.
+        let Some(file_id) = span.root_file_id() else {
+            return self.render_plain();
         };
-        let faded = self.faded_spans();
-        for ctx_span in faded {
-            builder = builder.add_faded_at("", ctx_span.clone());
+        let Some(file) = ctx.get_file(file_id) else {
+            return self.render_plain();
+        };
+        let Some(content) = file.content.as_deref() else {
+            return self.render_plain();
+        };
+        let len = content.len();
+        let byte_range = |s: &SourceInfo| -> Option<std::ops::Range<usize>> {
+            if s.root_file_id() != Some(file_id) {
+                return None;
+            }
+            let start = s.map_offset(0, ctx)?.location.offset.min(len);
+            let end = s
+                .map_offset(s.length(), ctx)
+                .map_or(start, |m| m.location.offset);
+            Some(start..end.min(len).max(start))
+        };
+        let Some(primary) = byte_range(span) else {
+            return self.render_plain();
+        };
+
+        // Enclosing nodes are shown (not folded away) but left unannotated, so
+        // the location reads at a glance without underline/label clutter.
+        let mut snippet = Snippet::source(content)
+            .path(file.path.as_str())
+            .line_start(1);
+        for ctx_span in self.context_spans() {
+            if let Some(range) = byte_range(ctx_span) {
+                snippet = snippet.annotation(AnnotationKind::Visible.span(range));
+            }
         }
-        for gap_span in gap_fill_spans(faded, span, ctx) {
-            builder = builder.add_faded_at("", gap_span);
+        // The "found" detail sits inline beside the primary underline.
+        snippet = snippet.annotation(
+            AnnotationKind::Primary
+                .span(primary)
+                .label(self.message.as_str()),
+        );
+
+        let level = match self.severity {
+            Severity::Error => Level::ERROR,
+            Severity::Warning => Level::WARNING,
+        };
+        let mut group = Group::with_title(level.primary_title(header.as_str())).element(snippet);
+        if let Some(hint) = &self.hint {
+            group = group.element(Level::HELP.message(hint.as_str()));
         }
-        builder = builder
-            .problem(self.message.clone())
-            .with_location(span.clone());
-        builder.build().to_text(Some(ctx))
+        let mut groups = vec![group];
+
+        // A suggestion becomes a secondary `help:` group whose snippet carries a
+        // patch, so annotate-snippets renders it as a `+`/`-` diff.
+        if let Some(suggestion) = &self.suggestion
+            && let Some(range) = byte_range(&suggestion.span)
+        {
+            let patch = Snippet::source(content)
+                .path(file.path.as_str())
+                .line_start(1)
+                .patch(Patch::new(range, suggestion.replacement.as_str()));
+            groups.push(
+                Level::HELP
+                    .secondary_title(suggestion.title.as_str())
+                    .element(patch),
+            );
+        }
+        Renderer::styled().render(&groups)
     }
 
     fn render_plain(&self) -> String {
@@ -285,57 +389,14 @@ impl Problem {
         if self.expected.is_some() {
             line.push_str(&format!("\n  {}", self.message));
         }
+        if let Some(hint) = &self.hint {
+            line.push_str(&format!("\nhelp: {hint}"));
+        }
+        if let Some(suggestion) = &self.suggestion {
+            line.push_str(&format!("\nhelp: {}", suggestion.title));
+        }
         line
     }
-}
-
-/// Fill any single-line gap between the context chunks
-fn gap_fill_spans(
-    context: &[SourceInfo],
-    primary: &SourceInfo,
-    ctx: &SourceContext,
-) -> Vec<SourceInfo> {
-    use std::collections::{BTreeSet, HashMap};
-
-    let mut rows_by_file: HashMap<FileId, BTreeSet<usize>> = HashMap::new();
-    for span in context.iter().chain(std::iter::once(primary)) {
-        if let Some(loc) = span.map_offset(0, ctx) {
-            rows_by_file
-                .entry(loc.file_id)
-                .or_default()
-                .insert(loc.location.row);
-        }
-    }
-
-    let mut fills = Vec::new();
-    for (file_id, rows) in rows_by_file {
-        let Some(content) = ctx.get_file(file_id).and_then(|f| f.content.as_deref()) else {
-            continue;
-        };
-        let rows: Vec<usize> = rows.into_iter().collect();
-        for pair in rows.windows(2) {
-            if pair[1] == pair[0] + 2
-                && let Some(span) = line_span(file_id, content, pair[0] + 1)
-            {
-                fills.push(span);
-            }
-        }
-    }
-    fills
-}
-
-/// A span covering the content of 0-based `row` in `content` (excluding the
-/// trailing newline), or `None` if the file has no such line.
-fn line_span(file_id: FileId, content: &str, row: usize) -> Option<SourceInfo> {
-    let mut start = 0;
-    for (i, line) in content.split_inclusive('\n').enumerate() {
-        if i == row {
-            let end = start + line.trim_end_matches(['\r', '\n']).len();
-            return Some(SourceInfo::original(file_id, start, end));
-        }
-        start += line.len();
-    }
-    None
 }
 
 /// Every problem found while validating a document, with the [`SourceContext`]
@@ -374,8 +435,8 @@ impl ProblemSet {
     /// Push a problem located in the document: `expected` states the rule,
     /// `actual` reports what was found, and `spans` locates it — the **last**
     /// span is the primary highlight carrying `actual`, and any preceding spans
-    /// are shown faded as enclosing context (outermost-first, e.g. the table
-    /// then the column). `spans` must be non-empty.
+    /// are shown as enclosing context (outermost-first, e.g. the table then the
+    /// column), each with a role label. `spans` must be non-empty.
     fn push_located_problem(
         &mut self,
         code: &'static str,
@@ -396,9 +457,20 @@ impl ProblemSet {
             message: actual.into(),
             column: None,
             expected: Some(expected.into()),
+            hint: None,
+            suggestion: None,
             context: spans,
             kind,
         });
+    }
+
+    /// Attach a fix suggestion to the most recently pushed problem. Called right
+    /// after a `push_*` so `items.last` is that problem (the sort into source
+    /// order happens once, after every check has run).
+    pub(crate) fn suggest_last(&mut self, suggestion: Suggestion) {
+        if let Some(problem) = self.items.last_mut() {
+            problem.suggestion = Some(suggestion);
+        }
     }
 
     /// Push a spec problem (`S##`) at error severity; see

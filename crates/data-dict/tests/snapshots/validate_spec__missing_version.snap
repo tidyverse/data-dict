@@ -3,13 +3,10 @@ source: crates/data-dict/tests/validate_spec.rs
 ---
 tables: []
 ────────────────────────────────────────
-Error: [Q-1-10] YAML Validation Failed
-   ╭─[ dict.yaml:1:1 ]
-   │
- 1 │ tables: []
-   │ ─────┬─────  
-   │      ╰─────── Missing required property '$version' (must be one of: "0.1.0")
-───╯
-✖ At document root
-ℹ Schema constraint: object
-ℹ Add the `$version` property to your YAML document?
+error: [Q-1-10]
+ --> dict.yaml:1:1
+  |
+1 | tables: []
+  | ^^^^^^^^^^ Missing required property '$version' (must be one of: "0.1.0")
+  |
+  = help: Add the `$version` property to your YAML document?

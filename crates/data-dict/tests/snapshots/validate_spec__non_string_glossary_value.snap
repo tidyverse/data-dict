@@ -6,13 +6,10 @@ $learn_more: http://data-dict.tidyverse.org/
 glossary:
   term: 42
 ────────────────────────────────────────
-Error: [Q-1-11] YAML Validation Failed
-   ╭─[ dict.yaml:4:9 ]
-   │
- 4 │   term: 42
-   │         ─┬  
-   │          ╰── Expected string, got integer
-───╯
-✖ At document path: `glossary.term`
-ℹ Schema constraint: object > object > string
-ℹ Ensure the value is a string (quoted if it contains special characters)?
+error: [Q-1-11]
+ --> dict.yaml:4:9
+  |
+4 |   term: 42
+  |         ^^ Expected string, got integer
+  |
+  = help: Ensure the value is a string (quoted if it contains special characters)?

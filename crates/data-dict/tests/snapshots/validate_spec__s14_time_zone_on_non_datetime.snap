@@ -11,14 +11,12 @@ tables:
         time_zone: America/New_York
         range: [2020-01-01, 2024-12-31]
 ────────────────────────────────────────
-Error: [S14] A column with `time_zone` must have type `datetime`.
-   ╭─[ dict.yaml:8:20 ]
-   │
- 4 │   - name: events
- 5 │     columns:
- 6 │       - name: event_day
- 7 │         type: date
- 8 │         time_zone: America/New_York
-   │                    ────────┬───────  
-   │                            ╰───────── has `time_zone` but has type `date`
-───╯
+error: [S14] A column with `time_zone` must have type `datetime`.
+ --> dict.yaml:8:20
+  |
+4 |   - name: events
+5 |     columns:
+6 |       - name: event_day
+7 |         type: date
+8 |         time_zone: America/New_York
+  |                    ^^^^^^^^^^^^^^^^ has `time_zone` but has type `date`

@@ -15,12 +15,10 @@ tables:
         type: number(id)
         examples: [1, 2, 3]
 ────────────────────────────────────────
-Error: [S10] Table names must be unique within the dictionary.
-   ╭─[ dict.yaml:9:11 ]
-   │
- 4 │   - name: food
-   │ 
- 9 │   - name: food
-   │           ──┬─  
-   │             ╰─── is duplicated
-───╯
+error: [S10] Table names must be unique within the dictionary.
+ --> dict.yaml:9:11
+  |
+4 |   - name: food
+...
+9 |   - name: food
+  |           ^^^^ is duplicated

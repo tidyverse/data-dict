@@ -102,11 +102,7 @@ fn read_parquet(
                 Severity::Error,
                 "A table's `source` must point at a readable Parquet file.",
                 e.to_string(),
-                [
-                    table.name.span.clone(),
-                    source.span.clone(),
-                    source.parquet.span.clone(),
-                ],
+                [table.name.span.clone(), source.parquet.span.clone()],
             );
             None
         }

@@ -11,7 +11,7 @@ data-dict-parquet.workspace = true
 quarto-yaml.workspace = true
 quarto-yaml-validation.workspace = true
 quarto-source-map.workspace = true
-quarto-error-reporting.workspace = true
+annotate-snippets.workspace = true
 serde.workspace = true
 chrono.workspace = true
 

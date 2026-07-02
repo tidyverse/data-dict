@@ -324,7 +324,7 @@ fn enum_non_string_label() {
                 type: enum
                 values: {active: 1, inactive: 2}
     "});
-    diagnostic.assert_contains(&["YAML Validation Failed"]);
+    diagnostic.assert_contains(&["Q-1-11", "Expected array, got object"]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
 }
@@ -547,11 +547,7 @@ fn s10_duplicate_column_name() {
                 type: string
                 examples: [a, b, c]
     "});
-    diagnostic.assert_contains(&[
-        "S10",
-        "Column names must be unique",
-        "is duplicated",
-    ]);
+    diagnostic.assert_contains(&["S10", "Column names must be unique", "is duplicated"]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
 }
@@ -574,11 +570,7 @@ fn s10_duplicate_table_name() {
                 type: number(id)
                 examples: [1, 2, 3]
     "});
-    diagnostic.assert_contains(&[
-        "S10",
-        "Table names must be unique",
-        "is duplicated",
-    ]);
+    diagnostic.assert_contains(&["S10", "Table names must be unique", "is duplicated"]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
 }
@@ -891,7 +883,7 @@ fn s15_bad_time_zone() {
                 time_zone: PST
                 range: [2020-01-01T00:00:00, 2024-12-31T23:59:59]
     "});
-    diagnostic.assert_contains(&["S15", "not a valid time zone"]);
+    diagnostic.assert_contains(&["S15", "is not a valid time zone"]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
 }

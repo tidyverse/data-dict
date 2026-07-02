@@ -7,12 +7,10 @@ version:
   date: 2024-01-31
   hash: a1b2c3d
 ────────────────────────────────────────
-Error: [S17] A `version` must give exactly one of `number`, `date`, or `hash`.
-   ╭─[ dict.yaml:5:3 ]
-   │
- 3 │ version:
- 4 │   date: 2024-01-31
- 5 │   hash: a1b2c3d
-   │   ──┬─  
-   │     ╰─── `date` has already been supplied
-───╯
+error: [S17] A `version` must give exactly one of `number`, `date`, or `hash`.
+ --> dict.yaml:5:3
+  |
+3 | version:
+4 |   date: 2024-01-31
+5 |   hash: a1b2c3d
+  |   ^^^^ `date` has already been supplied

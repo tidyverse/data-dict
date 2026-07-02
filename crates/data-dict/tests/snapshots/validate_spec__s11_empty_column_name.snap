@@ -10,12 +10,10 @@ tables:
         type: string
         examples: [a, b, c]
 ────────────────────────────────────────
-Error: [S11] Every column must have a non-empty `name`.
-   ╭─[ dict.yaml:6:15 ]
-   │
- 4 │   - name: table
- 5 │     columns:
- 6 │       - name: ""
-   │               │ 
-   │               ╰─ the `name` is empty
-───╯
+error: [S11] Every column must have a non-empty `name`.
+ --> dict.yaml:6:15
+  |
+4 |   - name: table
+5 |     columns:
+6 |       - name: ""
+  |               ^ the `name` is empty

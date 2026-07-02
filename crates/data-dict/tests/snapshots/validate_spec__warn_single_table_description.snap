@@ -12,21 +12,16 @@ tables:
         type: number(id)
         examples: [1, 2, 3]
 ────────────────────────────────────────
-Warning: [S16] A single-table dictionary's description and details belong at the top level.
-   ╭─[ dict.yaml:5:5 ]
-   │
- 4 │   - name: food
- 5 │     description: Each row is a food item.
-   │     ─────┬─────  
-   │          ╰─────── table `food` has a `description`
-───╯
-
-Warning: [S16] A single-table dictionary's description and details belong at the top level.
-   ╭─[ dict.yaml:6:5 ]
-   │
- 4 │   - name: food
- 5 │     description: Each row is a food item.
- 6 │     details: Collected from the USDA FoodData Central database.
-   │     ───┬───  
-   │        ╰───── table `food` has a `details`
-───╯
+warning: [S16] A single-table dictionary's description and details belong at the top level.
+ --> dict.yaml:5:5
+  |
+4 |   - name: food
+5 |     description: Each row is a food item.
+  |     ^^^^^^^^^^^ table `food` has a `description`
+warning: [S16] A single-table dictionary's description and details belong at the top level.
+ --> dict.yaml:6:5
+  |
+4 |   - name: food
+5 |     description: Each row is a food item.
+6 |     details: Collected from the USDA FoodData Central database.
+  |     ^^^^^^^ table `food` has a `details`

@@ -79,6 +79,8 @@ fn nulls_in_required_meta(table: &Table, col: &Column, count: usize) -> Problem 
         message: format!("has {count} null value{plural}"),
         column: None,
         expected: Some("A required column must not contain nulls.".into()),
+        hint: None,
+        suggestion: None,
         context: vec![
             table.name.span.clone(),
             col.name.span.clone(),
