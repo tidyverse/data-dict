@@ -550,7 +550,7 @@ fn s10_duplicate_column_name() {
     diagnostic.assert_contains(&[
         "S10",
         "Column names must be unique",
-        "appears more than once",
+        "is duplicated",
     ]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
@@ -577,7 +577,7 @@ fn s10_duplicate_table_name() {
     diagnostic.assert_contains(&[
         "S10",
         "Table names must be unique",
-        "appears more than once",
+        "is duplicated",
     ]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);

@@ -10,7 +10,7 @@
 //! The second pass only runs if the first succeeds: there is no point chasing
 //! FK references in a document whose `tables` block is malformed.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::OnceLock;
 
@@ -131,12 +131,12 @@ fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
     validate_s06_cardinality_consistency(dict, out);
     validate_s16_single_table_description(dict, out);
 
-    let mut seen_tables: HashSet<String> = HashSet::new();
+    let mut seen_tables: HashMap<String, SourceInfo> = HashMap::new();
     for table in &dict.tables {
         if validate_s11_table_name(table, out) {
             validate_s10_unique_table_name(table, &mut seen_tables, out);
         }
-        let mut seen: HashSet<String> = HashSet::new();
+        let mut seen: HashMap<String, SourceInfo> = HashMap::new();
         for col in &table.columns {
             validate_s01_foreign_key(dict, table, col, out);
             validate_s08_units(table, col, out);
@@ -656,27 +656,41 @@ fn validate_s15_time_zone_format(table: &Table, col: &Column, out: &mut ProblemS
 fn validate_s10_unique_name(
     table: &Table,
     col: &Column,
-    seen: &mut HashSet<String>,
+    seen: &mut HashMap<String, SourceInfo>,
     out: &mut ProblemSet,
 ) {
-    if !seen.insert(col.name.value.clone()) {
-        out.push_spec_error(
+    match seen.get(&col.name.value) {
+        Some(first) => out.push_spec_error(
             "S10",
             "Column names must be unique within a table.",
-            "appears more than once",
-            [table.name.span.clone(), col.name.span.clone()],
-        );
+            "is duplicated",
+            [
+                table.name.span.clone(),
+                first.clone(),
+                col.name.span.clone(),
+            ],
+        ),
+        None => {
+            seen.insert(col.name.value.clone(), col.name.span.clone());
+        }
     }
 }
 
-fn validate_s10_unique_table_name(table: &Table, seen: &mut HashSet<String>, out: &mut ProblemSet) {
-    if !seen.insert(table.name.value.clone()) {
-        out.push_spec_error(
+fn validate_s10_unique_table_name(
+    table: &Table,
+    seen: &mut HashMap<String, SourceInfo>,
+    out: &mut ProblemSet,
+) {
+    match seen.get(&table.name.value) {
+        Some(first) => out.push_spec_error(
             "S10",
             "Table names must be unique within the dictionary.",
-            "appears more than once",
-            [table.name.span.clone()],
-        );
+            "is duplicated",
+            [first.clone(), table.name.span.clone()],
+        ),
+        None => {
+            seen.insert(table.name.value.clone(), table.name.span.clone());
+        }
     }
 }
 

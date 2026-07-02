@@ -17,8 +17,10 @@ Error: [S10] Column names must be unique within a table.
    ╭─[ dict.yaml:9:15 ]
    │
  4 │   - name: table
+ 5 │     columns:
+ 6 │       - name: id
    │ 
  9 │       - name: id
    │               ─┬  
-   │                ╰── appears more than once
+   │                ╰── is duplicated
 ───╯

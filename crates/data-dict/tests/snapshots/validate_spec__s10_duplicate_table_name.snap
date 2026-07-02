@@ -18,7 +18,9 @@ tables:
 Error: [S10] Table names must be unique within the dictionary.
    ╭─[ dict.yaml:9:11 ]
    │
+ 4 │   - name: food
+   │ 
  9 │   - name: food
    │           ──┬─  
-   │             ╰─── appears more than once
+   │             ╰─── is duplicated
 ───╯
