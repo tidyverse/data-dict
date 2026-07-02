@@ -30,10 +30,8 @@ relationships:
   - join: food.food_category_id = category.id
     cardinality: many-to-one
 ────────────────────────────────────────
-Error: [S02] A `join` must refer to known tables.
-    ╭─[ spec/s02-missing-table.yaml:27:35 ]
-    │
- 27 │   - join: food.food_category_id = category.id
-    │                                   ─────┬─────  
-    │                                        ╰─────── table `category` is not defined
-────╯
+error: [S02] A `join` must refer to known tables.
+  --> spec/s02-missing-table.yaml:27:35
+   |
+27 |   - join: food.food_category_id = category.id
+   |                                   ^^^^^^^^^^^ table `category` is not defined

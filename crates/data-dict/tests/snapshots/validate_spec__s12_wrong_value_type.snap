@@ -10,14 +10,12 @@ tables:
         type: number
         examples: [1, two, 3]
 ────────────────────────────────────────
-Error: [S12] Each `examples` value of a `number` column must be a number.
-   ╭─[ dict.yaml:8:23 ]
-   │
- 4 │   - name: table
- 5 │     columns:
- 6 │       - name: count
- 7 │         type: number
- 8 │         examples: [1, two, 3]
-   │                       ─┬─  
-   │                        ╰─── is a string
-───╯
+error: [S12] Each `examples` value of a `number` column must be a number.
+ --> dict.yaml:8:23
+  |
+4 |   - name: table
+5 |     columns:
+6 |       - name: count
+7 |         type: number
+8 |         examples: [1, two, 3]
+  |                       ^^^ is a string

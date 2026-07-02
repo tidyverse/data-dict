@@ -17,11 +17,12 @@ use std::sync::OnceLock;
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime};
 use quarto_source_map::SourceInfo;
 use quarto_yaml::YamlWithSourceInfo;
-use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic};
+use quarto_yaml_validation::error::ValidationErrorKind;
+use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic, ValidationError};
 
 use crate::join_expr::{JoinExpr, QCol};
 use crate::model::{Cardinality, Column, DataDict, Scalar, Spanned, Table};
-use crate::problem::{Problem, ProblemKind, ProblemSet, subspan};
+use crate::problem::{Problem, ProblemKind, ProblemSet, Suggestion, subspan};
 use crate::{SourceContext, lower};
 
 /// The canonical documentation URL suggested for `$learn_more`.
@@ -82,16 +83,37 @@ pub(crate) fn load(path: &Path) -> Result<(ProblemSet, YamlWithSourceInfo), Prob
 
     let registry = SchemaRegistry::new();
     if let Err(err) = quarto_yaml_validation::validate(&doc, schema(), &registry, &source) {
+        // Lift the structural error into our own vocabulary so it renders through
+        // the annotate-snippets pipeline like every other diagnostic, rather than
+        // the validator's own (ariadne) text.
         let diagnostic = ValidationDiagnostic::from_validation_error(&err, &source);
-        // The structural diagnostic is already rendered (with source
-        // highlighting) into its message; the pre-flight problem carries it as-is.
-        let message = diagnostic.to_text(&source);
+        let span = schema_error_span(&err);
+        let hints = diagnostic.hints();
+        let hint = (!hints.is_empty()).then(|| hints.join(" "));
         let mut problems = ProblemSet::new(source);
-        problems.push(Problem::preflight(ProblemKind::Schema, message));
+        problems.push(Problem::schema(err.error_code(), err.message(), span, hint));
         return Err(problems);
     }
 
     Ok((ProblemSet::new(source), doc))
+}
+
+/// The tightest span for a structural error. The validator points an unknown
+/// property at its enclosing object; narrow that to the offending key so the
+/// annotation lands on the property itself. Other errors keep the node the
+/// validator attached.
+fn schema_error_span(err: &ValidationError) -> Option<SourceInfo> {
+    let node = err.yaml_node.as_ref()?;
+    if let ValidationErrorKind::UnknownProperty { property } = &err.kind
+        && let Some(entry) = node.as_hash().and_then(|entries| {
+            entries
+                .iter()
+                .find(|e| e.key.yaml.as_str() == Some(property))
+        })
+    {
+        return Some(entry.key_span.clone());
+    }
+    Some(node.source_info.clone())
 }
 
 /// Lower the parsed document `doc` and run the S## semantic checks, pushing any
@@ -370,7 +392,10 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the join columns on `{}` or `{}` are not marked `primary_key` or `unique`",
                             lhs_table, rhs_table
                         ),
-                        [rel.join_text.span.clone(), card_span],
+                        [
+                            rel.join_text.span.clone(),
+                            card_span,
+                        ],
                     );
                 }
             }
@@ -385,7 +410,10 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the left-side join column on `{}` is not marked `primary_key` or `unique`",
                             lhs_table
                         ),
-                        [rel.join_text.span.clone(), card_span],
+                        [
+                            rel.join_text.span.clone(),
+                            card_span,
+                        ],
                     );
                 }
             }
@@ -398,7 +426,10 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the right-side join column on `{}` is not marked `primary_key` or `unique`",
                             rhs_table
                         ),
-                        [rel.join_text.span.clone(), card_span],
+                        [
+                            rel.join_text.span.clone(),
+                            card_span,
+                        ],
                     );
                 }
             }
@@ -646,7 +677,7 @@ fn validate_s15_time_zone_format(table: &Table, col: &Column, out: &mut ProblemS
     out.push_spec_error(
         "S15",
         "A `time_zone` must be `naive`, `UTC`, or an IANA `Area/Location` name.",
-        "not a valid time zone",
+        "is not a valid time zone",
         spans,
     );
 }
@@ -938,14 +969,19 @@ fn validate_s09_learn_more(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
     let span = has("$version")
         .map(|e| e.key_span.clone())
         .unwrap_or_else(|| root.source_info.clone());
+    // Insert the recommended key at the very start of the anchor line.
+    let insert_at = subspan(&span, 0, 0).unwrap_or_else(|| span.clone());
     out.push_spec_warning(
         "S09",
-        format!(
-            "A document should point readers to the spec with `$learn_more: {LEARN_MORE_URL}`."
-        ),
+        "A document should point readers to the spec with `$learn_more`.",
         "`$learn_more` is not set",
         [span],
-    )
+    );
+    out.suggest_last(Suggestion {
+        title: "point readers to the spec".into(),
+        replacement: format!("$learn_more: {LEARN_MORE_URL}\n"),
+        span: insert_at,
+    });
 }
 
 // --- S17 --------------------------------------------------------------
