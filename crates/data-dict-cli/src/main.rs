@@ -31,6 +31,10 @@ enum Command {
         #[command(subcommand)]
         command: SkillCommand,
     },
+    /// Run the language server over stdio (used by editor extensions).
+    #[cfg(feature = "lsp")]
+    #[command(hide = true)]
+    Lsp,
 }
 
 /// Shared arguments for `validate-meta` and `validate-data`.
@@ -114,6 +118,14 @@ fn main() -> ExitCode {
             print!("{skill}");
             ExitCode::SUCCESS
         }
+        #[cfg(feature = "lsp")]
+        Command::Lsp => match data_dict_lsp::run_stdio() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(err) => {
+                eprintln!("{err}");
+                ExitCode::FAILURE
+            }
+        },
     }
 }
 
@@ -140,6 +152,11 @@ fn subcommands_listing() -> String {
 
 fn collect_subcommands(cmd: &clap::Command, prefix: &str, rows: &mut Vec<(String, String)>) {
     for sub in cmd.get_subcommands() {
+        // Hidden subcommands (e.g. `lsp`) are excluded from `--help`; keep them
+        // out of this listing too.
+        if sub.is_hide_set() {
+            continue;
+        }
         let is_help = sub.get_name() == "help";
         // Keep only the top-level `help`; nested `help` entries are noise.
         if is_help && !prefix.is_empty() {
