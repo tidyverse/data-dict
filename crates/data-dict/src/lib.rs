@@ -26,8 +26,8 @@ pub use problem::{Problem, ProblemKind, ProblemSet, Severity, SpanLocation, Stat
 pub use quarto_source_map::SourceContext;
 pub use validate_data::validate_data;
 pub use validate_meta::validate_meta;
-pub use validate_spec::validate_spec;
 pub(crate) use validate_spec::{load, validate_and_lower};
+pub use validate_spec::{validate_spec, validate_spec_str};
 
 use model::{DataDict, Table};
 
