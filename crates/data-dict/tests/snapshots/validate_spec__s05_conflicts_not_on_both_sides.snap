@@ -34,10 +34,10 @@ relationships:
     cardinality: one-to-many
     conflicts: [amount]
 ────────────────────────────────────────
-error: [S05] A `conflicts` entry must name a column on both sides of the join.
+error[S05]: A `conflicts` entry must name a column on both sides of the join.
   --> spec/s05-conflicts-not-on-both-sides.yaml:32:17
    |
-30 |   - join: food.id = food_nutrient.food_id
-31 |     cardinality: one-to-many
-32 |     conflicts: [amount]
+LL |   - join: food.id = food_nutrient.food_id
+LL |     cardinality: one-to-many
+LL |     conflicts: [amount]
    |                 ^^^^^^ `amount` is not a column of `food`

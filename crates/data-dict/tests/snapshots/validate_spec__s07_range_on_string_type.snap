@@ -11,12 +11,12 @@ tables:
         examples: [a, z]
         range: ["a", "z"]
 ────────────────────────────────────────
-error: [S07] A `string` column must not use `range`.
- --> dict.yaml:9:16
-  |
-4 |   - name: table
-5 |     columns:
-6 |       - name: c
+error[S07]: A `string` column must not use `range`.
+  --> dict.yaml:9:16
+   |
+LL |   - name: table
+LL |     columns:
+LL |       - name: c
 ...
-9 |         range: ["a", "z"]
-  |                ^^^^^^^^^ has type `string` but uses `range`
+LL |         range: ["a", "z"]
+   |                ^^^^^^^^^ has type `string` but uses `range`

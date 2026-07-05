@@ -11,12 +11,12 @@ tables:
         units: kg
         range: [100, 10]
 ────────────────────────────────────────
-error: [S13] A range's minimum must be less than or equal to its maximum.
- --> dict.yaml:9:17
-  |
-4 |   - name: table
-5 |     columns:
-6 |       - name: mass
+error[S13]: A range's minimum must be less than or equal to its maximum.
+  --> dict.yaml:9:17
+   |
+LL |   - name: table
+LL |     columns:
+LL |       - name: mass
 ...
-9 |         range: [100, 10]
-  |                 ^^^ is greater than the maximum
+LL |         range: [100, 10]
+   |                 ^^^ is greater than the maximum

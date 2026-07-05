@@ -94,7 +94,10 @@ fn type_mismatch_reported() {
             if *code == "M01" && declared == "string" && actual == "number"
     ));
     #[cfg(unix)]
-    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &problems.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]
@@ -117,7 +120,10 @@ fn extra_column_in_data_is_warning() {
         [Problem { column: Some(column), code: Some(code), severity, kind: ProblemKind::ExtraInData { actual }, .. }]
             if column == "weight" && *code == "M03" && actual == "number" && *severity == Severity::Warning
     ));
-    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &problems.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]
@@ -180,7 +186,10 @@ fn missing_column_in_data_reported() {
         }]
     ));
     #[cfg(unix)]
-    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &problems.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]
@@ -254,7 +263,10 @@ fn unreadable_source_reported() {
         problems.items
     );
     #[cfg(unix)]
-    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &problems.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]
@@ -301,7 +313,10 @@ fn unreadable_source_does_not_stop_other_tables() {
         problems.items
     );
     #[cfg(unix)]
-    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &problems.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]

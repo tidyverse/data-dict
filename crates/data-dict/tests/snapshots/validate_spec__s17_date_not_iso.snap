@@ -6,9 +6,9 @@ $learn_more: http://data-dict.tidyverse.org/
 version:
   date: "31/01/2024"
 ────────────────────────────────────────
-error: [S17] A `version` `date` must be an ISO 8601 date (YYYY-MM-DD).
- --> dict.yaml:4:9
-  |
-3 | version:
-4 |   date: "31/01/2024"
-  |         ^^^^^^^^^^ `31/01/2024` is not an ISO 8601 date
+error[S17]: A `version` `date` must be an ISO 8601 date (YYYY-MM-DD).
+  --> dict.yaml:4:9
+   |
+LL | version:
+LL |   date: "31/01/2024"
+   |         ^^^^^^^^^^ `31/01/2024` is not an ISO 8601 date

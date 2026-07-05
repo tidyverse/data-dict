@@ -15,11 +15,11 @@ tables:
         type: string
         examples: ['1', '2']
 ────────────────────────────────────────
-error: [M01] A column's data must match its declared type.
+error[M01]: A column's data must match its declared type.
   --> dict.yaml:12:15
    |
- 4 |   - name: animals
+LL |   - name: animals
 ...
-11 |       - name: weight
-12 |         type: string
+LL |       - name: weight
+LL |         type: string
    |               ^^^^^^ the data is `number`

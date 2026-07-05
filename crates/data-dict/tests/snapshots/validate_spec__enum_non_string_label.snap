@@ -10,10 +10,10 @@ tables:
         type: enum
         values: {active: 1, inactive: 2}
 ────────────────────────────────────────
-error: [Q-1-11]
- --> dict.yaml:8:18
-  |
-8 |         values: {active: 1, inactive: 2}
-  |                  ^^^^^^^^^^^^^^^^^^^^^^ Expected array, got object
-  |
-  = help: Use YAML array syntax: `[item1, item2]` or list format?
+error[Q-1-11]: A value must have the type its schema requires.
+  --> dict.yaml:8:18
+   |
+LL |         values: {active: 1, inactive: 2}
+   |                  ^^^^^^^^^^^^^^^^^^^^^^ Expected array, got object
+   |
+   = help: Use YAML array syntax: `[item1, item2]` or list format?

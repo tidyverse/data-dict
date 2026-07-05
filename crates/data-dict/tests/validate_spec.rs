@@ -70,8 +70,8 @@ fn assert_invalid_dict(body: &str, expected: &[&str]) {
 }
 
 /// Validate the document at `path`, expected to fail, capturing its source and
-/// rendered errors (terminal styling stripped, temp path rewritten to the bare
-/// `dict.yaml`) for snapshotting.
+/// rendered errors (temp path rewritten to the bare `dict.yaml`) for
+/// snapshotting.
 fn failing(path: &Path) -> Diagnostic {
     let errors = diagnostics(path, Severity::Error);
     assert!(
@@ -122,7 +122,7 @@ fn diagnostics(path: &Path, severity: Severity) -> Vec<String> {
         .items
         .iter()
         .filter(|p| p.severity == severity)
-        .map(|p| p.to_text(&problems.source))
+        .map(|p| p.to_text(&problems.source, common::SNAPSHOT_STYLE))
         .collect()
 }
 
@@ -157,13 +157,13 @@ fn assert_invalid(path: PathBuf, expected: &[&str]) {
 }
 
 /// Validate a fixture that must fail, returning the rendered diagnostic with
-/// machine-specific noise stripped so it can be snapshotted. Used for the
+/// machine-specific noise removed so it can be snapshotted. Used for the
 /// long-form `spec/` fixtures — any document expected to error.
 ///
-/// The diagnostic carries two unstable bits: terminal styling (ANSI color
-/// escapes and OSC-8 hyperlinks, the latter embedding an absolute `file://`
-/// URL) and the absolute on-disk path of the fixture. We strip the escapes and
-/// rewrite the path to its `tests/fixtures/`-relative form.
+/// Diagnostics are rendered with [`common::SNAPSHOT_STYLE`] (no terminal
+/// styling, anonymized line numbers); the one remaining unstable bit is the
+/// absolute on-disk path of the fixture, which [`common::sanitize`] rewrites to
+/// its `tests/fixtures/`-relative form.
 fn failing_diagnostic(rel: &str) -> Diagnostic {
     let path = fixture(rel);
     let errors = diagnostics(&path, Severity::Error);

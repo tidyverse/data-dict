@@ -9,11 +9,11 @@ tables:
       - name: c
         type: enum
 ────────────────────────────────────────
-error: [S07] An `enum` column must list its categories with `values`.
- --> dict.yaml:7:15
-  |
-4 |   - name: table
-5 |     columns:
-6 |       - name: c
-7 |         type: enum
-  |               ^^^^ has type `enum` but is missing `values`
+error[S07]: An `enum` column must list its categories with `values`.
+  --> dict.yaml:7:15
+   |
+LL |   - name: table
+LL |     columns:
+LL |       - name: c
+LL |         type: enum
+   |               ^^^^ has type `enum` but is missing `values`

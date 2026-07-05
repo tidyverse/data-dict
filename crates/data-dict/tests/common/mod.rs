@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use data_dict::RenderStyle;
 use indoc::indoc;
 use parquet::data_type::{ByteArray, ByteArrayType, DoubleType};
 use parquet::file::properties::WriterProperties;
@@ -84,17 +85,23 @@ pub fn write_dict(dir: &Path, body: &str) -> PathBuf {
     write_yaml(dir, &format!("{HEADER}{body}"))
 }
 
-/// Make a source-highlighted diagnostic snapshottable: strip terminal styling
-/// (ANSI escapes and OSC-8 hyperlinks) and rewrite the absolute `dir` prefix off
-/// its paths, both of which vary per run. `dir` is the temp dir for inline
-/// documents (leaving the bare `dict.yaml`) or the fixtures root for fixture
-/// documents (leaving e.g. `spec/s01-….yaml`). Backslashes are normalized to
-/// `/` so Windows paths match the snapshots.
+/// Render diagnostics for snapshots: no colour (so no escape codes to strip)
+/// and anonymized line numbers (so an edit that shifts lines doesn't churn
+/// unrelated snapshots).
+pub const SNAPSHOT_STYLE: RenderStyle = RenderStyle {
+    color: false,
+    anonymized_line_numbers: true,
+};
+
+/// Make a source-highlighted diagnostic snapshottable: rewrite the absolute
+/// `dir` prefix off its paths, which varies per run. `dir` is the temp dir for
+/// inline documents (leaving the bare `dict.yaml`) or the fixtures root for
+/// fixture documents (leaving e.g. `spec/s01-….yaml`). Backslashes are
+/// normalized to `/` so Windows paths match the snapshots. Render with
+/// [`SNAPSHOT_STYLE`] so there is no terminal styling to strip.
 pub fn sanitize(rendered: &str, dir: &Path) -> String {
     let dir_prefix = format!("{}/", dir.display()).replace('\\', "/");
-    strip_terminal_escapes(rendered)
-        .replace('\\', "/")
-        .replace(&dir_prefix, "")
+    rendered.replace('\\', "/").replace(&dir_prefix, "")
 }
 
 /// A validation outcome captured for snapshotting: the YAML `source` that was
@@ -154,43 +161,3 @@ macro_rules! assert_snapshot {
     }};
 }
 pub(crate) use assert_snapshot;
-
-/// Remove ANSI SGR sequences (`ESC [ ... m`) and OSC-8 hyperlink wrappers
-/// (`ESC ] 8 ; ; ... BEL|ST`) while leaving the visible text intact.
-fn strip_terminal_escapes(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == 0x1b && i + 1 < bytes.len() {
-            match bytes[i + 1] {
-                b'[' => {
-                    i += 2;
-                    while i < bytes.len() && !(0x40..=0x7e).contains(&bytes[i]) {
-                        i += 1;
-                    }
-                    i += 1;
-                }
-                b']' => {
-                    i += 2;
-                    while i < bytes.len() {
-                        if bytes[i] == 0x07 {
-                            i += 1;
-                            break;
-                        }
-                        if bytes[i] == 0x1b && i + 1 < bytes.len() && bytes[i + 1] == b'\\' {
-                            i += 2;
-                            break;
-                        }
-                        i += 1;
-                    }
-                }
-                _ => i += 2,
-            }
-        } else {
-            out.push(bytes[i]);
-            i += 1;
-        }
-    }
-    String::from_utf8(out).expect("stripping ASCII escapes preserves UTF-8")
-}

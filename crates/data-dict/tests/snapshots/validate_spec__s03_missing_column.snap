@@ -30,8 +30,8 @@ relationships:
   - join: food.food_category_id = food_category.identifier
     cardinality: many-to-one
 ────────────────────────────────────────
-error: [S03] A `join` must refer to known columns.
+error[S03]: A `join` must refer to known columns.
   --> spec/s03-missing-column.yaml:27:35
    |
-27 |   - join: food.food_category_id = food_category.identifier
+LL |   - join: food.food_category_id = food_category.identifier
    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^ table `food_category` has no column `identifier`

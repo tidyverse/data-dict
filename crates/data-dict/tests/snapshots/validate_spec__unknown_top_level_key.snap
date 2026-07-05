@@ -5,10 +5,10 @@ $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 bogus: 1
 ────────────────────────────────────────
-error: [Q-1-18]
- --> dict.yaml:3:1
-  |
-3 | bogus: 1
-  | ^^^^^ Unknown property 'bogus'
-  |
-  = help: Check for typos in property names or remove unrecognized properties?
+error[Q-1-18]: An object may only contain the properties its schema defines.
+  --> dict.yaml:3:1
+   |
+LL | bogus: 1
+   | ^^^^^ Unknown property 'bogus'
+   |
+   = help: Check for typos in property names or remove unrecognized properties?

@@ -159,7 +159,10 @@ fn nulls_in_required_column_reported() {
         result.items
     );
     #[cfg(unix)]
-    assert_snapshot!(common::diagnostic(&yaml, &result.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &result.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]

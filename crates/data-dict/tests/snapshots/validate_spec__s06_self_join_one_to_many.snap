@@ -26,9 +26,9 @@ relationships:
   - join: otters.pup_number = otters.otter_no
     cardinality: one-to-many
 ────────────────────────────────────────
-error: [S06] A `one-to-many` join must have a `primary_key` or `unique` column on its left ("one") side.
+error[S06]: A `one-to-many` join must have a `primary_key` or `unique` column on its left ("one") side.
   --> spec/s06-self-join-one-to-many.yaml:24:18
    |
-23 |   - join: otters.pup_number = otters.otter_no
-24 |     cardinality: one-to-many
+LL |   - join: otters.pup_number = otters.otter_no
+LL |     cardinality: one-to-many
    |                  ^^^^^^^^^^^ the left-side join column on `otters` is not marked `primary_key` or `unique`

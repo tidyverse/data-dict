@@ -13,12 +13,12 @@ tables:
         constraints: [required]
         range: [0, 100]
 ────────────────────────────────────────
-error: [D01] A required column must not contain nulls.
+error[D01]: A required column must not contain nulls.
   --> dict.yaml:10:23
    |
- 4 |   - name: t
+LL |   - name: t
 ...
- 8 |       - name: weight
- 9 |         type: number(quantity)
-10 |         constraints: [required]
+LL |       - name: weight
+LL |         type: number(quantity)
+LL |         constraints: [required]
    |                       ^^^^^^^^ has 1 null value

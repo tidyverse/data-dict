@@ -91,7 +91,13 @@ pub(crate) fn load(path: &Path) -> Result<(ProblemSet, YamlWithSourceInfo), Prob
         let hints = diagnostic.hints();
         let hint = (!hints.is_empty()).then(|| hints.join(" "));
         let mut problems = ProblemSet::new(source);
-        problems.push(Problem::schema(err.error_code(), err.message(), span, hint));
+        problems.push(Problem::schema(
+            err.error_code(),
+            schema_expected(&err.kind),
+            err.message(),
+            span,
+            hint,
+        ));
         return Err(problems);
     }
 
@@ -114,6 +120,32 @@ fn schema_error_span(err: &ValidationError) -> Option<SourceInfo> {
         return Some(entry.key_span.clone());
     }
     Some(node.source_info.clone())
+}
+
+/// The general rule a structural error violates, stated independently of the
+/// offending value, to lead the diagnostic (the validator's own `message`
+/// carries the concrete finding). Sentence case, ending with a full stop, like
+/// every other `expected`.
+fn schema_expected(kind: &ValidationErrorKind) -> &'static str {
+    use ValidationErrorKind::*;
+    match kind {
+        TypeMismatch { .. } => "A value must have the type its schema requires.",
+        MissingRequiredProperty { .. } => "A required property must be present.",
+        UnknownProperty { .. } => "An object may only contain the properties its schema defines.",
+        InvalidEnumValue { .. } => "A value must be one of its schema's allowed values.",
+        NumberOutOfRange { .. } => "A number must fall within its allowed range.",
+        NumberNotMultipleOf { .. } => "A number must be a multiple of its schema's step.",
+        StringLengthInvalid { .. } => "A string's length must be within its allowed bounds.",
+        StringPatternMismatch { .. } => "A string must match its schema's pattern.",
+        ArrayLengthInvalid { .. } => "An array's length must be within its allowed bounds.",
+        ArrayItemsNotUnique => "An array's items must be unique.",
+        ObjectPropertyCountInvalid { .. } => {
+            "An object's property count must be within its allowed bounds."
+        }
+        UnresolvedReference { .. } => "A schema reference must resolve.",
+        DuplicateKey { .. } => "A mapping key must not appear more than once.",
+        Other { .. } => "The document must satisfy the schema.",
+    }
 }
 
 /// Lower the parsed document `doc` and run the S## semantic checks, pushing any

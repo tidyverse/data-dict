@@ -1,8 +1,9 @@
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
-use data_dict::ProblemSet;
+use data_dict::{ProblemSet, RenderStyle};
 
 #[derive(Parser)]
 #[command(name = "data-dict", version, about)]
@@ -78,7 +79,7 @@ fn main() -> ExitCode {
                 }
             };
             let problems = data_dict::validate_spec(&path);
-            for line in problems.render() {
+            for line in problems.render(stderr_style()) {
                 eprintln!("{line}");
             }
             if problems.status().failed() {
@@ -178,6 +179,15 @@ fn resolve_dict_path(path: Option<PathBuf>) -> Result<PathBuf, String> {
 /// signature, so `run_validate` is generic over which one it drives.
 type ValidateFn = fn(&Path, Option<&str>) -> ProblemSet;
 
+/// Colour diagnostics only when stderr (where they are printed) is a terminal,
+/// so piped or redirected output stays plain.
+fn stderr_style() -> RenderStyle {
+    RenderStyle {
+        color: std::io::stderr().is_terminal(),
+        ..RenderStyle::default()
+    }
+}
+
 /// Run a meta or data validation and turn its outcome into rendered output and
 /// an exit code.
 fn run_validate(args: ValidateArgs, validate: ValidateFn) -> ExitCode {
@@ -193,7 +203,7 @@ fn run_validate(args: ValidateArgs, validate: ValidateFn) -> ExitCode {
     if args.json {
         println!("{}", problems_to_json(&problems));
     } else {
-        for line in problems.render() {
+        for line in problems.render(stderr_style()) {
             eprintln!("{line}");
         }
         if !status.failed() {

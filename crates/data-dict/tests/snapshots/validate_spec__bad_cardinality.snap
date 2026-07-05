@@ -7,10 +7,10 @@ relationships:
   - cardinality: many-to-many
     join: a.x = b.y
 ────────────────────────────────────────
-error: [Q-1-12]
- --> dict.yaml:4:18
-  |
-4 |   - cardinality: many-to-many
-  |                  ^^^^^^^^^^^^ Value must be one of: "one-to-one", "one-to-many", "many-to-one", got '"many-to-many"'
-  |
-  = help: Check the schema for allowed values?
+error[Q-1-12]: A value must be one of its schema's allowed values.
+  --> dict.yaml:4:18
+   |
+LL |   - cardinality: many-to-many
+   |                  ^^^^^^^^^^^^ Value must be one of: "one-to-one", "one-to-many", "many-to-one", got '"many-to-many"'
+   |
+   = help: Check the schema for allowed values?

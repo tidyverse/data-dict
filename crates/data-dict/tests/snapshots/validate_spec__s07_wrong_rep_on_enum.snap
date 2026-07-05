@@ -10,20 +10,20 @@ tables:
         type: enum
         range: [0, 10]
 ────────────────────────────────────────
-error: [S07] An `enum` column must list its categories with `values`.
- --> dict.yaml:7:15
-  |
-4 |   - name: table
-5 |     columns:
-6 |       - name: status
-7 |         type: enum
-  |               ^^^^ has type `enum` but is missing `values`
-error: [S07] An `enum` column must use `values`, not `range`.
- --> dict.yaml:8:16
-  |
-4 |   - name: table
-5 |     columns:
-6 |       - name: status
-7 |         type: enum
-8 |         range: [0, 10]
-  |                ^^^^^^ has type `enum` but uses `range`
+error[S07]: An `enum` column must list its categories with `values`.
+  --> dict.yaml:7:15
+   |
+LL |   - name: table
+LL |     columns:
+LL |       - name: status
+LL |         type: enum
+   |               ^^^^ has type `enum` but is missing `values`
+error[S07]: An `enum` column must use `values`, not `range`.
+  --> dict.yaml:8:16
+   |
+LL |   - name: table
+LL |     columns:
+LL |       - name: status
+LL |         type: enum
+LL |         range: [0, 10]
+   |                ^^^^^^ has type `enum` but uses `range`

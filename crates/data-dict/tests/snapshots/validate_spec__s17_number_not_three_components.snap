@@ -6,9 +6,9 @@ $learn_more: http://data-dict.tidyverse.org/
 version:
   number: "1.2.0.0"
 ────────────────────────────────────────
-error: [S17] A `version` `number` must have three dot-separated numeric components, with an optional pre-release/build suffix.
- --> dict.yaml:4:11
-  |
-3 | version:
-4 |   number: "1.2.0.0"
-  |           ^^^^^^^ `1.2.0.0` is not a valid version number
+error[S17]: A `version` `number` must have three dot-separated numeric components, with an optional pre-release/build suffix.
+  --> dict.yaml:4:11
+   |
+LL | version:
+LL |   number: "1.2.0.0"
+   |           ^^^^^^^ `1.2.0.0` is not a valid version number

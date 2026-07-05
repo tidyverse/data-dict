@@ -10,8 +10,8 @@ tables:
         type: number(id)
         examples: [1, 2, 3]
 ────────────────────────────────────────
-error: [S11] A table must have a non-empty name.
- --> dict.yaml:4:11
-  |
-4 |   - name: ""
-  |           ^ table name is empty
+error[S11]: A table must have a non-empty name.
+  --> dict.yaml:4:11
+   |
+LL |   - name: ""
+   |           ^ table name is empty

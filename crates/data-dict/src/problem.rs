@@ -45,6 +45,17 @@ impl Status {
     }
 }
 
+/// How to render a diagnostic to text.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RenderStyle {
+    /// Emit ANSI colour and OSC-8 hyperlinks. Turn off for piped or redirected
+    /// output; pass the destination's [`IsTerminal`](std::io::IsTerminal) state.
+    pub color: bool,
+    /// Replace line numbers with `LL` so snapshots don't churn when unrelated
+    /// lines shift. Testing aid; leave off for real output.
+    pub anonymized_line_numbers: bool,
+}
+
 /// One problem found while validating, at any level. `code` and `column` are
 /// present only when meaningful (spec problems have a code but no column;
 /// pre-flight failures have neither); `context` drives source-highlighted
@@ -248,10 +259,13 @@ impl Problem {
 
     /// A structural schema-validation failure, lifted from
     /// `quarto-yaml-validation` into the shared vocabulary so it renders like
-    /// every other diagnostic. `span` is the offending node, when the error
-    /// carries one; `hint` is its fix suggestion.
+    /// every other diagnostic. `expected` states the general rule (from the
+    /// error's kind) and leads the rendering; `message` is the validator's
+    /// concrete finding. `span` is the offending node, when the error carries
+    /// one; `hint` is its fix suggestion.
     pub(crate) fn schema(
         code: &'static str,
+        expected: &'static str,
         message: impl Into<String>,
         span: Option<SourceInfo>,
         hint: Option<String>,
@@ -261,7 +275,7 @@ impl Problem {
             severity: Severity::Error,
             message: message.into(),
             column: None,
-            expected: None,
+            expected: Some(expected.to_string()),
             hint,
             suggestion: None,
             context: span.into_iter().collect(),
@@ -288,22 +302,20 @@ impl Problem {
     /// highlighting; the rest render as a `severity [code]: message` line (or
     /// just the message when there is no code). When `expected` is set it leads
     /// the output and `message` follows on its own line as the "found" detail.
-    pub fn to_text(&self, ctx: &SourceContext) -> String {
+    pub fn to_text(&self, ctx: &SourceContext, style: RenderStyle) -> String {
         match self.primary_span() {
-            Some(span) => self.render_with_source(span, ctx),
+            Some(span) => self.render_with_source(span, ctx, style),
             None => self.render_plain(),
         }
     }
 
-    fn render_with_source(&self, span: &SourceInfo, ctx: &SourceContext) -> String {
+    fn render_with_source(
+        &self,
+        span: &SourceInfo,
+        ctx: &SourceContext,
+        style: RenderStyle,
+    ) -> String {
         use annotate_snippets::{AnnotationKind, Group, Level, Patch, Renderer, Snippet};
-
-        let header = match (self.code, &self.expected) {
-            (Some(c), Some(e)) => format!("[{c}] {e}"),
-            (Some(c), None) => format!("[{c}]"),
-            (None, Some(e)) => e.clone(),
-            (None, None) => String::new(),
-        };
 
         // The excerpt is drawn from the primary span's root file; drop to the
         // plain rendering if it (or its offsets) can't be resolved.
@@ -352,7 +364,13 @@ impl Problem {
             Severity::Error => Level::ERROR,
             Severity::Warning => Level::WARNING,
         };
-        let mut group = Group::with_title(level.primary_title(header.as_str())).element(snippet);
+        // The code becomes the bracketed id beside the level (`error[S07]`);
+        // `expected` is the title text.
+        let mut title = level.primary_title(self.expected.as_deref().unwrap_or_default());
+        if let Some(code) = self.code {
+            title = title.id(code);
+        }
+        let mut group = Group::with_title(title).element(snippet);
         if let Some(hint) = &self.hint {
             group = group.element(Level::HELP.message(hint.as_str()));
         }
@@ -373,7 +391,14 @@ impl Problem {
                     .element(patch),
             );
         }
-        Renderer::styled().render(&groups)
+        let renderer = if style.color {
+            Renderer::styled()
+        } else {
+            Renderer::plain()
+        };
+        renderer
+            .anonymized_line_numbers(style.anonymized_line_numbers)
+            .render(&groups)
     }
 
     fn render_plain(&self) -> String {
@@ -557,9 +582,13 @@ impl ProblemSet {
         status
     }
 
-    /// Render every problem to display text, in their current order.
-    pub fn render(&self) -> Vec<String> {
-        self.items.iter().map(|p| p.to_text(&self.source)).collect()
+    /// Render every problem to display text, in their current order. See
+    /// [`RenderStyle`] for the colour and line-number options.
+    pub fn render(&self, style: RenderStyle) -> Vec<String> {
+        self.items
+            .iter()
+            .map(|p| p.to_text(&self.source, style))
+            .collect()
     }
 }
 
@@ -624,7 +653,7 @@ mod tests {
     fn plain_problem_renders_expected_then_found() {
         let p = Problem::undocumented_column("notes", "string");
         assert_eq!(
-            p.to_text(&SourceContext::new()),
+            p.to_text(&SourceContext::new(), RenderStyle::default()),
             "warning [M03]: Every column in the data should be described in the dictionary.\n  \
              `notes` is in the data (`string`) but not the dictionary",
         );
