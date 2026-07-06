@@ -1,15 +1,16 @@
 # source: https://github.com/hadley/elevators
 
-version: 0.1.0
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+description: >
+  Registered elevator devices in New York City, as provided by the NYC
+  Department of Buildings in response to a September 2015 FOIL request.
+  The data was received in November 2015 and covers ~76k devices.
+  Includes elevators, escalators, dumbwaiters, and other vertical
+  transportation devices.
 
 tables:
-  elevators:
-    description: >
-      Registered elevator devices in New York City, as provided by the NYC
-      Department of Buildings in response to a September 2015 FOIL request.
-      The data was received in November 2015 and covers ~76k devices.
-      Includes elevators, escalators, dumbwaiters, and other vertical
-      transportation devices.
+  - name: elevators
     source:
       parquet: elevators.parquet
     columns:

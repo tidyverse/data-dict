@@ -1,9 +1,10 @@
 # source: https://github.com/hadley/dabstep
 
-version: 0.1.0
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
 
 tables:
-  payments:
+  - name: payments
     description: >
       Synthetic dataset of payment transactions processed by a payment
       processor. Each row represents one transaction.
@@ -138,7 +139,7 @@ tables:
         description: >
           Country of the acquiring bank. ISO 3166-1 alpha-2 code.
 
-  acquirer_countries:
+  - name: acquirer_countries
     description: >
       Lookup table mapping acquirer names to their country codes.
 
@@ -157,7 +158,7 @@ tables:
         constraints: [required]
         description: Country of the acquirer. ISO 3166-1 alpha-2 code.
 
-  merchants:
+  - name: merchants
     description: >
       Merchant profiles with business classification and processing
       configuration. Each row represents one merchant.
@@ -198,7 +199,7 @@ tables:
         constraints: [required]
         description: Business model classification.
 
-  merchant_acquirers:
+  - name: merchant_acquirers
     description: >
       Junction table linking merchants to their acquiring banks. A merchant
       may route transactions through multiple acquirers (typically in
@@ -219,7 +220,7 @@ tables:
         description: Name of the acquiring bank.
         examples: [bank_of_springfield, dagoberts_vault, gringotts, medici, the_savings_and_loan_bank]
 
-  fees:
+  - name: fees
     description: >
       Fee rules for payment processing. Each row is a rule with constraints
       that determine which transactions it applies to. A rule matches a
@@ -332,7 +333,7 @@ tables:
           (FALSE) transactions. A transaction is domestic when
           issuing_country equals acquirer_country. Null means both.
 
-  merchant_months:
+  - name: merchant_months
     description: >
       Monthly aggregates per merchant, computed from the payments data.
       Used for matching payments to fee rules based on monthly fraud
@@ -386,7 +387,7 @@ tables:
         description: >
           Binned total_volume matching the fee rule volume ranges.
 
-  merchant_category_codes:
+  - name: merchant_category_codes
     description: >
       Lookup table of Merchant Category Codes (MCCs). MCCs are four-digit
       codes assigned by card networks to classify a merchant's business type.
