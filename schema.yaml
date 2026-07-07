@@ -17,9 +17,11 @@
 
 object:
   closed: true
-  required: ["$version"]
   properties:
 
+    # Required, but its absence is checked by S18 (in validate_spec.rs) rather
+    # than the schema, so the omission carries a patch suggesting `$version`.
+    # A present-but-wrong value is still rejected here by the enum.
     "$version":
       enum: [0.1.0]
       description: >

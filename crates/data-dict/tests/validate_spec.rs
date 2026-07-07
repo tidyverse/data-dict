@@ -278,7 +278,7 @@ fn warn_single_table_description() {
 #[test]
 fn missing_version() {
     let diagnostic = failing_raw("tables: []\n");
-    diagnostic.assert_contains(&["Missing required property '$version'"]);
+    diagnostic.assert_contains(&["S18", "`$version` is not set"]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
 }

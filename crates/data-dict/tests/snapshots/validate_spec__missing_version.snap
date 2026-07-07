@@ -3,10 +3,13 @@ source: crates/data-dict/tests/validate_spec.rs
 ---
 tables: []
 ────────────────────────────────────────
-error[Q-1-10]: A required property must be present.
+error[S18]: A document must declare the spec version it conforms to with `$version`.
   --> dict.yaml:1:1
    |
 LL | tables: []
-   | ^^^^^^^^^^ Missing required property '$version' (must be one of: "0.1.0")
+   | ^ `$version` is not set
    |
-   = help: Add the `$version` property to your YAML document?
+help: declare the spec version
+   |
+LL + $version: 0.1.0
+   |

@@ -28,6 +28,9 @@ use crate::{SourceContext, lower};
 /// The canonical documentation URL suggested for `$learn_more`.
 pub const LEARN_MORE_URL: &str = "http://data-dict.tidyverse.org/";
 
+/// The spec version this validator implements, suggested for a missing `$version`.
+pub const SPEC_VERSION: &str = "0.1.0";
+
 const SCHEMA_YAML: &str = include_str!("../../../schema.yaml");
 
 fn schema() -> &'static Schema {
@@ -159,6 +162,7 @@ pub(crate) fn validate_and_lower(
     check_spec(&dict, out);
     validate_s09_learn_more(doc, out);
     validate_s17_version(doc, out);
+    validate_s18_version_present(doc, out);
     out.sort();
 
     if out.status().failed() {
@@ -988,8 +992,9 @@ fn validate_s16_single_table_description(dict: &DataDict, out: &mut ProblemSet) 
 
 /// Warn when the document omits the recommended `$learn_more` key. Unlike the
 /// other rules this inspects the raw AST, because `$learn_more` is top-level
-/// metadata that the lowered [`DataDict`] does not carry. The warning is
-/// anchored at the `$version` key, which the schema guarantees is present.
+/// metadata that the lowered [`DataDict`] does not carry. The key has no
+/// location of its own, so the warning is anchored at the document's first
+/// character.
 fn validate_s09_learn_more(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
     let Some(entries) = root.as_hash() else {
         return;
@@ -998,11 +1003,9 @@ fn validate_s09_learn_more(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
     if has("$learn_more").is_some() {
         return;
     }
-    let span = has("$version")
-        .map(|e| e.key_span.clone())
-        .unwrap_or_else(|| root.source_info.clone());
-    // Insert the recommended key at the very start of the anchor line.
-    let insert_at = subspan(&span, 0, 0).unwrap_or_else(|| span.clone());
+    let span = subspan(&root.source_info, 0, 1).unwrap_or_else(|| root.source_info.clone());
+    // Insert the recommended key at the very start of the document.
+    let insert_at = subspan(&root.source_info, 0, 0).unwrap_or_else(|| span.clone());
     out.push_spec_warning(
         "S09",
         "A document should point readers to the spec with `$learn_more`.",
@@ -1098,6 +1101,39 @@ fn validate_s17_version(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
         }
         _ => {}
     }
+}
+
+// --- S18 --------------------------------------------------------------
+
+/// Error when the document omits the required top-level `$version` key. The
+/// schema leaves this key optional so its absence lands here with a patch
+/// (a present-but-wrong value is still an enum error at the schema level).
+/// Like S09, the missing key has no location of its own, so the error is
+/// anchored at the document's first character.
+fn validate_s18_version_present(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
+    let Some(entries) = root.as_hash() else {
+        return;
+    };
+    if entries
+        .iter()
+        .any(|e| e.key.yaml.as_str() == Some("$version"))
+    {
+        return;
+    }
+    let span = subspan(&root.source_info, 0, 1).unwrap_or_else(|| root.source_info.clone());
+    // Insert the key at the very start of the document.
+    let insert_at = subspan(&root.source_info, 0, 0).unwrap_or_else(|| span.clone());
+    out.push_spec_error(
+        "S18",
+        "A document must declare the spec version it conforms to with `$version`.",
+        "`$version` is not set",
+        [span],
+    );
+    out.suggest_last(Suggestion {
+        title: "declare the spec version".into(),
+        replacement: format!("$version: {SPEC_VERSION}\n"),
+        span: insert_at,
+    });
 }
 
 /// A version `number` per the spec: three dot-separated numeric components

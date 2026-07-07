@@ -6,7 +6,7 @@ warning[S09]: A document should point readers to the spec with `$learn_more`.
  --> <fixture>:2:1
   |
 2 | $version: 0.1.0
-  | ^^^^^^^^ `$learn_more` is not set
+  | ^ `$learn_more` is not set
   |
 help: point readers to the spec
   |
