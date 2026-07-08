@@ -231,7 +231,7 @@ glossary:
 
 `version` records the version of the data this dictionary describes, so people and tools can tell two snapshots of the data apart and know which one a given dictionary goes with. (This is distinct from `$version`, which records the version of the *spec* the document conforms to.)
 
-`version` is optional. It's a map with exactly one of three keys, which names both the kind of version and its value:
+`version` is optional, but if present it should appear at the top of the file. It's a map with exactly one of three keys, which names both the kind of version and its value:
 
 * `number`: a hand-curated version number with three dot-separated numeric components, optionally followed by a pre-release (`-…`) and/or build (`+…`) suffix, such as `1.2.0` or `1.2.0-rc.1`.
 * `date`: a release date in ISO 8601 form (`YYYY-MM-DD`), such as `2024-01-31`, for data refreshed on a schedule.
