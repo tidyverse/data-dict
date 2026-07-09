@@ -189,10 +189,7 @@ The element type in `list(element_type)` may be any type: `string`, `number`, `n
 
 #### Struct fields
 
-A `struct` column may include a `fields` property — an ordered list of field descriptors. Each field descriptor uses the same schema as a column descriptor, with two differences:
-
-* `primary_key` and `foreign_key` constraints are not meaningful on struct fields and are not permitted.
-* A field may itself be `list(...)` or `struct` (with its own `fields`), allowing deep nesting.
+A `struct` column may include a `fields` property — an ordered list of field descriptors. Each field descriptor uses the same schema as a column descriptor. A field may itself be `list(...)` or `struct` (with its own `fields`), allowing deep nesting.
 
 ```yaml
 - name: address
@@ -251,8 +248,8 @@ NB: when `time_zone` is present, write the column's `range` as plain, zoneless d
 
 The `constraints` property is a list of constraint names. The supported constraints are:
 
-* `primary_key`: the set of columns with the `primary_key` constraint uniquely identifies each row. Implies `required` and `unique`.
-* `foreign_key`: the column references a primary key in another table (or in the current table, if a self-join). The specific relationship is defined in [`relationships`](#relationships).
+* `primary_key`: the set of columns with the `primary_key` constraint uniquely identifies each row. Implies `required` and `unique`. Not valid on `list` or `struct` columns, or on fields within a `struct`.
+* `foreign_key`: the column references a primary key in another table (or in the current table, if a self-join). The specific relationship is defined in [`relationships`](#relationships). Not valid on `list` or `struct` columns, or on fields within a `struct`.
 * `required`: the column does not contain null/missing values.
 * `unique`: the column's values are distinct (no duplicates).
 
