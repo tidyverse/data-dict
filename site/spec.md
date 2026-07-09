@@ -136,8 +136,8 @@ The supported types are:
 * `date`: calendar dates, written as ISO 8601 strings (`YYYY-MM-DD`, e.g. `2024-01-31`).
 * `datetime`: date-times, written as ISO 8601 strings. Without a `time_zone` they carry an offset (e.g. `2024-01-31T09:30:00Z`); with a `time_zone` they're written zoneless and interpreted in that zone (see [Time zones](#time-zones)).
 * `enum`: a column with repeated values from a known set. The allowed values are listed in the `values` property.
-* `list(element_type)`: an ordered sequence of zero or more elements. The element type may be any scalar type or `enum` (see [List element types](#list-element-types)). A bare `list` (no element type) acknowledges a list column without describing its contents.
-* `struct`: a structured record with named fields. The optional `fields` property (see [Struct fields](#struct-fields)) documents the internal structure; without it the column is opaque, like a name-only column.
+* `list(element_type)`: an ordered sequence of zero or more elements of the given type (see [List element types](#list-element-types)).
+* `struct`: a structured record with named fields documented in the required `fields` property (see [Struct fields](#struct-fields)).
 
 #### Measures
 
@@ -161,8 +161,6 @@ A `number(quantity)` column can also declare its `units`: a free-text string nam
 #### List element types
 
 The element type in `list(element_type)` may be any type: `string`, `number`, `number(id)`, `number(ordinal)`, `number(quantity)`, `boolean`, `date`, `datetime`, `enum`, or `struct`. The same properties that apply to a column of that type apply when it is used as a list element type — `values` for `enum`, `fields` for `struct`, and so on.
-
-A bare `list` (no element type) makes no claims about the element type or contents, so it is never checked. Use it for complex or unknown element types, or when the structure varies per row.
 
 ```yaml
 - name: tags
@@ -196,8 +194,6 @@ A `struct` column may include a `fields` property — an ordered list of field d
 * `primary_key` and `foreign_key` constraints are not meaningful on struct fields and are not permitted.
 * A field may itself be `list(...)` or `struct` (with its own `fields`), allowing deep nesting.
 
-Omitting `fields` leaves the struct opaque: the column is acknowledged but its internal structure is not described and nothing is checked.
-
 ```yaml
 - name: address
   type: struct
@@ -218,7 +214,7 @@ Omitting `fields` leaves the struct opaque: the column is acknowledged but its i
 
 #### Representative values
 
-Most typed columns carry exactly one of the following three properties to represent the data they contain. The exceptions are `boolean` (values are always `true`/`false`), bare `list`, opaque `struct`, and `struct` with `fields` (where the fields carry their own).
+Most typed columns carry exactly one of the following three properties to represent the data they contain. The exceptions are `boolean` (values are always `true`/`false`) and `struct` (whose fields carry their own).
 
 * `values`: the allowed values for an `enum` column. Can be a list (`[M, F, U]`) when values are self-explanatory, or a map (`{M: Male, F: Female, U: Unknown}`) when values need labels. The values themselves must be scalars (string, number, or boolean); in the map form the labels must be strings. (`boolean` columns implicitly have `values: [true, false]`, no need to explicitly include it.)
 * `range`: a two-element list `[min, max]` giving the inclusive minimum and maximum *observed* in the column. Like `examples`, it describes the data rather than constraining it — a value outside the range will generate a warning, not a validation error. Used for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`. Both elements must match the column's type, and the minimum must not exceed the maximum.
