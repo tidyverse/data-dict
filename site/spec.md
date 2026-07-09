@@ -160,7 +160,7 @@ A `number(quantity)` column can also declare its `units`: a free-text string nam
 
 #### List element types
 
-The element type in `list(element_type)` specifies what values may appear inside each list. Any scalar type is valid: `string`, `number`, `number(id)`, `number(ordinal)`, `number(quantity)`, `boolean`, `date`, or `datetime`. `list(enum)` is also valid and pairs with the `values` property to enumerate the allowed element values.
+The element type in `list(element_type)` may be any type: `string`, `number`, `number(id)`, `number(ordinal)`, `number(quantity)`, `boolean`, `date`, `datetime`, `enum`, or `struct`. The same properties that apply to a column of that type apply when it is used as a list element type — `values` for `enum`, `fields` for `struct`, and so on.
 
 A bare `list` (no element type) makes no claims about the element type or contents, so it is never checked. Use it for complex or unknown element types, or when the structure varies per row.
 
@@ -172,6 +172,21 @@ A bare `list` (no element type) makes no claims about the element type or conten
 - name: categories
   type: list(enum)
   values: [food, drink, dessert]
+
+- name: line_items
+  type: list(struct)
+  fields:
+    - name: product_id
+      type: number(id)
+      examples: [101, 204, 389]
+    - name: quantity
+      type: number(quantity)
+      units: units
+      range: [1, 100]
+    - name: price
+      type: number(quantity)
+      units: USD
+      range: [0.99, 999.99]
 ```
 
 #### Struct fields
@@ -205,15 +220,15 @@ Omitting `fields` leaves the struct opaque: the column is acknowledged but its i
 
 Most typed columns carry exactly one of the following three properties to represent the data they contain. The exceptions are `boolean` (values are always `true`/`false`), bare `list`, opaque `struct`, and `struct` with `fields` (where the fields carry their own).
 
-* `values`: the allowed values for an `enum` column, or the allowed element values for a `list(enum)` column. Can be a list (`[M, F, U]`) when values are self-explanatory, or a map (`{M: Male, F: Female, U: Unknown}`) when values need labels. The values themselves must be scalars (string, number, or boolean); in the map form the labels must be strings. (`boolean` columns implicitly have `values: [true, false]`, no need to explicitly include it.)
+* `values`: the allowed values for an `enum` column. Can be a list (`[M, F, U]`) when values are self-explanatory, or a map (`{M: Male, F: Female, U: Unknown}`) when values need labels. The values themselves must be scalars (string, number, or boolean); in the map form the labels must be strings. (`boolean` columns implicitly have `values: [true, false]`, no need to explicitly include it.)
 * `range`: a two-element list `[min, max]` giving the inclusive minimum and maximum *observed* in the column. Like `examples`, it describes the data rather than constraining it — a value outside the range will generate a warning, not a validation error. Used for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`. Both elements must match the column's type, and the minimum must not exceed the maximum.
 
     Either bound may be left open with negative infinity (`-.inf`) for the minimum or positive infinity (`.inf`) for the maximum. An open bound says the true extent is unknown or constantly moving, as in a daily export whose date column always runs up to the present. If you leave a bound open, make sure to describe the range in prose in the column's `description`.
 * `examples`: a list of ~5 representative values from the column. Used for all other types: `string`, `number`, and `number(id)`. Each example must match the column's type. A handful of concrete examples helps LLMs understand the column far better than a description alone. For instance, knowing that an id column holds `[1, 2, 3, 4, 5]` versus `[10000, 1235452, 234234]` tells a very different story. A good baseline is to select 5 evenly spaced values along the sorted unique values, and then add any particularly surprising values as you encounter them.
 
-    For `list(element_type)` columns, `examples` is a flat list of ~5 representative element values: the kinds of things that can appear inside the lists, not examples of whole lists.
-
 `boolean` columns are the exception to this rule because they can only contain `true`, `false`, and (if not required) `null`.
+
+For `list(element_type)` columns, the same three properties apply but describe the element values, not the lists themselves. Use `values` for `list(enum)`, `range` for `list(number(ordinal))`, `list(number(quantity))`, `list(date)`, and `list(datetime)`, and `examples` for all other list types. Each property means the same thing it would for a scalar column of the element type — for instance, `range` on a `list(number(quantity))` column gives the minimum and maximum element value observed across all lists.
 
 #### Time zones
 
