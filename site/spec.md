@@ -9,11 +9,7 @@ The metadata keys are:
 * `$version` (required): the version of the `data-dict.yaml` spec the document conforms to. Currently `0.1.0`. While the spec is pre-1.0, breaking changes are expected, but once the spec stabilises at 1.0, breaking changes will always increment at least the minor version.
 * `$learn_more` (optional, but recommended): a URL where readers can learn about the `data-dict.yaml` format, so that people and tools meeting the file for the first time can find out what it is. Use <http://data-dict.tidyverse.org/>. Omitting it is valid, but a validator will emit a warning rather than an error (see [Validation](validation.md)).
 
-The descriptive keys identify and document the dataset as a whole:
-
-* `name` (optional): a human-readable name for the dataset, suitable for display in a user interface that lists several dictionaries. Unlike a table name, it has no uniqueness or character constraints — it's a title, not an identifier.
-* `description` (optional): a short, human-readable description of the dataset. May contain markdown, and is usually a few sentences or a paragraph.
-* `details` (optional): additional information about the dataset. Can be any length.
+The descriptive keys — `name`, `label`, `description`, and `details` — identify and document the dataset as a whole. All four are optional here, and work the same way at every level of the dictionary; see [Name, label, description & details](#name-label-description--details) for their full meaning. For the dataset, `name` is a terse identifier (e.g. `foodbank`) and `label` its human-readable title.
 
 In the common case of a dictionary that describes a single table, these top-level keys should be used to describe the dataset, leaving the table itself undescribed.
 
@@ -24,17 +20,12 @@ The content keys all hold the actual information about the data:
 * [`glossary`](#glossary) provides a place to define important domain-specific terms. This is a good place to write down those special words that your company loves to use.
 * [`version`](#version) records the version of the data the dictionary describes — a version number, a date, or an opaque hash.
 
-`name`, `description`, and `details` form a consistent trio that recurs at every level of the dictionary: the dataset as a whole (here), each [table](#tables), and each [column](#columns). `description` and `details` are always optional and mean the same thing at every level — a short summary and a longer free-text note.
-
 ## Tables
 
 `tables` is a list that describes each table in the dataset. Each table represents a rectangle of data with observations in the rows and variables in the columns. Each table has the following properties:
 
 * `name` (required): the table's name. Used to match the table to the underlying data and to refer to it from `relationships`. Must be non-empty and unique within the dictionary.
-* `description`: a human-readable description of the table. May contain markdown, and is usually a few sentences or a paragraph. A good description answers two questions:
-    * **What's the grain?** What does a row represent? (e.g. "each row is a food item", "each row is one patient visit").
-    * **What's the population?** What's been included or filtered out to produce this dataset? (e.g. "only completed orders from 2020 onwards", "excludes test accounts").
-* `details`: additional information about the table. This is the place for "here be dragons": assumptions baked into the data, known weak spots, surprising calculations, and known problems. Also covers how the data was collected or constructed. Can be any length.
+* `label`, `description`, `details`: human-readable documentation for the table; see [Name, label, description & details](#name-label-description--details).
 * `source`: ways to access the data. Optional at the spec level, so you can draft a dictionary before its data exists, but required to validate against data (see [Validation](validation.md)).
 * `columns` (required): an ordered list of column metadata.
 
@@ -43,6 +34,7 @@ For example:
 ```yaml
 tables:
   - name: food
+    label: Foods
     description: >
       Each row is a food item in the USDA FoodData Central database.
       Includes both branded and foundation foods.
@@ -50,6 +42,7 @@ tables:
       parquet: inst/parquet/food.parquet
     columns:
       - name: fdc_id
+        label: FoodData Central ID
         type: number(id)
         constraints: [primary_key]
         description: Unique identifier for the food item.
@@ -92,11 +85,10 @@ Each entry in the `columns` list is a column descriptor. Columns are matched to 
 Each descriptor has the following properties:
 
 * `name` (required): column name. Used to match the descriptor to a column in the underlying data. Must be non-empty and unique within a table.
+* `label`, `description`, `details`: human-readable documentation for the column; see [Name, label, description & details](#name-label-description--details).
 * `type`: the column's data type (see [Types](#types)). Should match (approximately) the underlying data type. Optional — see below.
 * `constraints`: a list of column-level constraints (see [Column constraints](#column-constraints)).
 * `display`: controls whether the column should appear in user-facing output (see [Display](#display)).
-* `description`: a human-readable description of the column. Can use markdown.
-* `details`: additional information about the column, e.g. how it was computed or edge cases to watch out for. Can be any length.
 
 Some properties only apply to certain types:
 
@@ -107,9 +99,16 @@ Each column also needs describe some representative values, using exactly one of
 
 A column may also be listed with only its `name` and no `type`. This acknowledges the column without describing it and you should use it for columns that you don't care about but don't want flagged as undocumented. Such a column makes no claims about its contents, so it's never check, but it must still exist in the data.
 
-#### Description & details
+#### Name, label, description & details
 
-The `description` and `details` are free text fields that humans and agents can use to jot down important notes. The `description` should be short, typically a few sentences or at most a paragraph and will be displayed in user interfaces. The `details` can be any length, and is a good place to carefully record all the details of the table.
+`name`, `label`, `description`, and `details` document a dataset, table, or column, from terse to expansive. They mean the same thing at every level:
+
+* `name` identifies the thing. For a table or column it's an identifier matched against the underlying data, so it must be non-empty and unique (a table within the dictionary, a column within its table). For the dataset it's just a short, machine-friendly id (e.g. `foodbank`) with no constraints. It's the only one of the four that is ever required.
+* `label` is a short, human-readable title, useful when the `name` is terse or technical (e.g. `FoodData Central ID` for `fdc_id`). Plain text (no markdown), typically a few words, it stands in for the `name` in user interfaces.
+* `description` is a short summary, typically a few sentences or at most a paragraph. May contain markdown, and is displayed in user interfaces. A good table description answers two questions — **what's the grain?** (what does a row represent, e.g. "each row is a food item") and **what's the population?** (what's been included or filtered out, e.g. "only completed orders from 2020 onwards").
+* `details` is a free-text note of any length: the place to carefully record everything else, such as "here be dragons" assumptions, known weak spots, surprising calculations, and how the data was collected or constructed.
+
+Every field but `name` is optional at every level.
 
 #### Display
 

@@ -966,22 +966,23 @@ fn range_descending(type_name: &str, lo: &Scalar, hi: &Scalar, tz_present: bool)
 
 // --- S16 --------------------------------------------------------------
 
-/// Warn when a single-table dictionary carries `description` or `details` on
-/// the table: for one table, those describe the dataset as a whole and belong
-/// at the top level.
+/// Warn when a single-table dictionary carries `label`, `description`, or
+/// `details` on the table: for one table, those describe the dataset as a whole
+/// and belong at the top level.
 fn validate_s16_single_table_description(dict: &DataDict, out: &mut ProblemSet) {
     if dict.tables.len() != 1 {
         return;
     }
     let table = dict.tables.first().expect("one table");
     for (key, span) in [
+        ("label", &table.label),
         ("description", &table.description),
         ("details", &table.details),
     ] {
         let Some(span) = span else { continue };
         out.push_spec_warning(
             "S16",
-            "A single-table dictionary's description and details belong at the top level.",
+            "A single-table dictionary's label, description, and details belong at the top level.",
             format!("table `{}` has a `{key}`", table.name.value),
             [table.name.span.clone(), span.clone()],
         );

@@ -42,8 +42,10 @@ pub struct Table {
     /// Where the table's data lives, when it declares a `source`. Optional
     /// for spec validation; required for metadata validation (M04).
     pub source: Option<Source>,
-    /// Spans of the `description`/`details` keys, when present. Held so S16 can
-    /// point at a single-table dictionary's misplaced table-level descriptions.
+    /// Spans of the `label`/`description`/`details` keys, when present. Held so
+    /// S16 can point at a single-table dictionary's misplaced table-level
+    /// descriptions.
+    pub label: Option<SourceInfo>,
     pub description: Option<SourceInfo>,
     pub details: Option<SourceInfo>,
 }

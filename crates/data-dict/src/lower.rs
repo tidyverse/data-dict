@@ -81,6 +81,7 @@ fn lower_table(node: &YamlWithSourceInfo) -> Option<Table> {
         name: Spanned::new(name.to_string(), name_entry.value_span.clone()),
         columns,
         source,
+        label: key_span("label"),
         description: key_span("description"),
         details: key_span("details"),
     })
