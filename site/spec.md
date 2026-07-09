@@ -211,7 +211,7 @@ Most typed columns carry exactly one of the following three properties to repres
     Either bound may be left open with negative infinity (`-.inf`) for the minimum or positive infinity (`.inf`) for the maximum. An open bound says the true extent is unknown or constantly moving, as in a daily export whose date column always runs up to the present. If you leave a bound open, make sure to describe the range in prose in the column's `description`.
 * `examples`: a list of ~5 representative values from the column. Used for all other types: `string`, `number`, and `number(id)`. Each example must match the column's type. A handful of concrete examples helps LLMs understand the column far better than a description alone. For instance, knowing that an id column holds `[1, 2, 3, 4, 5]` versus `[10000, 1235452, 234234]` tells a very different story. A good baseline is to select 5 evenly spaced values along the sorted unique values, and then add any particularly surprising values as you encounter them.
 
-    For `list(element_type)` columns (other than `list(enum)`), `examples` is a flat list of ~5 representative element values — the kinds of things that can appear inside the lists, not examples of whole lists.
+    For `list(element_type)` columns, `examples` is a flat list of ~5 representative element values: the kinds of things that can appear inside the lists, not examples of whole lists.
 
 `boolean` columns are the exception to this rule because they can only contain `true`, `false`, and (if not required) `null`.
 
