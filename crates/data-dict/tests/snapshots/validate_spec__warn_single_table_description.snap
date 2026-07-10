@@ -5,6 +5,7 @@ $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
   - name: food
+    label: Foods
     description: Each row is a food item.
     details: Collected from the USDA FoodData Central database.
     columns:
@@ -12,16 +13,11 @@ tables:
         type: number(id)
         examples: [1, 2, 3]
 ────────────────────────────────────────
-warning[S16]: A single-table dictionary's description and details belong at the top level.
-  --> dict.yaml:5:5
+warning[S16]: A single-table dictionary's `label`, `description`, and `details` belong at the top level.
+  --> dict.yaml:7:5
    |
 LL |   - name: food
-LL |     description: Each row is a food item.
-   |     ^^^^^^^^^^^ table `food` has a `description`
-warning[S16]: A single-table dictionary's description and details belong at the top level.
-  --> dict.yaml:6:5
-   |
-LL |   - name: food
+LL |     label: Foods
 LL |     description: Each row is a food item.
 LL |     details: Collected from the USDA FoodData Central database.
-   |     ^^^^^^^ table `food` has a `details`
+   |     ^^^^^^^ table `food` has `label`, `description`, and `details`

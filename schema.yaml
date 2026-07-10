@@ -31,9 +31,11 @@ object:
     # S09 in validate_spec.rs); a URL where readers can learn about the format.
     "$learn_more": string
 
-    # Descriptive keys for the whole dataset. `name` is a display title with 
-    # no uniqueness constraints; all three are optional.
+    # Descriptive keys for the whole dataset. `name` is a terse identifier and
+    # `label` a display title, both without uniqueness constraints; all are
+    # optional.
     name: string
+    label: string
     description: string
     details: string
 
@@ -51,6 +53,7 @@ object:
               anyOf:
                 - string
                 - null
+            label: string
             description: string
             details: string
 
@@ -74,6 +77,7 @@ object:
                       anyOf:
                         - string
                         - null
+                    label: string
                     description: string
                     details: string
                     display:

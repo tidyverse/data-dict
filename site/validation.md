@@ -45,7 +45,7 @@ When validating the spec, each problem with the dictionary is one of:
 * **Descending range** (S13, error): a `range`'s minimum is greater than its maximum. An open bound counts as ordered only in its own place — `-.inf` as the minimum and `.inf` as the maximum; `.inf` as a minimum or `-.inf` as a maximum runs backwards.
 * **Time zone without datetime** (S14, error): a column has `time_zone` but its type is not `datetime`.
 * **Malformed time zone** (S15, error): a `time_zone` is not `naive`, `UTC`, or an IANA `Area/Location` name with a known area. The shape is checked, not the full tz database, so the accepted set doesn't go stale as zones are added or renamed.
-* **Misplaced single-table description** (S16, warning): a dictionary with exactly one table carries `description` or `details` on that table; for a single-table dictionary these belong at the top level.
+* **Misplaced single-table description** (S16, warning): a dictionary with exactly one table carries `label`, `description`, or `details` on that table; for a single-table dictionary these belong at the top level.
 * **Malformed version** (S17, error): the top-level `version` does not give exactly one of `number`, `date`, or `hash`; its `number` is not three dot-separated numeric components (`MAJOR.MINOR.PATCH`) with an optional pre-release/build suffix; or its `date` is not a valid ISO 8601 date (`YYYY-MM-DD`).
 * **Missing `$version`** (S18, error): the document omits the required top-level `$version` key.
 
