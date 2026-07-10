@@ -974,18 +974,46 @@ fn validate_s16_single_table_description(dict: &DataDict, out: &mut ProblemSet) 
         return;
     }
     let table = dict.tables.first().expect("one table");
-    for (key, span) in [
+    let present: Vec<(&str, &SourceInfo)> = [
         ("label", &table.label),
         ("description", &table.description),
         ("details", &table.details),
-    ] {
-        let Some(span) = span else { continue };
-        out.push_spec_warning(
-            "S16",
-            "A single-table dictionary's label, description, and details belong at the top level.",
-            format!("table `{}` has a `{key}`", table.name.value),
-            [table.name.span.clone(), span.clone()],
-        );
+    ]
+    .into_iter()
+    .filter_map(|(key, opt)| opt.as_ref().map(|span| (key, span)))
+    .collect();
+
+    if present.is_empty() {
+        return;
+    }
+
+    let keys: Vec<&str> = present.iter().map(|(k, _)| *k).collect();
+    let keys_fmt = fmt_backtick_list(&keys);
+    let verb = if keys.len() == 1 { "belongs" } else { "belong" };
+    let mut spans = vec![table.name.span.clone()];
+    spans.extend(present.iter().map(|(_, s)| (*s).clone()));
+
+    out.push_spec_warning(
+        "S16",
+        format!("A single-table dictionary's {keys_fmt} {verb} at the top level."),
+        format!("table `{}` has {keys_fmt}", table.name.value),
+        spans,
+    );
+}
+
+fn fmt_backtick_list(keys: &[&str]) -> String {
+    match keys {
+        [] => String::new(),
+        [k] => format!("`{k}`"),
+        [a, b] => format!("`{a}` and `{b}`"),
+        _ => {
+            let init = keys[..keys.len() - 1]
+                .iter()
+                .map(|k| format!("`{k}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{init}, and `{}`", keys[keys.len() - 1])
+        }
     }
 }
 
