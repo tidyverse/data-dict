@@ -206,13 +206,15 @@ fn typeless_column_needs_no_representation() {
 #[test]
 fn top_level_description_no_s16() {
     assert_clean_dict(indoc! {"
-        name: FoodData Central
+        name: foodbank
+        label: FoodData Central
         description: A snapshot of the USDA FoodData Central database.
         details: Includes both branded and foundation foods.
         tables:
           - name: food
             columns:
               - name: id
+                label: FoodData Central ID
                 type: number(id)
                 examples: [1, 2, 3]
     "});
@@ -251,6 +253,7 @@ fn warn_single_table_description() {
     let diagnostic = warning_dict(indoc! {"
         tables:
           - name: food
+            label: Foods
             description: Each row is a food item.
             details: Collected from the USDA FoodData Central database.
             columns:
@@ -258,7 +261,7 @@ fn warn_single_table_description() {
                 type: number(id)
                 examples: [1, 2, 3]
     "});
-    diagnostic.assert_contains(&["S16", "description", "details"]);
+    diagnostic.assert_contains(&["S16", "label", "description", "details"]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
 }
