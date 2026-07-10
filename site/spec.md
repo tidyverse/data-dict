@@ -106,7 +106,7 @@ A column may also be listed with only its `name` and no `type`. This acknowledge
 * `name` identifies the thing. For a table or column it's an identifier matched against the underlying data, so it must be non-empty and unique (a table within the dictionary, a column within its table). For the dataset it's just a short, machine-friendly id (e.g. `foodbank`) with no constraints. It's the only one of the four that is ever required.
 * `label` is a short, human-readable title, useful when the `name` is terse or technical (e.g. `FoodData Central ID` for `fdc_id`). Plain text (no markdown), typically a few words, it stands in for the `name` in user interfaces.
 * `description` is a short summary, typically a few sentences or at most a paragraph. May contain markdown, and is displayed in user interfaces. A good table description answers two questions — **what's the grain?** (what does a row represent, e.g. "each row is a food item") and **what's the population?** (what's been included or filtered out, e.g. "only completed orders from 2020 onwards").
-* `details` is a free-text note of any length: the place to carefully record everything else, such as "here be dragons" assumptions, known weak spots, surprising calculations, and how the data was collected or constructed.
+* `details` is a free-text note of any length: the place to carefully record everything else, such as assumptions about potential unknowns, known weak spots, surprising calculations, and how the data was collected or constructed.
 
 Every field but `name` is optional at every level.
 
