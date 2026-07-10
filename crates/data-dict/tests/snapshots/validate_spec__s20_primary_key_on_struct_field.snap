@@ -1,0 +1,25 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  - name: t
+    columns:
+      - name: addr
+        type: struct
+        fields:
+          - name: id
+            type: number(id)
+            constraints: [primary_key]
+            examples: [1, 2, 3]
+────────────────────────────────────────
+error[S20]: `primary_key` is not valid on struct fields.
+  --> dict.yaml:11:27
+   |
+LL |   - name: t
+...
+LL |           - name: id
+LL |             type: number(id)
+LL |             constraints: [primary_key]
+   |                           ^^^^^^^^^^^ has `primary_key`

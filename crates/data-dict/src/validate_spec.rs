@@ -21,7 +21,7 @@ use quarto_yaml_validation::error::ValidationErrorKind;
 use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic, ValidationError};
 
 use crate::join_expr::{JoinExpr, QCol};
-use crate::model::{Cardinality, Column, DataDict, Scalar, Spanned, Table};
+use crate::model::{Cardinality, Column, Constraint, DataDict, Scalar, Spanned, Table};
 use crate::problem::{Problem, ProblemKind, ProblemSet, Suggestion, subspan};
 use crate::{SourceContext, lower};
 
@@ -180,7 +180,7 @@ pub(crate) fn validate_and_lower(
 /// check runs only when the general one it refines passed: a malformed `name`
 /// blocks the uniqueness check, and the representation chain narrows from "the
 /// right key is present" (S07) to "its values have the right type" (S12) to "the
-/// range is ordered" (S13).
+/// range is ordered" (S13). Struct columns recurse into their fields.
 fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
     validate_s02_relationship_table_refs(dict, out);
     validate_s03_relationship_column_refs(dict, out);
@@ -194,20 +194,42 @@ fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
         if validate_s11_table_name(table, out) {
             validate_s10_unique_table_name(table, &mut seen_tables, out);
         }
-        let mut seen: HashMap<String, SourceInfo> = HashMap::new();
-        for col in &table.columns {
+        check_columns(dict, table, &table.columns, false, out);
+    }
+}
+
+/// Run all column-level checks for a slice of columns. `in_struct` is `true`
+/// when the columns are fields inside a `struct`, which changes S01 (skipped)
+/// and S20 (always fires for primary_key/foreign_key).
+fn check_columns(
+    dict: &DataDict,
+    table: &Table,
+    columns: &[Column],
+    in_struct: bool,
+    out: &mut ProblemSet,
+) {
+    let mut seen: HashMap<String, SourceInfo> = HashMap::new();
+    for col in columns {
+        if !in_struct {
             validate_s01_foreign_key(dict, table, col, out);
-            validate_s08_units(table, col, out);
-            validate_s14_time_zone(table, col, out);
-            validate_s15_time_zone_format(table, col, out);
-            if validate_s11_column_name(table, col, out) {
-                validate_s10_unique_name(table, col, &mut seen, out);
-            }
+        }
+        validate_s08_units(table, col, out);
+        validate_s14_time_zone(table, col, out);
+        validate_s15_time_zone_format(table, col, out);
+        validate_s20_key_constraints(table, col, in_struct, out);
+        if validate_s11_column_name(table, col, out) {
+            validate_s10_unique_name(table, col, &mut seen, out);
+        }
+        if validate_s19_type(table, col, out) {
             if validate_s07_representation(table, col, out)
                 && validate_s12_value_types(table, col, out)
             {
                 validate_s13_range_order(table, col, out);
             }
+        }
+        // Recurse into struct fields (covers both `struct` and `list(struct)`).
+        if let Some(fields) = &col.fields {
+            check_columns(dict, table, fields, true, out);
         }
     }
 }
@@ -493,9 +515,126 @@ fn side_has_unique_implied(
     })
 }
 
+// --- Type helpers -----------------------------------------------------
+
+/// The fixed scalar and composite type names (excluding list variants).
+const KNOWN_TYPES: &[&str] = &[
+    "string",
+    "number",
+    "number(id)",
+    "number(ordinal)",
+    "number(quantity)",
+    "boolean",
+    "date",
+    "datetime",
+    "enum",
+    "struct",
+];
+
+/// If `type_name` is `list(element_type)`, returns the element type string.
+fn list_element_type(type_name: &str) -> Option<&str> {
+    type_name.strip_prefix("list(")?.strip_suffix(")")
+}
+
+/// Whether `type_name` is a recognised type string (fixed scalar, `struct`, or
+/// `list(element_type)` where the element type is itself a known fixed type).
+fn is_valid_type(type_name: &str) -> bool {
+    if KNOWN_TYPES.contains(&type_name) {
+        return true;
+    }
+    if let Some(elem) = list_element_type(type_name) {
+        return KNOWN_TYPES.contains(&elem);
+    }
+    false
+}
+
+// --- S19 --------------------------------------------------------------
+
+/// Validate that the column's type string, if present, is a known type.
+/// Returns `true` when the type is absent (name-only column) or valid, so
+/// that callers can gate further checks on the result.
+fn validate_s19_type(table: &Table, col: &Column, out: &mut ProblemSet) -> bool {
+    let Some(col_type) = &col.col_type else {
+        return true;
+    };
+    if is_valid_type(&col_type.value) {
+        return true;
+    }
+    let message = if let Some(elem) = list_element_type(&col_type.value) {
+        format!("`{elem}` is not a recognised list element type")
+    } else {
+        format!("`{}` is not a recognised type", col_type.value)
+    };
+    out.push_spec_error(
+        "S19",
+        "A column's `type` must be a known type.",
+        message,
+        [
+            table.name.span.clone(),
+            col.name.span.clone(),
+            col_type.span.clone(),
+        ],
+    );
+    false
+}
+
+// --- S20 --------------------------------------------------------------
+
+/// Error when `primary_key` or `foreign_key` appears on a `list` or `struct`
+/// column, or on any field inside a `struct`.
+fn validate_s20_key_constraints(
+    table: &Table,
+    col: &Column,
+    in_struct: bool,
+    out: &mut ProblemSet,
+) {
+    let type_name = col
+        .col_type
+        .as_ref()
+        .map(|t| t.value.as_str())
+        .unwrap_or("");
+    let is_list_or_struct = list_element_type(type_name).is_some() || type_name == "struct";
+    if !in_struct && !is_list_or_struct {
+        return;
+    }
+    for c in &col.constraints {
+        if matches!(c.value, Constraint::PrimaryKey | Constraint::ForeignKey) {
+            let constraint_name = match c.value {
+                Constraint::PrimaryKey => "primary_key",
+                Constraint::ForeignKey => "foreign_key",
+                _ => unreachable!(),
+            };
+            let context = if in_struct {
+                "struct fields".to_string()
+            } else {
+                format!("`{type_name}` columns")
+            };
+            out.push_spec_error(
+                "S20",
+                format!("`{constraint_name}` is not valid on {context}."),
+                format!("has `{constraint_name}`"),
+                [
+                    table.name.span.clone(),
+                    col.name.span.clone(),
+                    c.span.clone(),
+                ],
+            );
+        }
+    }
+}
+
 // --- S07 --------------------------------------------------------------
 
 const RANGE_TYPES: &[&str] = &["number(ordinal)", "number(quantity)", "date", "datetime"];
+
+/// "A" or "An" before a backtick-quoted type name, based on the first letter
+/// of the unquoted name (not the backtick).
+fn article(type_name: &str) -> &'static str {
+    match type_name.chars().next() {
+        Some(c) if "aeiouAEIOU".contains(c) => "An",
+        _ => "A",
+    }
+}
 
 /// Returns whether the column carries the representation its type requires and
 /// no other — i.e. whether checking that representation's values (S12) makes
@@ -515,11 +654,45 @@ fn validate_s07_representation(table: &Table, col: &Column, out: &mut ProblemSet
     let at = |span: &SourceInfo| [table.name.span.clone(), col.name.span.clone(), span.clone()];
 
     let before = out.items.len();
-    if type_name == "enum" {
+
+    // For list types, delegate representation rules to the element type and
+    // check fields only for list(struct).
+    let (effective_type, is_list) = match list_element_type(type_name) {
+        Some(elem) => (elem, true),
+        None => (type_name, false),
+    };
+
+    let art = article(type_name);
+
+    // `struct` and `list(struct)` require `fields` and no representation keys.
+    if effective_type == "struct" {
+        if col.fields.is_none() {
+            out.push_spec_error(
+                "S07",
+                format!("{art} `{type_name}` column must document its fields with `fields`."),
+                missing("fields"),
+                at(&col_type.span),
+            );
+        }
+        for (span, key) in [
+            (col.values.as_ref(), "values"),
+            (col.range.as_ref().map(|r| &r.span), "range"),
+            (col.examples.as_ref().map(|e| &e.span), "examples"),
+        ] {
+            if let Some(span) = span {
+                out.push_spec_error(
+                    "S07",
+                    format!("{art} `{type_name}` column must not use `{key}`."),
+                    found(key),
+                    at(span),
+                );
+            }
+        }
+    } else if effective_type == "enum" {
         if col.values.is_none() {
             out.push_spec_error(
                 "S07",
-                "An `enum` column must list its categories with `values`.",
+                format!("{art} `{type_name}` column must list its categories with `values`."),
                 missing("values"),
                 at(&col_type.span),
             );
@@ -527,7 +700,7 @@ fn validate_s07_representation(table: &Table, col: &Column, out: &mut ProblemSet
         if let Some(range) = &col.range {
             out.push_spec_error(
                 "S07",
-                "An `enum` column must use `values`, not `range`.",
+                format!("{art} `{type_name}` column must use `values`, not `range`."),
                 found("range"),
                 at(&range.span),
             );
@@ -535,16 +708,16 @@ fn validate_s07_representation(table: &Table, col: &Column, out: &mut ProblemSet
         if let Some(examples) = &col.examples {
             out.push_spec_error(
                 "S07",
-                "An `enum` column must use `values`, not `examples`.",
+                format!("{art} `{type_name}` column must use `values`, not `examples`."),
                 found("examples"),
                 at(&examples.span),
             );
         }
-    } else if RANGE_TYPES.contains(&type_name) {
+    } else if RANGE_TYPES.contains(&effective_type) {
         if col.range.is_none() {
             out.push_spec_error(
                 "S07",
-                format!("A `{type_name}` column must describe its bounds with `range`."),
+                format!("{art} `{type_name}` column must describe its bounds with `range`."),
                 missing("range"),
                 at(&col_type.span),
             );
@@ -552,7 +725,7 @@ fn validate_s07_representation(table: &Table, col: &Column, out: &mut ProblemSet
         if let Some(values) = &col.values {
             out.push_spec_error(
                 "S07",
-                format!("A `{type_name}` column must use `range`, not `values`."),
+                format!("{art} `{type_name}` column must use `range`, not `values`."),
                 found("values"),
                 at(values),
             );
@@ -560,12 +733,13 @@ fn validate_s07_representation(table: &Table, col: &Column, out: &mut ProblemSet
         if let Some(examples) = &col.examples {
             out.push_spec_error(
                 "S07",
-                format!("A `{type_name}` column must use `range`, not `examples`."),
+                format!("{art} `{type_name}` column must use `range`, not `examples`."),
                 found("examples"),
                 at(&examples.span),
             );
         }
-    } else if type_name == "boolean" {
+    } else if effective_type == "boolean" {
+        // Neither scalar boolean nor list(boolean) takes representation keys.
         for (span, key) in [
             (col.values.as_ref(), "values"),
             (col.range.as_ref().map(|r| &r.span), "range"),
@@ -581,10 +755,11 @@ fn validate_s07_representation(table: &Table, col: &Column, out: &mut ProblemSet
             }
         }
     } else {
+        // string, number, number(id), and list(boolean): examples required.
         if col.examples.is_none() {
             out.push_spec_error(
                 "S07",
-                format!("A `{type_name}` column must describe its data with `examples`."),
+                format!("{art} `{type_name}` column must describe its data with `examples`."),
                 missing("examples"),
                 at(&col_type.span),
             );
@@ -592,7 +767,7 @@ fn validate_s07_representation(table: &Table, col: &Column, out: &mut ProblemSet
         if let Some(values) = &col.values {
             out.push_spec_error(
                 "S07",
-                format!("A `{type_name}` column must not use `values`."),
+                format!("{art} `{type_name}` column must not use `values`."),
                 found("values"),
                 at(values),
             );
@@ -600,12 +775,30 @@ fn validate_s07_representation(table: &Table, col: &Column, out: &mut ProblemSet
         if let Some(range) = &col.range {
             out.push_spec_error(
                 "S07",
-                format!("A `{type_name}` column must not use `range`."),
+                format!("{art} `{type_name}` column must not use `range`."),
                 found("range"),
                 at(&range.span),
             );
         }
     }
+
+    // `fields` is only valid on struct and list(struct) columns.
+    if effective_type != "struct" {
+        if let Some(fields_span) = col
+            .fields
+            .as_ref()
+            .and_then(|f| f.first())
+            .map(|f| &f.name.span)
+        {
+            out.push_spec_error(
+                "S07",
+                format!("{art} `{type_name}` column must not use `fields`."),
+                found("fields"),
+                at(fields_span),
+            );
+        }
+    }
+
     out.items.len() == before
 }
 
@@ -613,10 +806,10 @@ fn validate_s07_representation(table: &Table, col: &Column, out: &mut ProblemSet
 
 fn validate_s08_units(table: &Table, col: &Column, out: &mut ProblemSet) {
     let Some(units) = &col.units else { return };
-    let is_quantity = col
-        .col_type
-        .as_ref()
-        .is_some_and(|t| t.value == "number(quantity)");
+    let is_quantity = col.col_type.as_ref().is_some_and(|t| {
+        let effective = list_element_type(&t.value).unwrap_or(&t.value);
+        effective == "number(quantity)"
+    });
     if is_quantity {
         return;
     }
@@ -795,15 +988,21 @@ fn validate_s11_column_name(table: &Table, col: &Column, out: &mut ProblemSet) -
 
 /// The representation list whose values are type-checked for a given column
 /// type, or `None` for types that carry no typed representation (`enum`,
-/// `boolean`, and any unrecognized type). Mirrors S07: each type owns exactly
-/// one representation key, and we only check the one it owns so that a
-/// misplaced key reports as S07 rather than cascading into S12.
-fn typed_representation(col: &Column) -> Option<(&'static str, &[Spanned<Scalar>])> {
-    match col.col_type.as_ref()?.value.as_str() {
+/// `boolean`, `struct`, `list(struct)`, and any unrecognized type). Mirrors
+/// S07: each type owns exactly one representation key, and we only check the
+/// one it owns so that a misplaced key reports as S07 rather than cascading
+/// into S12. For list types the element type determines the key and the
+/// expected value kind.
+fn typed_representation(col: &Column) -> Option<(&'static str, &str, &[Spanned<Scalar>])> {
+    let type_name = col.col_type.as_ref()?.value.as_str();
+    let effective = list_element_type(type_name).unwrap_or(type_name);
+    match effective {
         "number(ordinal)" | "number(quantity)" | "date" | "datetime" => {
-            Some(("range", &col.range.as_ref()?.items))
+            Some(("range", effective, &col.range.as_ref()?.items))
         }
-        "string" | "number" | "number(id)" => Some(("examples", &col.examples.as_ref()?.items)),
+        "string" | "number" | "number(id)" => {
+            Some(("examples", effective, &col.examples.as_ref()?.items))
+        }
         _ => None,
     }
 }
@@ -814,13 +1013,13 @@ fn validate_s12_value_types(table: &Table, col: &Column, out: &mut ProblemSet) -
     let Some(type_name) = col.col_type.as_ref().map(|t| t.value.as_str()) else {
         return true;
     };
-    let Some((key, values)) = typed_representation(col) else {
+    let Some((key, effective_type, values)) = typed_representation(col) else {
         return true;
     };
     let tz_present = col.time_zone.is_some();
     let mut ok = true;
     for v in values {
-        if value_matches_type(type_name, &v.value, tz_present) {
+        if value_matches_type(effective_type, &v.value, tz_present) {
             continue;
         }
         ok = false;
@@ -830,7 +1029,7 @@ fn validate_s12_value_types(table: &Table, col: &Column, out: &mut ProblemSet) -
                 "Each `{}` value of a `{}` column must be {}.",
                 key,
                 type_name,
-                expected_noun(type_name, tz_present),
+                expected_noun(effective_type, tz_present),
             ),
             format!("is {}", v.value.noun()),
             [
@@ -911,11 +1110,12 @@ fn validate_s13_range_order(table: &Table, col: &Column, out: &mut ProblemSet) {
         return;
     };
     let Some(range) = &col.range else { return };
-    if !RANGE_TYPES.contains(&type_name) || range.items.len() != 2 {
+    let effective = list_element_type(type_name).unwrap_or(type_name);
+    if !RANGE_TYPES.contains(&effective) || range.items.len() != 2 {
         return;
     }
     let (lo, hi) = (&range.items[0], &range.items[1]);
-    if range_descending(type_name, &lo.value, &hi.value, col.time_zone.is_some()) {
+    if range_descending(effective, &lo.value, &hi.value, col.time_zone.is_some()) {
         out.push_spec_error(
             "S13",
             "A range's minimum must be less than or equal to its maximum.",

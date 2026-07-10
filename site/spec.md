@@ -220,7 +220,7 @@ Most typed columns carry exactly one of the following three properties to repres
 
 `boolean` columns are the exception to this rule because they can only contain `true`, `false`, and (if not required) `null`.
 
-For `list(element_type)` columns, the same three properties apply but describe the element values, not the lists themselves. Use `values` for `list(enum)`, `range` for `list(number(ordinal))`, `list(number(quantity))`, `list(date)`, and `list(datetime)`, and `examples` for all other list types. Each property means the same thing it would for a scalar column of the element type — for instance, `range` on a `list(number(quantity))` column gives the minimum and maximum element value observed across all lists.
+For `list(element_type)` columns, the same properties apply but describe the element values, not the lists themselves. The mapping follows the element type: `values` for `list(enum)`, `range` for `list(number(ordinal))`, `list(number(quantity))`, `list(date)`, and `list(datetime)`, `examples` for `list(string)`, `list(number)`, and `list(number(id))`, and no representative values for `list(boolean)` or `list(struct)` (same as their scalar counterparts). Each property means the same thing it would for a scalar column of the element type — for instance, `range` on a `list(number(quantity))` column gives the minimum and maximum element value observed across all lists.
 
 #### Time zones
 

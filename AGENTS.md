@@ -75,6 +75,16 @@ Every level reports through one vocabulary in `problem.rs`: a `Problem` (a `code
 
 Test fixtures for the spec rules are in `crates/data-dict/tests/fixtures/{valid,invalid,spec}/`. Each fixture has a `# expected: ...` header documenting the intended outcome. Integration tests mirror the levels: `tests/validate_spec.rs` / `validate_meta.rs` / `validate_data.rs`.
 
+Every test that asserts a diagnostic error or warning must also include a snapshot assertion:
+
+```rust
+diagnostic.assert_contains(&["S07", "expected phrase"]);
+#[cfg(unix)]
+assert_snapshot!(diagnostic);
+```
+
+After adding new snapshot assertions, generate them with `cargo insta test -p data-dict --test validate_spec`, inspect the `.snap.new` files to confirm they look right, then accept with `cargo insta accept --workspace`.
+
 ### Problem reporting
 
 Two principles guide how problems are surfaced:

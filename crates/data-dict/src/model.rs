@@ -73,6 +73,10 @@ pub struct Column {
     pub examples: Option<Representation>,
     pub units: Option<Spanned<String>>,
     pub time_zone: Option<Spanned<String>>,
+    /// Fields for `struct` and `list(struct)` columns. `None` means the
+    /// `fields` key was absent; `Some` means it was present (possibly empty,
+    /// which S07 rejects).
+    pub fields: Option<Vec<Column>>,
 }
 
 #[derive(Debug, Clone)]
