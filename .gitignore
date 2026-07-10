@@ -8,3 +8,4 @@ site/.quarto
 site/_site
 .claude/settings.local.json
 /target/
+.posit/assistant/settings.json
