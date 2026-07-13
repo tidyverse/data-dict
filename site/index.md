@@ -24,6 +24,14 @@ There have been many previous attempts to encode data dictionaries in structured
 * Unlike previous data dictionaries, we assume data is stored in parquet files or database tables. This means that many parsing details are out of scope, radically simplifying the spec.
 * The cost of describing the data semantics in multiple places (i.e. `data-dict.yaml` and data transformation code) is lower because an AI agent can easily keep both in sync.
 
+## Who might use `data-dict.yaml`?
+
+There are two types of people who might use `data-dict.yaml`: data producers or data consumers.
+
+Data producers are those who create, maintain, or manage data. They are the data managers, data engineers, and data stewards who are responsible for building and creating data for others to use. These people are the ones who would most likely be using data-dict regularly and in particular using the CLI. They'll be writing the `data-dict.yaml` file while consulting with domain experts. They'll be processing and cleaning the data and converting it into the Parquet format. They'll be doing the data quality checks and making sure the documentation is up-to-date and correct. Much of data-dict's functionality is designed to support these people in their work.
+
+Data consumers are those who use a completed `data-dict.yaml` file along with the Parquet data files to do analyses. They are the data scientists, researchers, and analysts who are trying to understand the data enough to answer their research questions. They *may* use the CLI, but most likely, they will only be using it to learn about the data and better use it in their analyses. They care about using data that is correct and well-documented. They want to spend their time analyzing the data, not trying to clean it up or struggle to understand what a particular variable means and what its units are. The design of `data-dict.yaml` itself, and not the CLI, is to support these data consumers, for example, by using the human-friendly YAML rather than other formats like JSON.
+
 ## When should you use `data-dict.yaml`?
 
 `data-dict.yaml` is designed to support a wide range of scenarios. You might use it:
