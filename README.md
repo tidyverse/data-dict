@@ -1,10 +1,8 @@
 # `data-dict.yaml`
 
-`data-dict.yaml` is a lightweight, YAML-based data dictionary specification. It
-describes a collection of related tables — their columns, types, constraints,
-relationships, and the domain vocabulary you need to understand them — in a
-single file that humans and AI agents can co-author and keep in sync with your
-data.
+`data-dict.yaml` is a lightweight, YAML-based data dictionary specification for
+describing collections of related tables — their columns, types, constraints,
+relationships, and domain vocabulary.
 
 **Full documentation, including the detailed specification, lives at
 [data-dict.tidyverse.org](https://data-dict.tidyverse.org).**

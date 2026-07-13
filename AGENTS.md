@@ -1,6 +1,6 @@
 # data-dict.yaml
 
-`data-dict.yaml` is a YAML-based data dictionary specification and validator. It describes collections of related tables — their columns, types, constraints, relationships, and domain vocabulary — and is designed to be co-written by humans and AI agents. The main deliverable is a CLI tool that validates data dictionary YAML files against the spec.
+`data-dict.yaml` is a lightweight, YAML-based data dictionary specification for describing collections of related tables — their columns, types, constraints, relationships, and domain vocabulary. The main deliverable is a CLI tool that validates data dictionary YAML files against the spec.
 
 The repo contains:
 
