@@ -16,13 +16,26 @@ You can read the details of the spec in [the specification](spec.md), or dive in
 
 ## Why `data-dict.yaml`?
 
-There have been many previous attempts to encode data dictionaries in structured text. What makes `data-dict.yaml` different? Why revisit this problem now?
+There are several ways a data dictionary can be structured and organized. For example, some open source standards and their files are:
 
-* The costs of creating a data dictionary are lower than ever before because AI agents can automate much of the boilerplate, including porting documentation from existing unstructured formats (e.g. `.doc`, `.html`, `.pdf`).
-* The benefits of creating a data dictionary are higher, because AI agents need the context that currently exists only in your head. As a very pleasant side-effect, this also helps your human colleagues, particularly those who are newer to your organisation.
-* LLMs change what it means for something to be machine-readable. While we explicitly encode the most important structures, we can leave the more unusual quirks to free-form text.
-* Unlike previous data dictionaries, we assume data is stored in parquet files or database tables. This means that many parsing details are out of scope, radically simplifying the spec.
-* The cost of describing the data semantics in multiple places (i.e. `data-dict.yaml` and data transformation code) is lower because an AI agent can easily keep both in sync.
+* [Data Package Standard](https://datapackage.org) and its `datapackage.json` file.
+* [Brain Imaging Data Structure](https://bids.neuroimaging.io) and its `dataset_description.json` file.
+* [Data Documentation Initiative](https://ddialliance.org) and its `codebook.xml` file.
+
+For less structured ways, many online resources suggest writing dictionaries in Excel or similar spreadsheets. For enterprise-level, proprietary dictionaries there are even more options targeting different industries, use-cases, and types of data. The main limitation of these approaches is that they aren't free.
+
+So what does `data-dict.yaml` offer than these other formats don't offer?
+
+* Is open source and free, which means it can be easily integrated into many different systems and workflows without vendor lock-in and expensive subscriptions.
+* Uses the human-friendly, not just machine-friendly, YAML format. This makes it easy to read and write, and allows for comments and other human-readable features.
+* Designed from the start to be built into a CLI tool, rather than just a set of conventions. This makes it easier to actually create, check, and maintain a data dictionary.
+* Related to the above, the CLI has a command to check the metadata against the spec and the underlying data, to ensure that your dictionary is correctly formatted, consistent, and accurate.
+* Contains fields for versioning of the data dictionary itself, and consequently its associated data. This provides a way to track what has changed over time and who is using which version of the data dictionary.
+* Includes built-in support for documenting constraints, such as required values, a specific set of allowed values, or a range of allowed values. This allows for more precise documentation of the data. It also greatly simplifies the data quality process, as other dictionaries require an external tool or code to run check on the data against some set of assertions.
+* Supports for documenting units of measurement, which is often forgotten about in other data dictionaries. This is critical to allowing for better re-use and interoperability.
+* Supports precisely documenting relationships between tables, which is often missing in other data dictionaries.
+* Includes a glossary field within the standard, to document potentially specialised vocabulary that is used in the data. 
+* Is opinionated on using [Parquet](https://parquet.apache.org/) as the data format, which is a widely used and efficient columnar storage format. Parquet is a powerful, open data format, and being opinionated about this encourages data to be stored in it.
 
 ## When should you use `data-dict.yaml`?
 
