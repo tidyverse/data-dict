@@ -121,7 +121,7 @@ The optional `display` property controls whether a column should appear in user-
   examples: [000-00-0000]
 ```
 
-A restricted column must be excluded from default user interfaces and other user-facing output, including tables, plots, and downloads. We can't guarantee this protection, but we hope it will steer agents (and humans!) away from showing it by default.
+A restricted column must be excluded from default user interfaces and other user-facing output, including tables, plots, and downloads. (And its examples should not include real data). We can't guarantee this protection, but we hope it will steer agents (and humans!) away from showing it by default.
 
 The primary use case is **personally identifiable information (PII)** — columns containing data such as names, email addresses, phone numbers, social security numbers, or other details that identify an individual. More broadly, `display: restricted` applies to any sensitive, confidential, or secret data that should not be surfaced by default.
 
