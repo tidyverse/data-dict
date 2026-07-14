@@ -32,6 +32,7 @@ format:
   html:
     theme: cosmo
     toc: true
+    toc-depth: 4
     include-in-header:
       text: |
         <script defer data-domain="data-dict.tidyverse.org" src="https://plausible.io/js/plausible.js"></script>
