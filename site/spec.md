@@ -123,6 +123,8 @@ The optional `display` property controls whether a column should appear in user-
 
 A restricted column must be excluded from default user interfaces and other user-facing output, including tables, plots, and downloads. We can't guarantee this protection, but we hope it will steer agents (and humans!) away from showing it by default.
 
+The primary use case is **personally identifiable information (PII)** — columns containing data such as names, email addresses, phone numbers, social security numbers, or other details that identify an individual. More broadly, `display: restricted` applies to any sensitive, confidential, or secret data that should not be surfaced by default.
+
 #### Types
 
 Types capture data types at a level that makes sense for analysis, which is typically coarser than the logical types of the underlying data.
