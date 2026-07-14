@@ -118,7 +118,7 @@ The optional `display` property controls whether a column should appear in user-
 - name: ssn
   type: string
   display: restricted
-  examples: [000-00-0000]
+  examples: ["000-00-0000", "123-45-6789"]
 ```
 
 A restricted column must be excluded from default user interfaces and other user-facing output, including tables, plots, and downloads. (And its examples should not include real data). We can't guarantee this protection, but we hope it will steer agents (and humans!) away from showing it by default.
