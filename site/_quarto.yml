@@ -9,9 +9,10 @@ website:
   site-url: https://data-dict.tidyverse.org
   repo-url: https://github.com/tidyverse/data-dict
   description: >
-    A YAML-based data dictionary specification for describing collections of
-    related tables — their columns, types, constraints, relationships, and
-    domain vocabulary.
+    `data-dict.yaml` is a lightweight YAML specification for data dictionaries, 
+    paired with a command line application for validation. The specification
+    describes collections of related tables — their columns, types, 
+    constraints, relationships — as well as a glossay for domain vocabulary.
   llms-txt: true
   navbar:
     left:

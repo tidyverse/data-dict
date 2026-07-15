@@ -1,6 +1,6 @@
 # `data-dict.yaml`
 
-`data-dict.yaml` is a lightweight, YAML-based data dictionary specification. It
+`data-dict.yaml` is a lightweight YAML specification for data dictionaries, paired with a command line application for validation. It
 describes a collection of related tables — their columns, types, constraints,
 relationships, and the domain vocabulary you need to understand them — in a
 single file that humans and AI agents can co-author and keep in sync with your
