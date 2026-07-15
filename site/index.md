@@ -22,7 +22,7 @@ The specification is:
 
 * Open and supported by Posit, a public benefit corporation with a mission to create free and open-source software for data science, scientific research, and technical communication. We don't yet have a formal governance model, but in the meantime, you're very welcome to propose changes and additions in the [issues](https://github.com/tidyverse/data-dict/issues).
 
-* Built by data scientists, for data scientists. We understand the challenges data scientists face, and we've designed the spec to address them directly. This means including pieces that other dictionaries omit: support for metadata like data version and column units, descriptions of the relationships between datasets, and a glossary for domain- and team-specific terminology.
+* Built by data people, for data people. We understand the challenges data folks face, and we've designed the spec to address them directly. This means including pieces that other dictionaries omit: support for metadata like data version and column units, descriptions of the relationships between datasets, and a glossary for domain- and team-specific terminology.
 
 * A plain text YAML 1.2 document. Compared to other formats like Excel and PDF, YAML is easily diffable so that you can see how it changes over time. Compared to formats like JSON or XML, it's easily editable by humans, not just machines.
 
