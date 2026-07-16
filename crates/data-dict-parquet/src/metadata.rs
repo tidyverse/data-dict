@@ -144,8 +144,14 @@ fn parquet_type_to_dict_type(field: &Type) -> String {
             LogicalType::Integer { .. } | LogicalType::Float16 | LogicalType::Decimal { .. } => {
                 return "number".into();
             }
+            LogicalType::List => return parquet_list_to_dict_type(field),
             _ => {}
         }
+    }
+
+    // Group types with no list logical annotation are structs.
+    if field.is_group() {
+        return "struct".into();
     }
 
     match field.get_physical_type() {
@@ -155,4 +161,25 @@ fn parquet_type_to_dict_type(field: &Type) -> String {
         PhysicalType::FLOAT | PhysicalType::DOUBLE => "number".into(),
         PhysicalType::BYTE_ARRAY | PhysicalType::FIXED_LEN_BYTE_ARRAY => "string".into(),
     }
+}
+
+/// Map a Parquet LIST-annotated group field to a `list(element_type)` string.
+/// Parquet encodes lists as `list<repeated group list { optional/required T element }>`;
+/// we descend through the standard wrapper to find the element field.
+fn parquet_list_to_dict_type(field: &Type) -> String {
+    let elem_type = parquet_list_element(field)
+        .map(|e| parquet_type_to_dict_type(e))
+        .unwrap_or_else(|| "string".into());
+    format!("list({elem_type})")
+}
+
+/// Navigate the standard Parquet LIST encoding to the element field:
+///   repeated group <name> (LIST) { repeated group list { optional <T> element } }
+/// Returns `None` when the structure deviates from the standard layout.
+fn parquet_list_element(field: &Type) -> Option<&Type> {
+    let fields = field.get_fields();
+    // The outer LIST group has one repeated child ("list" or similar).
+    let middle = fields.first()?;
+    // That middle group has one child — the element.
+    middle.get_fields().first().map(|f| f.as_ref())
 }

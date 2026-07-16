@@ -890,3 +890,272 @@ fn s15_bad_time_zone() {
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
 }
+
+// --- list and struct types (S07, S19, S20) --------------------------------
+
+#[test]
+fn struct_with_fields_ok() {
+    assert_clean_dict(indoc! {"
+        tables:
+          - name: deliveries
+            columns:
+              - name: id
+                type: number(id)
+                constraints: [primary_key]
+                examples: [1, 2, 3]
+              - name: address
+                type: struct
+                fields:
+                  - name: street
+                    type: string
+                    examples: [123 Main St, 456 Oak Ave]
+                  - name: zip
+                    type: string
+                    examples: [97201, 78701]
+    "});
+}
+
+#[test]
+fn list_string_with_examples_ok() {
+    assert_clean_dict(indoc! {"
+        tables:
+          - name: posts
+            columns:
+              - name: id
+                type: number(id)
+                constraints: [primary_key]
+                examples: [1, 2, 3]
+              - name: tags
+                type: list(string)
+                examples: [nature, outdoor, urban]
+    "});
+}
+
+#[test]
+fn list_enum_with_values_ok() {
+    assert_clean_dict(indoc! {"
+        tables:
+          - name: products
+            columns:
+              - name: id
+                type: number(id)
+                constraints: [primary_key]
+                examples: [1, 2, 3]
+              - name: categories
+                type: list(enum)
+                values: [food, drink, dessert]
+    "});
+}
+
+#[test]
+fn list_quantity_with_range_ok() {
+    assert_clean_dict(indoc! {"
+        tables:
+          - name: orders
+            columns:
+              - name: id
+                type: number(id)
+                constraints: [primary_key]
+                examples: [1, 2, 3]
+              - name: prices
+                type: list(number(quantity))
+                units: USD
+                range: [0.99, 999.99]
+    "});
+}
+
+#[test]
+fn list_struct_with_fields_ok() {
+    assert_clean_dict(indoc! {"
+        tables:
+          - name: orders
+            columns:
+              - name: id
+                type: number(id)
+                constraints: [primary_key]
+                examples: [1, 2, 3]
+              - name: line_items
+                type: list(struct)
+                fields:
+                  - name: product_id
+                    type: number(id)
+                    examples: [101, 204, 389]
+                  - name: quantity
+                    type: number(quantity)
+                    units: units
+                    range: [1, 100]
+    "});
+}
+
+#[test]
+fn list_boolean_no_representation_ok() {
+    assert_clean_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: id
+                type: number(id)
+                constraints: [primary_key]
+                examples: [1, 2, 3]
+              - name: flags
+                type: list(boolean)
+    "});
+}
+
+// S19: list(foo) names the bad element type, not the whole list type.
+#[test]
+fn s19_invalid_list_element_type() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: c
+                type: list(foo)
+                examples: [a, b, c]
+    "});
+    diagnostic.assert_contains(&["S19", "foo", "element type"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// S19: an unrecognised type string is rejected.
+#[test]
+fn s19_invalid_type() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: c
+                type: foobar
+                examples: [1, 2, 3]
+    "});
+    diagnostic.assert_contains(&["S19", "foobar"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// S07: a struct column without fields is an error.
+#[test]
+fn s07_struct_without_fields() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: addr
+                type: struct
+    "});
+    diagnostic.assert_contains(&["S07", "struct", "fields"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// S07: `fields` on a non-struct column is an error.
+#[test]
+fn s07_fields_on_non_struct() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: tags
+                type: list(string)
+                examples: [a, b, c]
+                fields:
+                  - name: x
+                    type: string
+                    examples: [a]
+    "});
+    diagnostic.assert_contains(&["S07", "list(string)", "fields"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// S07: a list(string) column without examples is an error.
+#[test]
+fn s07_list_missing_representation() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: tags
+                type: list(string)
+    "});
+    diagnostic.assert_contains(&["S07", "list(string)", "examples"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// S20: primary_key on a struct column is an error.
+#[test]
+fn s20_primary_key_on_struct() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: addr
+                type: struct
+                constraints: [primary_key]
+                fields:
+                  - name: street
+                    type: string
+                    examples: [123 Main St]
+    "});
+    diagnostic.assert_contains(&["S20", "primary_key", "struct"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// S20: foreign_key on a list column is an error.
+#[test]
+fn s20_foreign_key_on_list() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: tags
+                type: list(string)
+                constraints: [foreign_key]
+                examples: [a, b, c]
+    "});
+    diagnostic.assert_contains(&["S20", "foreign_key", "list(string)"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// S20: primary_key on a struct field is always an error.
+#[test]
+fn s20_primary_key_on_struct_field() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: addr
+                type: struct
+                fields:
+                  - name: id
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2, 3]
+    "});
+    diagnostic.assert_contains(&["S20", "primary_key"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// Struct fields are themselves validated (e.g. S12 catches wrong value types).
+#[test]
+fn struct_field_s12_wrong_type() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: addr
+                type: struct
+                fields:
+                  - name: zip
+                    type: number(id)
+                    examples: [not-a-number]
+    "});
+    diagnostic.assert_contains(&["S12"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}

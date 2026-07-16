@@ -137,6 +137,8 @@ The supported types are:
 * `date`: calendar dates, written as ISO 8601 strings (`YYYY-MM-DD`, e.g. `2024-01-31`).
 * `datetime`: date-times, written as ISO 8601 strings. Without a `time_zone` they carry an offset (e.g. `2024-01-31T09:30:00Z`); with a `time_zone` they're written zoneless and interpreted in that zone (see [Time zones](#time-zones)).
 * `enum`: a column with repeated values from a known set. The allowed values are listed in the `values` property.
+* `list(element_type)`: an ordered sequence of zero or more elements of the given type (see [List element types](#list-element-types)).
+* `struct`: a structured record with named fields documented in the required `fields` property (see [Struct fields](#struct-fields)).
 
 #### Measures
 
@@ -157,9 +159,60 @@ A `number(quantity)` column can also declare its `units`: a free-text string nam
   range: [0, 5000]
 ```
 
+#### List element types
+
+The element type in `list(element_type)` may be any type: `string`, `number`, `number(id)`, `number(ordinal)`, `number(quantity)`, `boolean`, `date`, `datetime`, `enum`, or `struct`. The same properties that apply to a column of that type apply when it is used as a list element type — `values` for `enum`, `fields` for `struct`, and so on.
+
+```yaml
+- name: tags
+  type: list(string)
+  examples: [nature, outdoor, urban, photography, wildlife]
+
+- name: categories
+  type: list(enum)
+  values: [food, drink, dessert]
+
+- name: line_items
+  type: list(struct)
+  fields:
+    - name: product_id
+      type: number(id)
+      examples: [101, 204, 389]
+    - name: quantity
+      type: number(quantity)
+      units: units
+      range: [1, 100]
+    - name: price
+      type: number(quantity)
+      units: USD
+      range: [0.99, 999.99]
+```
+
+#### Struct fields
+
+A `struct` column may include a `fields` property — an ordered list of field descriptors. Each field descriptor uses the same schema as a column descriptor. A field may itself be `list(...)` or `struct` (with its own `fields`), allowing deep nesting.
+
+```yaml
+- name: address
+  type: struct
+  fields:
+    - name: street
+      type: string
+      examples: [123 Main St, 456 Oak Ave, 789 Elm Dr]
+    - name: city
+      type: string
+      examples: [Portland, Austin, Chicago]
+    - name: zip
+      type: string
+      examples: ["97201", "78701", "60601"]
+    - name: country
+      type: enum
+      values: [US, CA, MX]
+```
+
 #### Representative values
 
-Every type has some way of representing the data it contains: an exhaustive set of values, a range, or a handful of examples. Each such column carries exactly one of the following three properties, determined by the column's `type`:
+Most typed columns carry exactly one of the following three properties to represent the data they contain. The exceptions are `boolean` (values are always `true`/`false`) and `struct` (whose fields carry their own).
 
 * `values`: the allowed values for an `enum` column. Can be a list (`[M, F, U]`) when values are self-explanatory, or a map (`{M: Male, F: Female, U: Unknown}`) when values need labels. The values themselves must be scalars (string, number, or boolean); in the map form the labels must be strings. (`boolean` columns implicitly have `values: [true, false]`, no need to explicitly include it.)
 * `range`: a two-element list `[min, max]` giving the inclusive minimum and maximum *observed* in the column. Like `examples`, it describes the data rather than constraining it — a value outside the range will generate a warning, not a validation error. Used for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`. Both elements must match the column's type, and the minimum must not exceed the maximum.
@@ -168,6 +221,8 @@ Every type has some way of representing the data it contains: an exhaustive set 
 * `examples`: a list of ~5 representative values from the column. Used for all other types: `string`, `number`, and `number(id)`. Each example must match the column's type. A handful of concrete examples helps LLMs understand the column far better than a description alone. For instance, knowing that an id column holds `[1, 2, 3, 4, 5]` versus `[10000, 1235452, 234234]` tells a very different story. A good baseline is to select 5 evenly spaced values along the sorted unique values, and then add any particularly surprising values as you encounter them.
 
 `boolean` columns are the exception to this rule because they can only contain `true`, `false`, and (if not required) `null`.
+
+For `list(element_type)` columns, the same properties apply but describe the element values, not the lists themselves. The mapping follows the element type: `values` for `list(enum)`, `range` for `list(number(ordinal))`, `list(number(quantity))`, `list(date)`, and `list(datetime)`, `examples` for `list(string)`, `list(number)`, and `list(number(id))`, and no representative values for `list(boolean)` or `list(struct)` (same as their scalar counterparts). Each property means the same thing it would for a scalar column of the element type — for instance, `range` on a `list(number(quantity))` column gives the minimum and maximum element value observed across all lists.
 
 #### Time zones
 
@@ -194,8 +249,8 @@ NB: when `time_zone` is present, write the column's `range` as plain, zoneless d
 
 The `constraints` property is a list of constraint names. The supported constraints are:
 
-* `primary_key`: the set of columns with the `primary_key` constraint uniquely identifies each row. Implies `required` and `unique`.
-* `foreign_key`: the column references a primary key in another table (or in the current table, if a self-join). The specific relationship is defined in [`relationships`](#relationships).
+* `primary_key`: the set of columns with the `primary_key` constraint uniquely identifies each row. Implies `required` and `unique`. Not valid on `list` or `struct` columns, or on fields within a `struct`.
+* `foreign_key`: the column references a primary key in another table (or in the current table, if a self-join). The specific relationship is defined in [`relationships`](#relationships). Not valid on `list` or `struct` columns, or on fields within a `struct`.
 * `required`: the column does not contain null/missing values.
 * `unique`: the column's values are distinct (no duplicates).
 

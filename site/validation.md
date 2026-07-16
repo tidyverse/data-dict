@@ -48,6 +48,8 @@ When validating the spec, each problem with the dictionary is one of:
 * **Misplaced single-table description** (S16, warning): a dictionary with exactly one table carries `label`, `description`, or `details` on that table; for a single-table dictionary these belong at the top level.
 * **Malformed version** (S17, error): the top-level `version` does not give exactly one of `number`, `date`, or `hash`; its `number` is not three dot-separated numeric components (`MAJOR.MINOR.PATCH`) with an optional pre-release/build suffix; or its `date` is not a valid ISO 8601 date (`YYYY-MM-DD`).
 * **Missing `$version`** (S18, error): the document omits the required top-level `$version` key.
+* **Invalid type** (S19, error): a column's `type` is not a recognised type string. Valid types are the fixed scalars (`string`, `number`, `number(id)`, `number(ordinal)`, `number(quantity)`, `boolean`, `date`, `datetime`), `enum`, `struct`, and `list(element_type)` where the element type is any of the above.
+* **Key constraint on list or struct** (S20, error): a `primary_key` or `foreign_key` constraint appears on a `list` or `struct` column, or on any field inside a `struct`.
 
 (An `enum`'s `values` are constrained structurally by the schema rather than by an `S` check: each value must be a scalar, and in the map form each label must be a string. The `version` map's allowed keys and their value types are likewise structural; S17 covers only the semantics the schema can't express.)
 
