@@ -70,5 +70,19 @@ A validator reports two severities of problem: **errors** and **warnings**. The 
 | Code | Name | Sev | Description |
 |------|------|-----|-------------|
 | D01 | Nulls in a required column | E | A `required` or `primary_key` column contains nulls. |
+| D02 | Duplicate values | E | A `unique` column contains duplicate values, or the combination of all `primary_key` columns does not uniquely identify every row. Only [comparable types](#comparable-types) are checked. Null/missing values are never counted as duplicates; for a composite primary key, a row with a null in any key column is not compared. |
+| D03 | Uniqueness not verified | W | A `unique` column or `primary_key` uses a type whose values can't be reliably compared, so its uniqueness was not checked. |
 
 : {tbl-colwidths="[7,23,5,65]"}
+
+### Comparable types {#comparable-types}
+
+The uniqueness check (D02) compares values directly, so it only runs on types whose equality is unambiguous. Which types those are depends on the data source, since each source stores values differently. Today the only source is Parquet.
+
+For **Parquet**:
+
+* Numbers, booleans, strings, enums, dates, and datetimes are compared by value. Decimals are compared by numeric value, regardless of how they are encoded. Floating-point values treat `-0.0` and `+0.0` as equal and all NaNs as a single value.
+
+* JSON and BSON, whose byte representation does not determine equality (two documents can differ only in whitespace or key order and still be equal), are **not** compared. Neither is any Parquet logical type the validator does not recognize — including future types such as `VARIANT` or `GEOMETRY`.
+
+For a non-comparable column, running the check anyway could silently miss duplicates and pass a dataset that should fail, so the check is skipped with a D03 warning instead. A composite primary key is skipped whole if any of its columns is non-comparable.

@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use data_dict::{Problem, ProblemKind, ProblemSet, Status, validate_data, validate_meta};
 use indoc::{formatdoc, indoc};
-use parquet::data_type::DoubleType;
+use parquet::data_type::{ByteArray, ByteArrayType, DoubleType, Int64Type};
 use parquet::file::properties::{EnabledStatistics, WriterProperties};
 use parquet::file::writer::{SerializedColumnWriter, SerializedFileWriter};
 use parquet::schema::parser::parse_message_type;
@@ -95,6 +95,50 @@ fn write_double_with_null(col: &mut SerializedColumnWriter) {
     col.typed::<DoubleType>()
         .write_batch(&[1.0_f64, 2.0], Some(&[1, 0, 1]), None)
         .unwrap();
+}
+
+fn build_composite_key(first: &[f64], second: &[f64]) -> PathBuf {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    let schema = Arc::new(
+        parse_message_type("message schema { REQUIRED DOUBLE a; REQUIRED DOUBLE b; }").unwrap(),
+    );
+    let file = File::create(&parquet).unwrap();
+    let mut writer =
+        SerializedFileWriter::new(file, schema, Arc::new(WriterProperties::builder().build()))
+            .unwrap();
+    let mut row_group = writer.next_row_group().unwrap();
+    let mut a = row_group.next_column().unwrap().unwrap();
+    a.typed::<DoubleType>()
+        .write_batch(first, None, None)
+        .unwrap();
+    a.close().unwrap();
+    let mut b = row_group.next_column().unwrap().unwrap();
+    b.typed::<DoubleType>()
+        .write_batch(second, None, None)
+        .unwrap();
+    b.close().unwrap();
+    row_group.close().unwrap();
+    writer.close().unwrap();
+
+    write_dict(
+        &dir,
+        indoc! {"
+            tables:
+              - name: t
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: a
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+                  - name: b
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+        "},
+    )
 }
 
 /// The defining difference between the two levels: a `required` column with
@@ -254,4 +298,527 @@ fn primary_key_implies_required_for_nulls() {
         "got {:?}",
         result.items
     );
+}
+
+#[test]
+fn duplicate_values_in_unique_column_reported() {
+    let result = check_column(
+        "REQUIRED DOUBLE id",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0, 1.0, 2.0], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: id
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    assert!(matches!(
+        result.items.as_slice(),
+        [Problem {
+            code: Some("D02"),
+            kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+            ..
+        }] if columns == &["id"] && rows == &[2]
+    ));
+}
+
+/// Write a single required string column whose values are split across the
+/// given row groups, so the scan accumulates row offsets across group
+/// boundaries and exercises the variable-length byte-key path.
+fn build_string_groups(groups: &[&[&str]]) -> PathBuf {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    let schema = Arc::new(
+        parse_message_type("message schema { REQUIRED BYTE_ARRAY code (UTF8); }").unwrap(),
+    );
+    let file = File::create(&parquet).unwrap();
+    let mut writer =
+        SerializedFileWriter::new(file, schema, Arc::new(WriterProperties::builder().build()))
+            .unwrap();
+    for group in groups {
+        let values = group
+            .iter()
+            .map(|s| ByteArray::from(*s))
+            .collect::<Vec<_>>();
+        let mut row_group = writer.next_row_group().unwrap();
+        let mut col = row_group.next_column().unwrap().unwrap();
+        col.typed::<ByteArrayType>()
+            .write_batch(&values, None, None)
+            .unwrap();
+        col.close().unwrap();
+        row_group.close().unwrap();
+    }
+    writer.close().unwrap();
+
+    write_dict(
+        &dir,
+        indoc! {"
+            tables:
+              - name: t
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: code
+                    type: string
+                    constraints: [unique]
+                    examples: [a, b]
+        "},
+    )
+}
+
+#[test]
+fn duplicate_string_values_across_row_groups_reported() {
+    // No duplicates across two groups.
+    let unique = build_string_groups(&[&["a", "b"], &["c", "d"]]);
+    assert_eq!(validate_data(&unique, None).status(), Status::Ok);
+
+    // "a" recurs in the second group, so the duplicate sits at row 4 — proving
+    // row numbers carry across the row-group boundary.
+    let duplicate = build_string_groups(&[&["a", "b"], &["c", "a"]]);
+    let result = validate_data(&duplicate, None);
+    assert!(matches!(
+        result.items.as_slice(),
+        [Problem {
+            code: Some("D02"),
+            kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+            ..
+        }] if columns == &["code"] && rows == &[4]
+    ));
+}
+
+#[test]
+fn composite_primary_key_is_checked_collectively() {
+    let unique = build_composite_key(&[1.0, 1.0, 2.0], &[1.0, 2.0, 1.0]);
+    assert_eq!(validate_data(&unique, None).status(), Status::Ok);
+
+    let duplicate = build_composite_key(&[1.0, 1.0, 2.0], &[1.0, 1.0, 2.0]);
+    let result = validate_data(&duplicate, None);
+    assert!(matches!(
+        result.items.as_slice(),
+        [Problem {
+            code: Some("D02"),
+            kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+            ..
+        }] if columns == &["a", "b"] && rows == &[2]
+    ));
+}
+
+#[test]
+fn nulls_in_unique_column_are_not_duplicates() {
+    // Rows (1-based): 1 = 1.0, 2 = null, 3 = null, 4 = 2.0. Nulls are exempt from
+    // uniqueness, so repeated nulls alongside distinct values are fine.
+    let result = check_column(
+        "OPTIONAL DOUBLE id",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0, 2.0], Some(&[1, 0, 0, 1]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: id
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Ok, "got {:?}", result.items);
+}
+
+#[test]
+fn nulls_alongside_a_real_duplicate_report_only_the_duplicate() {
+    // Rows (1-based): 1 = 1.0, 2 = null, 3 = 1.0, 4 = null. The nulls are exempt;
+    // only the genuine repeat of 1.0 at row 3 is a duplicate.
+    let result = check_column(
+        "OPTIONAL DOUBLE id",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0, 1.0], Some(&[1, 0, 1, 0]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: id
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D02"),
+                kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+                ..
+            }] if columns == &["id"] && rows == &[3]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn nulls_in_unique_string_column_are_not_duplicates() {
+    // Exercises the single-byte-column path: two nulls, one value, no duplicate.
+    let result = check_column(
+        "OPTIONAL BYTE_ARRAY code (UTF8)",
+        |col| {
+            col.typed::<ByteArrayType>()
+                .write_batch(&[ByteArray::from("a")], Some(&[1, 0, 0]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: code
+              type: string
+              constraints: [unique]
+              examples: [a, b]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Ok, "got {:?}", result.items);
+}
+
+#[test]
+fn nulls_in_primary_key_are_not_reported_as_duplicates() {
+    // A PK with nulls fails D01 (primary_key implies required); D02 must not
+    // additionally flag the repeated nulls as duplicates. Rows: 1 = 1.0,
+    // 2 = null, 3 = 2.0, 4 = null — non-null values distinct, two nulls.
+    let result = check_column(
+        "OPTIONAL DOUBLE id",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0, 2.0], Some(&[1, 0, 1, 0]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: id
+              type: number(id)
+              constraints: [primary_key]
+              examples: [1, 2]
+        "},
+    );
+
+    assert!(
+        result.items.iter().any(|p| p.code == Some("D01")),
+        "expected a D01, got {:?}",
+        result.items
+    );
+    assert!(
+        result.items.iter().all(|p| p.code != Some("D02")),
+        "expected no D02, got {:?}",
+        result.items
+    );
+}
+
+/// Write a two-column parquet with a required `a` and an optional `b` (whose
+/// nulls follow `b_def`), both tagged `primary_key`, so a null in `b` exercises
+/// the composite-key null path.
+fn build_composite_key_optional_b(a: &[f64], b: &[f64], b_def: &[i16]) -> PathBuf {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    let schema = Arc::new(
+        parse_message_type("message schema { REQUIRED DOUBLE a; OPTIONAL DOUBLE b; }").unwrap(),
+    );
+    let file = File::create(&parquet).unwrap();
+    let mut writer =
+        SerializedFileWriter::new(file, schema, Arc::new(WriterProperties::builder().build()))
+            .unwrap();
+    let mut row_group = writer.next_row_group().unwrap();
+    let mut col_a = row_group.next_column().unwrap().unwrap();
+    col_a
+        .typed::<DoubleType>()
+        .write_batch(a, None, None)
+        .unwrap();
+    col_a.close().unwrap();
+    let mut col_b = row_group.next_column().unwrap().unwrap();
+    col_b
+        .typed::<DoubleType>()
+        .write_batch(b, Some(b_def), None)
+        .unwrap();
+    col_b.close().unwrap();
+    row_group.close().unwrap();
+    writer.close().unwrap();
+
+    write_dict(
+        &dir,
+        indoc! {"
+            tables:
+              - name: t
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: a
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+                  - name: b
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+        "},
+    )
+}
+
+#[test]
+fn nulls_in_composite_primary_key_are_not_reported_as_duplicates() {
+    // Rows: (1, 1.0), (2, null), (3, null). The two rows with a null in `b` fail
+    // D01, but must not be reported as a D02 duplicate of each other.
+    let result = validate_data(
+        &build_composite_key_optional_b(&[1.0, 2.0, 3.0], &[1.0], &[1, 0, 0]),
+        None,
+    );
+
+    assert!(
+        result.items.iter().any(|p| p.code == Some("D01")),
+        "expected a D01, got {:?}",
+        result.items
+    );
+    assert!(
+        result.items.iter().all(|p| p.code != Some("D02")),
+        "expected no D02, got {:?}",
+        result.items
+    );
+}
+
+/// Statistics disabled so the footer can't settle uniqueness — forcing the value
+/// scan, where physical comparison happens and normalization matters.
+fn scanned_column(
+    schema_col: &str,
+    write: impl FnOnce(&mut SerializedColumnWriter),
+    column: &str,
+) -> PathBuf {
+    build_column_with_properties(
+        schema_col,
+        write,
+        column,
+        WriterProperties::builder()
+            .set_statistics_enabled(EnabledStatistics::None)
+            .build(),
+    )
+}
+
+#[test]
+fn json_unique_column_skipped_with_warning() {
+    // Two JSON values that are logically equal but differ byte-wise. Comparing
+    // physically would flag them as duplicates, so the check is skipped (D03)
+    // rather than risk an unsound verdict.
+    let yaml = build_column(
+        "REQUIRED BYTE_ARRAY notes (JSON)",
+        |col| {
+            col.typed::<ByteArrayType>()
+                .write_batch(
+                    &[
+                        ByteArray::from(r#"{"a":1}"#),
+                        ByteArray::from(r#"{"a": 1}"#),
+                    ],
+                    None,
+                    None,
+                )
+                .unwrap();
+        },
+        indoc! {r#"
+            - name: notes
+              type: string
+              constraints: [unique]
+              examples: ["{}"]
+        "#},
+    );
+
+    let result = validate_data(&yaml, None);
+    assert_eq!(result.status(), Status::Warning, "got {:?}", result.items);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D03"),
+                kind: ProblemKind::UniquenessNotVerified { columns, reason },
+                ..
+            }] if columns == &["notes"] && reason == "json"
+        ),
+        "got {:?}",
+        result.items
+    );
+    #[cfg(unix)]
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &result.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
+}
+
+#[test]
+fn json_in_primary_key_skips_whole_key_with_warning() {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    let schema = Arc::new(
+        parse_message_type(
+            "message schema { REQUIRED INT64 id; REQUIRED BYTE_ARRAY payload (JSON); }",
+        )
+        .unwrap(),
+    );
+    let file = File::create(&parquet).unwrap();
+    let mut writer =
+        SerializedFileWriter::new(file, schema, Arc::new(WriterProperties::builder().build()))
+            .unwrap();
+    let mut row_group = writer.next_row_group().unwrap();
+    let mut id = row_group.next_column().unwrap().unwrap();
+    id.typed::<Int64Type>()
+        .write_batch(&[1, 2, 3], None, None)
+        .unwrap();
+    id.close().unwrap();
+    let mut payload = row_group.next_column().unwrap().unwrap();
+    payload
+        .typed::<ByteArrayType>()
+        .write_batch(
+            &[
+                ByteArray::from(r#"{"x":1}"#),
+                ByteArray::from(r#"{"x":2}"#),
+                ByteArray::from(r#"{"x":3}"#),
+            ],
+            None,
+            None,
+        )
+        .unwrap();
+    payload.close().unwrap();
+    row_group.close().unwrap();
+    writer.close().unwrap();
+
+    let yaml = write_dict(
+        &dir,
+        indoc! {r#"
+            tables:
+              - name: t
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: id
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+                  - name: payload
+                    type: string
+                    constraints: [primary_key]
+                    examples: ["{}"]
+        "#},
+    );
+
+    let result = validate_data(&yaml, None);
+    assert_eq!(result.status(), Status::Warning, "got {:?}", result.items);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D03"),
+                message,
+                kind: ProblemKind::UniquenessNotVerified { columns, reason },
+                ..
+            }] if columns == &["id", "payload"] && reason == "json" && message.contains("payload")
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn differently_encoded_decimals_are_duplicates() {
+    // Unscaled 1 encoded as `01` and as `00 01`: logically equal, so after
+    // normalization the second row is a duplicate.
+    let yaml = scanned_column(
+        "REQUIRED BYTE_ARRAY amount (DECIMAL(9,2))",
+        |col| {
+            col.typed::<ByteArrayType>()
+                .write_batch(
+                    &[
+                        ByteArray::from(vec![0x01_u8]),
+                        ByteArray::from(vec![0x00_u8, 0x01]),
+                        ByteArray::from(vec![0x02_u8]),
+                    ],
+                    None,
+                    None,
+                )
+                .unwrap();
+        },
+        indoc! {"
+            - name: amount
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    let result = validate_data(&yaml, None);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D02"),
+                kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+                ..
+            }] if columns == &["amount"] && rows == &[2]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn distinct_nan_bit_patterns_are_duplicates() {
+    // Two different NaN encodings collapse to one value, so the second is a
+    // duplicate of the first.
+    let nan1 = f64::from_bits(0x7ff8_0000_0000_0001);
+    let nan2 = f64::from_bits(0x7ff8_0000_0000_0002);
+    let yaml = scanned_column(
+        "REQUIRED DOUBLE score",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[nan1, nan2, 3.0], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: score
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    let result = validate_data(&yaml, None);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D02"),
+                kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+                ..
+            }] if columns == &["score"] && rows == &[2]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn int_backed_decimal_unique_column_passes() {
+    // Int-backed decimals are canonical, so distinct unscaled values are clean.
+    let yaml = scanned_column(
+        "REQUIRED INT64 amount (DECIMAL(9,2))",
+        |col| {
+            col.typed::<Int64Type>()
+                .write_batch(&[100, 200, 300], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: amount
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    assert_eq!(validate_data(&yaml, None).status(), Status::Ok);
 }

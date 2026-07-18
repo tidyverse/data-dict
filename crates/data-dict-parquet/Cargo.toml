@@ -14,3 +14,12 @@ parquet = { workspace = true, features = [
   "zstd",
   "brotli"
 ] }
+rayon = "1"
+hashbrown = "0.15"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "uniqueness"
+harness = false

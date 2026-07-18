@@ -58,6 +58,36 @@ pub(crate) fn validate_d01_required_not_null(
     }
 }
 
+/// Attempt the individual-column form of D02 from footer statistics.
+pub(crate) fn validate_d02_unique_column(
+    table: &Table,
+    col: &Column,
+    meta: &ColumnMeta,
+) -> CheckResult {
+    if !col.has(Constraint::Unique) {
+        return CheckResult::Pass;
+    }
+    let (Some(distinct), Some(nulls)) = (meta.distinct_count, meta.null_count) else {
+        return CheckResult::Inconclusive;
+    };
+    // Parquet writers differ in how they populate distinct counts around nulls;
+    // scan nullable data rather than drawing an unsafe footer-only conclusion.
+    if nulls > 0 {
+        return CheckResult::Inconclusive;
+    }
+    if distinct == meta.row_count {
+        CheckResult::Pass
+    } else if distinct < meta.row_count {
+        CheckResult::Fail(Box::new(duplicates_meta(
+            table,
+            col,
+            meta.row_count - distinct,
+        )))
+    } else {
+        CheckResult::Inconclusive
+    }
+}
+
 fn nulls_in_required_meta(table: &Table, col: &Column, count: usize) -> Problem {
     let plural = if count == 1 { "" } else { "s" };
     let constraint_span = col
@@ -87,6 +117,37 @@ fn nulls_in_required_meta(table: &Table, col: &Column, count: usize) -> Problem 
             constraint_span,
         ],
         kind: ProblemKind::NullsInRequired {
+            count,
+            rows: Vec::new(),
+        },
+    }
+}
+
+fn duplicates_meta(table: &Table, col: &Column, count: usize) -> Problem {
+    let plural = if count == 1 { "" } else { "s" };
+    let constraint_span = col
+        .constraints
+        .iter()
+        .find(|constraint| constraint.value == Constraint::Unique)
+        .map_or_else(
+            || col.name.span.clone(),
+            |constraint| constraint.span.clone(),
+        );
+    Problem {
+        code: Some("D02"),
+        severity: Severity::Error,
+        message: format!("has {count} repeated occurrence{plural}"),
+        column: None,
+        expected: Some("A unique column must not contain duplicate values.".into()),
+        hint: None,
+        suggestion: None,
+        context: vec![
+            table.name.span.clone(),
+            col.name.span.clone(),
+            constraint_span,
+        ],
+        kind: ProblemKind::DuplicateValues {
+            columns: vec![col.name.value.clone()],
             count,
             rows: Vec::new(),
         },

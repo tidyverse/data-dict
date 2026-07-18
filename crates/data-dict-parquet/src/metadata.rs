@@ -21,6 +21,11 @@ pub struct ColumnMeta {
     /// Total nulls across all row groups, or `None` when any row group omits
     /// null-count statistics. Required Parquet fields always report `Some(0)`.
     pub null_count: Option<usize>,
+    /// Number of rows in the file.
+    pub row_count: usize,
+    /// Distinct values when a single row group's footer provides the count.
+    /// Multiple row-group counts cannot prove file-wide uniqueness.
+    pub distinct_count: Option<usize>,
 }
 
 /// Read the inexpensive, footer-only statistics for each top-level column.
@@ -47,7 +52,22 @@ pub fn column_meta(path: &Path) -> Result<HashMap<String, ColumnMeta>, ParquetEr
                         .map(|count| total + count as usize)
                 })
             };
-            (field.name().to_string(), ColumnMeta { null_count })
+            let distinct_count = match meta.row_groups() {
+                [row_group] => row_group
+                    .column(idx)
+                    .statistics()
+                    .and_then(|statistics| statistics.distinct_count_opt())
+                    .map(|count| count as usize),
+                _ => None,
+            };
+            (
+                field.name().to_string(),
+                ColumnMeta {
+                    null_count,
+                    row_count: meta.file_metadata().num_rows() as usize,
+                    distinct_count,
+                },
+            )
         })
         .collect())
 }
@@ -132,6 +152,84 @@ fn format_time_unit(unit: TimeUnit) -> &'static str {
     }
 }
 
+/// How a comparable column's physical values must be normalized before hashing
+/// so that logically-equal values compare equal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Normalization {
+    /// Hash the physical value as-is.
+    None,
+    /// Byte-encoded decimal: trim redundant leading two's-complement sign bytes.
+    DecimalBytes,
+    /// Float/double: canonicalize signed zero and NaN (applied in the reader).
+    Float,
+}
+
+/// Whether a column's values can be compared for the uniqueness checks (D02) by
+/// hashing their physical representation — see the "comparable types" section of
+/// `site/validation.md`. `Incomparable` carries a short slug naming the barrier,
+/// used to build the D03 warning.
+pub(crate) enum Comparability {
+    Comparable(Normalization),
+    Incomparable(&'static str),
+}
+
+pub(crate) fn uniqueness_comparability(field: &Type) -> Comparability {
+    use Comparability::{Comparable, Incomparable};
+    if !field.is_primitive() {
+        return Incomparable("nested");
+    }
+    if let Some(logical) = field.get_basic_info().logical_type() {
+        return match logical {
+            LogicalType::String
+            | LogicalType::Enum
+            | LogicalType::Date
+            | LogicalType::Time { .. }
+            | LogicalType::Timestamp { .. }
+            | LogicalType::Integer { .. }
+            | LogicalType::Uuid => Comparable(Normalization::None),
+            // Int-backed decimals are already canonical; byte-backed ones can pad
+            // the same value to different lengths, so they need normalizing.
+            LogicalType::Decimal { .. } => match field.get_physical_type() {
+                PhysicalType::INT32 | PhysicalType::INT64 => Comparable(Normalization::None),
+                _ => Comparable(Normalization::DecimalBytes),
+            },
+            LogicalType::Json => Incomparable("json"),
+            LogicalType::Bson => Incomparable("bson"),
+            // Half-floats are read as raw bytes, so signed zero and NaN would
+            // escape the float canonicalization the f32/f64 paths apply.
+            LogicalType::Float16 => Incomparable("float16"),
+            LogicalType::Map | LogicalType::List => Incomparable("nested"),
+            LogicalType::Unknown => Incomparable("unknown"),
+        };
+    }
+    match field.get_physical_type() {
+        PhysicalType::BOOLEAN | PhysicalType::INT32 | PhysicalType::INT64 | PhysicalType::INT96 => {
+            Comparable(Normalization::None)
+        }
+        PhysicalType::FLOAT | PhysicalType::DOUBLE => Comparable(Normalization::Float),
+        PhysicalType::BYTE_ARRAY | PhysicalType::FIXED_LEN_BYTE_ARRAY => {
+            Comparable(Normalization::None)
+        }
+    }
+}
+
+/// The barrier reason for each top-level column that can't be compared for the
+/// uniqueness checks, keyed by column name. Comparable columns are absent.
+pub fn uniqueness_barriers(path: &Path) -> Result<HashMap<String, &'static str>, ParquetError> {
+    let file =
+        File::open(path).map_err(|e| ParquetError::General(format!("Cannot open file: {e}")))?;
+    let reader = SerializedFileReader::new(file)?;
+    let schema = reader.metadata().file_metadata().schema();
+    Ok(schema
+        .get_fields()
+        .iter()
+        .filter_map(|field| match uniqueness_comparability(field) {
+            Comparability::Incomparable(reason) => Some((field.name().to_string(), reason)),
+            Comparability::Comparable(_) => None,
+        })
+        .collect())
+}
+
 fn parquet_type_to_dict_type(field: &Type) -> String {
     let info = field.get_basic_info();
 
@@ -154,5 +252,67 @@ fn parquet_type_to_dict_type(field: &Type) -> String {
         PhysicalType::INT96 => "datetime".into(),
         PhysicalType::FLOAT | PhysicalType::DOUBLE => "number".into(),
         PhysicalType::BYTE_ARRAY | PhysicalType::FIXED_LEN_BYTE_ARRAY => "string".into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Comparability, Normalization, uniqueness_comparability};
+    use parquet::schema::parser::parse_message_type;
+
+    fn classify(field_line: &str) -> Comparability {
+        let message = format!("message schema {{ {field_line}; }}");
+        let schema = parse_message_type(&message).unwrap();
+        uniqueness_comparability(&schema.get_fields()[0])
+    }
+
+    #[test]
+    fn comparable_types_are_recognized() {
+        for line in [
+            "REQUIRED BYTE_ARRAY s (STRING)",
+            "REQUIRED BYTE_ARRAY u (UTF8)",
+            "REQUIRED INT64 i (INTEGER(64,true))",
+            "REQUIRED INT32 d (DATE)",
+            "REQUIRED BOOLEAN b",
+            "REQUIRED FIXED_LEN_BYTE_ARRAY(16) uu (UUID)",
+            "REQUIRED INT64 dec (DECIMAL(9,2))",
+        ] {
+            assert!(
+                matches!(
+                    classify(line),
+                    Comparability::Comparable(Normalization::None)
+                ),
+                "expected plain-comparable: {line}"
+            );
+        }
+    }
+
+    #[test]
+    fn floats_and_byte_decimals_need_normalization() {
+        assert!(matches!(
+            classify("REQUIRED DOUBLE f"),
+            Comparability::Comparable(Normalization::Float)
+        ));
+        assert!(matches!(
+            classify("REQUIRED FLOAT f"),
+            Comparability::Comparable(Normalization::Float)
+        ));
+        assert!(matches!(
+            classify("REQUIRED BYTE_ARRAY dec (DECIMAL(9,2))"),
+            Comparability::Comparable(Normalization::DecimalBytes)
+        ));
+    }
+
+    #[test]
+    fn uncomparable_types_report_their_barrier() {
+        for (line, reason) in [
+            ("REQUIRED BYTE_ARRAY j (JSON)", "json"),
+            ("REQUIRED BYTE_ARRAY b (BSON)", "bson"),
+        ] {
+            assert!(
+                matches!(classify(line), Comparability::Incomparable(r) if r == reason),
+                "expected barrier {reason}: {line}"
+            );
+        }
     }
 }
