@@ -1,0 +1,24 @@
+# expected: S06
+# Recreated from the bundled `otters` example. A `one-to-many` self-join
+# `otters.pup_number = otters.otter_no` makes `pup_number` the "one" side, so
+# it must be `primary_key` or `unique`; it is neither, so S06 fires.
+
+$version: "0.1.0"
+
+tables:
+  - name: otters
+    columns:
+      - name: otter_no
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2, 3]
+      - name: pup_number
+        type: number(id)
+        examples: [1, 2]
+      - name: comments
+        type: string
+        examples: ["found in river", "tagged"]
+
+relationships:
+  - join: otters.pup_number = otters.otter_no
+    cardinality: one-to-many

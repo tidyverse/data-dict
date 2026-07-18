@@ -1,0 +1,27 @@
+---
+source: crates/data-dict/tests/validate_meta.rs
+---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  - name: animals
+    source:
+      parquet: data.parquet
+    columns:
+      - name: name
+        type: string
+        examples: [otter, seal]
+      - name: weight
+        type: number(quantity)
+        range: [0, 100]
+      - name: height
+        type: number(quantity)
+        range: [0, 100]
+────────────────────────────────────────
+error[M02]: Every column in the dictionary must be present in the data.
+  --> dict.yaml:14:15
+   |
+LL |   - name: animals
+...
+LL |       - name: height
+   |               ^^^^^^ is missing from the data

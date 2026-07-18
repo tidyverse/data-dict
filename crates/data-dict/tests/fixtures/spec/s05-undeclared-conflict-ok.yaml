@@ -1,0 +1,35 @@
+# expected: validates cleanly. `amount` is a real column on both `food` and
+# `food_nutrient` — a genuine conflict — but it is not listed in `conflicts`.
+# S05 only validates the entries that *are* declared; declaring conflicts is
+# opt-in, so an undeclared shared column is not reported.
+
+$version: "0.1.0"
+
+tables:
+  - name: food
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2, 3, 4, 5]
+      - name: amount
+        type: number(quantity)
+        range: [0, 1000]
+
+  - name: food_nutrient
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2, 3, 4, 5]
+      - name: food_id
+        type: number(id)
+        constraints: [foreign_key]
+        examples: [1, 2, 3, 4, 5]
+      - name: amount
+        type: number(quantity)
+        range: [0, 1000]
+
+relationships:
+  - join: food.id = food_nutrient.food_id
+    cardinality: one-to-many

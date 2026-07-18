@@ -7,4 +7,19 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-parquet.workspace = true
+parquet = { workspace = true, features = [
+  "snap",
+  "flate2",
+  "lz4",
+  "zstd",
+  "brotli"
+] }
+rayon = "1"
+hashbrown = "0.15"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "uniqueness"
+harness = false

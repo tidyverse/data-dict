@@ -1,0 +1,29 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  - name: table
+    columns:
+      - name: label
+        type: string
+      - name: code
+        type: number(id)
+────────────────────────────────────────
+error[S07]: A `string` column must describe its data with `examples`.
+  --> dict.yaml:7:15
+   |
+LL |   - name: table
+LL |     columns:
+LL |       - name: label
+LL |         type: string
+   |               ^^^^^^ has type `string` but is missing `examples`
+error[S07]: A `number(id)` column must describe its data with `examples`.
+  --> dict.yaml:9:15
+   |
+LL |   - name: table
+...
+LL |       - name: code
+LL |         type: number(id)
+   |               ^^^^^^^^^^ has type `number(id)` but is missing `examples`

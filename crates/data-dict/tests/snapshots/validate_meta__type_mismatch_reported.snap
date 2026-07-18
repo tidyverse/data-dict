@@ -1,0 +1,25 @@
+---
+source: crates/data-dict/tests/validate_meta.rs
+---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  - name: animals
+    source:
+      parquet: data.parquet
+    columns:
+      - name: name
+        type: string
+        examples: [otter, seal]
+      - name: weight
+        type: string
+        examples: ['1', '2']
+────────────────────────────────────────
+error[M01]: A column's data must match its declared type.
+  --> dict.yaml:12:15
+   |
+LL |   - name: animals
+...
+LL |       - name: weight
+LL |         type: string
+   |               ^^^^^^ the data is `number`

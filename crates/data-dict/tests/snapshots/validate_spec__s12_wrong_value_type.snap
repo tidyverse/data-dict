@@ -1,0 +1,21 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  - name: table
+    columns:
+      - name: count
+        type: number
+        examples: [1, two, 3]
+────────────────────────────────────────
+error[S12]: Each `examples` value of a `number` column must be a number.
+  --> dict.yaml:8:23
+   |
+LL |   - name: table
+LL |     columns:
+LL |       - name: count
+LL |         type: number
+LL |         examples: [1, two, 3]
+   |                       ^^^ is a string

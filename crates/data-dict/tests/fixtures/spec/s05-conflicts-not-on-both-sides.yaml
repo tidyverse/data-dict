@@ -1,0 +1,32 @@
+# expected: S05
+# `conflicts: [amount]` claims `amount` appears in both `food` and
+# `food_nutrient`, but `food` has no `amount` column.
+
+$version: "0.1.0"
+
+tables:
+  - name: food
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2]
+
+  - name: food_nutrient
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2]
+      - name: food_id
+        type: number(id)
+        constraints: [foreign_key]
+        examples: [1, 2]
+      - name: amount
+        type: number(quantity)
+        range: [0, 100]
+
+relationships:
+  - join: food.id = food_nutrient.food_id
+    cardinality: one-to-many
+    conflicts: [amount]

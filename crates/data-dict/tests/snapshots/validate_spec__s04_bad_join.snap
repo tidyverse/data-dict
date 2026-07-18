@@ -1,0 +1,37 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+---
+# expected: S04
+# `food.food_category_id ~ food_category.id`: `~` is not a valid operator
+# in the join grammar. `food_category_id` is left unconstrained so the
+# unparseable join doesn't also strand a `foreign_key` (S01).
+
+$version: "0.1.0"
+
+tables:
+  - name: food
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2]
+      - name: food_category_id
+        type: number(id)
+        examples: [1, 2]
+
+  - name: food_category
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2]
+
+relationships:
+  - join: food.food_category_id ~ food_category.id
+    cardinality: many-to-one
+────────────────────────────────────────
+error[S04]: 
+  --> spec/s04-bad-join.yaml:27:33
+   |
+LL |   - join: food.food_category_id ~ food_category.id
+   |                                 ^ `join` expression does not parse: expected one of `=`, `>=`, `<=`, `>`, `<`

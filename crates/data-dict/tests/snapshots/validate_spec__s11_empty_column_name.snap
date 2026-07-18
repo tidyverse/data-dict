@@ -1,0 +1,19 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  - name: table
+    columns:
+      - name: ""
+        type: string
+        examples: [a, b, c]
+────────────────────────────────────────
+error[S11]: Every column must have a non-empty `name`.
+  --> dict.yaml:6:15
+   |
+LL |   - name: table
+LL |     columns:
+LL |       - name: ""
+   |               ^ the `name` is empty

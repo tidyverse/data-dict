@@ -1,0 +1,39 @@
+# expected: validates cleanly. Minimal two-table dict that satisfies every rule.
+# `food` keeps a table-level description; `food_category` omits it on purpose
+# to exercise that `tables.<name>.description` is optional.
+# `food.id` omits column-level description to exercise that it is optional.
+
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+
+tables:
+  - name: food
+    description: Foods.
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2, 3, 4, 5]
+      - name: food_category_id
+        type: number(id)
+        constraints: [foreign_key]
+        description: Category id.
+        examples: [1, 2, 3, 4, 5]
+
+  - name: food_category
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        description: Category id.
+        examples: [1, 2, 3, 4, 5]
+      - name: name
+        type: string
+        constraints: [required]
+        description: Category name.
+        examples: [Dairy, Fruit, Grain, Meat, Vegetable]
+
+relationships:
+  - join: food.food_category_id = food_category.id
+    cardinality: many-to-one
+    description: Each food belongs to one category.

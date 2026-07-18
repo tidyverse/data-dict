@@ -28,9 +28,9 @@ jobs:
       - name: Validate examples
         run: |
           status=0
-          for f in examples/*.yaml; do
+          for f in site/examples/*.yaml; do
             echo "::group::Validating $f"
-            if ! ./target/release/data-dict validate-schema "$f"; then
+            if ! ./target/release/data-dict validate-spec "$f"; then
               status=1
             fi
             echo "::endgroup::"
@@ -44,11 +44,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add examples/
+          git add site/examples/
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            changed=$(git diff --cached --name-only | sed 's|examples/||;s|\.yaml||' | paste -sd ', ')
+            changed=$(git diff --cached --name-only | sed 's|site/examples/||;s|\.yaml||' | paste -sd ', ')
             git commit -m "Update examples: ${changed}"
             git push
           fi

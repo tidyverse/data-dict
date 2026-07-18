@@ -1,0 +1,19 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  - name: table
+    columns:
+      - name: status
+        type: enum
+        values: {active: 1, inactive: 2}
+────────────────────────────────────────
+error[Q-1-11]: A value must have the type its schema requires.
+  --> dict.yaml:8:18
+   |
+LL |         values: {active: 1, inactive: 2}
+   |                  ^^^^^^^^^^^^^^^^^^^^^^ Expected array, got object
+   |
+   = help: Use YAML array syntax: `[item1, item2]` or list format?

@@ -1,0 +1,37 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+---
+# expected: S03
+# The relationship references `food_category.identifier`, but the column on
+# `food_category` is called `id`. `food_category_id` is left unconstrained so a
+# `foreign_key` doesn't add S01 on top.
+
+$version: "0.1.0"
+
+tables:
+  - name: food
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2]
+      - name: food_category_id
+        type: number(id)
+        examples: [1, 2]
+
+  - name: food_category
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2]
+
+relationships:
+  - join: food.food_category_id = food_category.identifier
+    cardinality: many-to-one
+────────────────────────────────────────
+error[S03]: A `join` must refer to known columns.
+  --> spec/s03-missing-column.yaml:27:35
+   |
+LL |   - join: food.food_category_id = food_category.identifier
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^ table `food_category` has no column `identifier`

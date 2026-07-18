@@ -1,0 +1,11 @@
+---
+title: "otters"
+description: "Synced from hadley/otters"
+---
+
+A real-world `data-dict.yaml`, synced from [hadley/otters](https://github.com/hadley/otters).
+[Download the raw file](otters.yaml).
+
+```{.yaml filename="otters.yaml"}
+{{< include otters.yaml >}}
+```

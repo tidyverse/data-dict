@@ -1,0 +1,15 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+glossary:
+  term: 42
+────────────────────────────────────────
+error[Q-1-11]: A value must have the type its schema requires.
+  --> dict.yaml:4:9
+   |
+LL |   term: 42
+   |         ^^ Expected string, got integer
+   |
+   = help: Ensure the value is a string (quoted if it contains special characters)?

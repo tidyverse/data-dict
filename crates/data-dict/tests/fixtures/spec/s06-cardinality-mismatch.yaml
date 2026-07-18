@@ -1,0 +1,30 @@
+# expected: S06
+# `cardinality: many-to-one` requires the right-side join column to be
+# `primary_key` or `unique`. Here `account.account_id` is `required` but
+# neither unique nor PK. No `foreign_key` constraints are set so S01 does
+# not fire alongside this one.
+
+$version: "0.1.0"
+
+tables:
+  - name: transaction
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2]
+      - name: account_id
+        type: number(id)
+        constraints: [required]
+        examples: [1, 2]
+
+  - name: account
+    columns:
+      - name: account_id
+        type: number(id)
+        constraints: [required]
+        examples: [1, 2]
+
+relationships:
+  - join: transaction.account_id = account.account_id
+    cardinality: many-to-one

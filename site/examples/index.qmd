@@ -1,0 +1,13 @@
+---
+title: "Examples"
+listing:
+  contents: "*.qmd"
+  type: table
+  fields: [title, description]
+  sort: "title"
+  filter-ui: false
+  sort-ui: false
+---
+
+Complete, real-world `data-dict.yaml` files, synced daily from their source
+repositories. Each page embeds the full dictionary; follow a link to read it.

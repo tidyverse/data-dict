@@ -1,0 +1,1087 @@
+//! Integration tests for the data level (`data_dict::validate_data`): the
+//! data's *values* against the dictionary, which requires scanning the data.
+//!
+//! These tests focus on the value-level checks the data level adds on top of the
+//! metadata checks (today, nulls in a required column), and confirm the metadata
+//! and data levels are genuinely distinct.
+
+mod common;
+use common::{assert_snapshot, temp_dir, write_dict};
+
+use std::fs::File;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use data_dict::{Problem, ProblemKind, ProblemSet, Status, validate_data, validate_meta};
+use indoc::{formatdoc, indoc};
+use parquet::data_type::{ByteArray, ByteArrayType, DoubleType, FloatType, Int32Type, Int64Type};
+use parquet::file::properties::{EnabledStatistics, WriterProperties};
+use parquet::file::writer::{SerializedColumnWriter, SerializedFileWriter};
+use parquet::schema::parser::parse_message_type;
+
+/// Validate a single column's values in isolation, via [`build_column`].
+fn check_column(
+    schema_col: &str,
+    write: impl FnOnce(&mut SerializedColumnWriter),
+    column: &str,
+) -> ProblemSet {
+    let yaml = build_column(schema_col, write, column);
+    validate_data(&yaml, None)
+}
+
+/// Write a one-column parquet file (`schema_col` is that column's line in a
+/// parquet message-type schema, e.g. `OPTIONAL DOUBLE weight`; `write` fills in
+/// its data) and wrap `column` — the YAML for one `columns:` entry — in an
+/// otherwise-minimal one-table dictionary whose `source` points at that file.
+/// Returns the dictionary path.
+fn build_column(
+    schema_col: &str,
+    write: impl FnOnce(&mut SerializedColumnWriter),
+    column: &str,
+) -> PathBuf {
+    build_column_with_properties(
+        schema_col,
+        write,
+        column,
+        WriterProperties::builder().build(),
+    )
+}
+
+fn build_column_with_properties(
+    schema_col: &str,
+    write: impl FnOnce(&mut SerializedColumnWriter),
+    column: &str,
+    properties: WriterProperties,
+) -> PathBuf {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+
+    let message = format!("message schema {{ {schema_col}; }}");
+    let schema = Arc::new(parse_message_type(&message).unwrap());
+    let props = Arc::new(properties);
+    let file = File::create(&parquet).unwrap();
+    let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
+    let mut rg = writer.next_row_group().unwrap();
+    let mut col = rg.next_column().unwrap().unwrap();
+    write(&mut col);
+    col.close().unwrap();
+    rg.close().unwrap();
+    writer.close().unwrap();
+
+    // Indent the caller's column entry to sit under `columns:`.
+    let column = column
+        .trim_end()
+        .lines()
+        .map(|line| format!("      {line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    write_dict(
+        &dir,
+        &formatdoc! {"
+            tables:
+              - name: t
+                source:
+                  parquet: data.parquet
+                columns:
+            {column}
+        "},
+    )
+}
+
+/// Write an optional double column whose second row (1-based) is null.
+fn write_double_with_null(col: &mut SerializedColumnWriter) {
+    // Definition levels: 1 = present, 0 = null. Row 2 is null, so the values
+    // slice holds only the two non-null doubles.
+    col.typed::<DoubleType>()
+        .write_batch(&[1.0_f64, 2.0], Some(&[1, 0, 1]), None)
+        .unwrap();
+}
+
+fn build_composite_key(first: &[f64], second: &[f64]) -> PathBuf {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    let schema = Arc::new(
+        parse_message_type("message schema { REQUIRED DOUBLE a; REQUIRED DOUBLE b; }").unwrap(),
+    );
+    let file = File::create(&parquet).unwrap();
+    let mut writer =
+        SerializedFileWriter::new(file, schema, Arc::new(WriterProperties::builder().build()))
+            .unwrap();
+    let mut row_group = writer.next_row_group().unwrap();
+    let mut a = row_group.next_column().unwrap().unwrap();
+    a.typed::<DoubleType>()
+        .write_batch(first, None, None)
+        .unwrap();
+    a.close().unwrap();
+    let mut b = row_group.next_column().unwrap().unwrap();
+    b.typed::<DoubleType>()
+        .write_batch(second, None, None)
+        .unwrap();
+    b.close().unwrap();
+    row_group.close().unwrap();
+    writer.close().unwrap();
+
+    write_dict(
+        &dir,
+        indoc! {"
+            tables:
+              - name: t
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: a
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+                  - name: b
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+        "},
+    )
+}
+
+/// The defining difference between the two levels: a `required` column with
+/// nulls is a *value* problem, so it is invisible to `validate-meta` (which
+/// reads only names and types) but caught by `validate-data` (which scans).
+#[test]
+fn meta_ignores_null_values_that_data_catches() {
+    let yaml = build_column(
+        "OPTIONAL DOUBLE weight",
+        write_double_with_null,
+        indoc! {"
+            - name: weight
+              type: number(quantity)
+              constraints: [required]
+              range: [0, 100]
+        "},
+    );
+
+    // Metadata level: the column exists with a compatible type, so it's clean.
+    let meta = validate_meta(&yaml, None);
+    assert_eq!(meta.status(), Status::Ok, "meta got {:?}", meta.items);
+
+    // Data level: the null in a required column is an error.
+    let data = validate_data(&yaml, None);
+    assert_eq!(data.status(), Status::Error);
+    assert!(
+        matches!(
+            data.items.as_slice(),
+            [Problem {
+                code: Some(code),
+                kind: ProblemKind::NullsInRequired { .. },
+                ..
+            }] if *code == "D01"
+        ),
+        "data got {:?}",
+        data.items
+    );
+}
+
+#[test]
+fn nulls_in_required_column_reported() {
+    let yaml = build_column(
+        "OPTIONAL DOUBLE weight",
+        write_double_with_null,
+        indoc! {"
+            - name: weight
+              type: number(quantity)
+              constraints: [required]
+              range: [0, 100]
+        "},
+    );
+    let result = validate_data(&yaml, None);
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem { kind: ProblemKind::NullsInRequired { count, rows }, .. }]
+                if *count == 1 && rows.is_empty()
+        ),
+        "got {:?}",
+        result.items
+    );
+    #[cfg(unix)]
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &result.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
+}
+
+#[test]
+fn missing_null_statistics_falls_back_to_data_scan() {
+    let yaml = build_column_with_properties(
+        "OPTIONAL DOUBLE weight",
+        write_double_with_null,
+        indoc! {"
+            - name: weight
+              type: number(quantity)
+              constraints: [required]
+              range: [0, 100]
+        "},
+        WriterProperties::builder()
+            .set_statistics_enabled(EnabledStatistics::None)
+            .build(),
+    );
+
+    let result = validate_data(&yaml, None);
+    assert!(matches!(
+        result.items.as_slice(),
+        [Problem { kind: ProblemKind::NullsInRequired { count: 1, rows }, .. }]
+            if rows == &[2]
+    ));
+}
+
+#[test]
+fn required_column_without_nulls_ok() {
+    // No nulls present, so the statistics fast-path should resolve this without
+    // scanning the data pages.
+    let result = check_column(
+        "REQUIRED DOUBLE weight",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0_f64, 2.0, 3.0], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: weight
+              type: number(quantity)
+              constraints: [required]
+              range: [0, 100]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Ok);
+}
+
+#[test]
+fn nulls_in_optional_column_ok() {
+    // `weight` has a null but is not declared required, so it's fine.
+    let result = check_column(
+        "OPTIONAL DOUBLE weight",
+        write_double_with_null,
+        indoc! {"
+            - name: weight
+              type: number(quantity)
+              range: [0, 100]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Ok);
+}
+
+/// Write the given strings as a required UTF-8 byte-array column.
+fn write_strings<'a>(values: &'a [&'a str]) -> impl FnOnce(&mut SerializedColumnWriter) + 'a {
+    move |col| {
+        let bytes = values
+            .iter()
+            .map(|s| ByteArray::from(*s))
+            .collect::<Vec<_>>();
+        col.typed::<ByteArrayType>()
+            .write_batch(&bytes, None, None)
+            .unwrap();
+    }
+}
+
+#[test]
+fn values_outside_enum_reported() {
+    let yaml = build_column(
+        "REQUIRED BYTE_ARRAY status (UTF8)",
+        write_strings(&["active", "banned", "active", "sleepy"]),
+        indoc! {"
+            - name: status
+              type: enum
+              values: [active, banned]
+        "},
+    );
+    let result = validate_data(&yaml, None);
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D04"),
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[4] && values == &["sleepy"]
+        ),
+        "got {:?}",
+        result.items
+    );
+    #[cfg(unix)]
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &result.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
+}
+
+#[test]
+fn enum_values_within_set_ok() {
+    let result = check_column(
+        "REQUIRED BYTE_ARRAY status (UTF8)",
+        write_strings(&["active", "banned", "active"]),
+        indoc! {"
+            - name: status
+              type: enum
+              values: [active, banned]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Ok, "got {:?}", result.items);
+}
+
+#[test]
+fn enum_map_form_values_are_the_keys() {
+    // The map form's keys are the allowed values; the labels are ignored.
+    let result = check_column(
+        "REQUIRED BYTE_ARRAY status (UTF8)",
+        write_strings(&["A", "Active"]),
+        indoc! {"
+            - name: status
+              type: enum
+              values:
+                A: Active
+                B: Banned
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[2] && values == &["Active"]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn nulls_in_optional_enum_are_not_outside_values() {
+    // A null is the concern of D01 (and only when required); it is never an
+    // "outside the set" value.
+    let result = check_column(
+        "OPTIONAL BYTE_ARRAY status (UTF8)",
+        |col| {
+            let bytes = [ByteArray::from("active"), ByteArray::from("banned")];
+            col.typed::<ByteArrayType>()
+                .write_batch(&bytes, Some(&[1, 0, 1]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: status
+              type: enum
+              values: [active, banned]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Ok, "got {:?}", result.items);
+}
+
+#[test]
+fn numeric_enum_values_are_checked() {
+    let result = check_column(
+        "REQUIRED INT32 grade",
+        |col| {
+            col.typed::<Int32Type>()
+                .write_batch(&[1, 2, 3], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: grade
+              type: enum
+              values: [1, 2]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[3] && values == &["3"]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+/// Integer enum values past f64's exact range (2^53) must compare exactly: the
+/// declared value and the identical data value must not be routed through f64,
+/// which would collapse them to different strings and flag conforming data.
+#[test]
+fn large_integer_enum_values_compare_exactly() {
+    // 2^53 + 1, not representable as f64.
+    let big = 9007199254740993_i64;
+    let other = 9007199254740995_i64;
+    let result = check_column(
+        "REQUIRED INT64 id",
+        move |col| {
+            col.typed::<Int64Type>()
+                .write_batch(&[big, other, big], None, None)
+                .unwrap();
+        },
+        &formatdoc! {"
+            - name: id
+              type: enum
+              values: [{big}, 42]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D04"),
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[2] && values == &[other.to_string()]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+/// A `FLOAT` column stores values at f32 width, so a declared value that prints
+/// differently as f32 than as f64 (`8.31446261815324` → `8.314463`) must still
+/// be recognized as in-set. Only the genuinely-absent value is reported.
+#[test]
+fn float_enum_values_compare_at_column_width() {
+    // The declared value, narrowed to the column's f32 width as the writer would.
+    let precise = 8.31446261815324_f64 as f32;
+    let result = check_column(
+        "REQUIRED FLOAT ratio",
+        move |col| {
+            col.typed::<FloatType>()
+                .write_batch(&[precise, 2.5, 9.5], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: ratio
+              type: enum
+              values: [8.31446261815324, 2.5]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D04"),
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[3] && values == &["9.5"]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+/// With dictionary encoding disabled, the D04 dictionary fast-path can't prove
+/// conformance and must fall back to the value scan — which still finds the
+/// violation and its exact row.
+#[test]
+fn enum_without_dictionary_encoding_falls_back_to_scan() {
+    let no_dict = || {
+        WriterProperties::builder()
+            .set_dictionary_enabled(false)
+            .build()
+    };
+
+    let clean = build_column_with_properties(
+        "REQUIRED BYTE_ARRAY status (UTF8)",
+        write_strings(&["active", "banned", "active"]),
+        indoc! {"
+            - name: status
+              type: enum
+              values: [active, banned]
+        "},
+        no_dict(),
+    );
+    assert_eq!(validate_data(&clean, None).status(), Status::Ok);
+
+    let bad = build_column_with_properties(
+        "REQUIRED BYTE_ARRAY status (UTF8)",
+        write_strings(&["active", "banned", "sleepy"]),
+        indoc! {"
+            - name: status
+              type: enum
+              values: [active, banned]
+        "},
+        no_dict(),
+    );
+    let result = validate_data(&bad, None);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D04"),
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[3] && values == &["sleepy"]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn primary_key_implies_required_for_nulls() {
+    // `primary_key` implies `required`, so the null is reported even without an
+    // explicit `required` constraint.
+    let result = check_column(
+        "OPTIONAL DOUBLE weight",
+        write_double_with_null,
+        indoc! {"
+            - name: weight
+              type: number(id)
+              constraints: [primary_key]
+              examples: [1, 2]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                kind: ProblemKind::NullsInRequired { .. },
+                ..
+            }]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn duplicate_values_in_unique_column_reported() {
+    let result = check_column(
+        "REQUIRED DOUBLE id",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0, 1.0, 2.0], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: id
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    assert!(matches!(
+        result.items.as_slice(),
+        [Problem {
+            code: Some("D02"),
+            kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+            ..
+        }] if columns == &["id"] && rows == &[2]
+    ));
+}
+
+/// Write a single required string column whose values are split across the
+/// given row groups, so the scan accumulates row offsets across group
+/// boundaries and exercises the variable-length byte-key path.
+fn build_string_groups(groups: &[&[&str]]) -> PathBuf {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    let schema = Arc::new(
+        parse_message_type("message schema { REQUIRED BYTE_ARRAY code (UTF8); }").unwrap(),
+    );
+    let file = File::create(&parquet).unwrap();
+    let mut writer =
+        SerializedFileWriter::new(file, schema, Arc::new(WriterProperties::builder().build()))
+            .unwrap();
+    for group in groups {
+        let values = group
+            .iter()
+            .map(|s| ByteArray::from(*s))
+            .collect::<Vec<_>>();
+        let mut row_group = writer.next_row_group().unwrap();
+        let mut col = row_group.next_column().unwrap().unwrap();
+        col.typed::<ByteArrayType>()
+            .write_batch(&values, None, None)
+            .unwrap();
+        col.close().unwrap();
+        row_group.close().unwrap();
+    }
+    writer.close().unwrap();
+
+    write_dict(
+        &dir,
+        indoc! {"
+            tables:
+              - name: t
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: code
+                    type: string
+                    constraints: [unique]
+                    examples: [a, b]
+        "},
+    )
+}
+
+#[test]
+fn duplicate_string_values_across_row_groups_reported() {
+    // No duplicates across two groups.
+    let unique = build_string_groups(&[&["a", "b"], &["c", "d"]]);
+    assert_eq!(validate_data(&unique, None).status(), Status::Ok);
+
+    // "a" recurs in the second group, so the duplicate sits at row 4 — proving
+    // row numbers carry across the row-group boundary.
+    let duplicate = build_string_groups(&[&["a", "b"], &["c", "a"]]);
+    let result = validate_data(&duplicate, None);
+    assert!(matches!(
+        result.items.as_slice(),
+        [Problem {
+            code: Some("D02"),
+            kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+            ..
+        }] if columns == &["code"] && rows == &[4]
+    ));
+}
+
+#[test]
+fn composite_primary_key_is_checked_collectively() {
+    let unique = build_composite_key(&[1.0, 1.0, 2.0], &[1.0, 2.0, 1.0]);
+    assert_eq!(validate_data(&unique, None).status(), Status::Ok);
+
+    let duplicate = build_composite_key(&[1.0, 1.0, 2.0], &[1.0, 1.0, 2.0]);
+    let result = validate_data(&duplicate, None);
+    assert!(matches!(
+        result.items.as_slice(),
+        [Problem {
+            code: Some("D02"),
+            kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+            ..
+        }] if columns == &["a", "b"] && rows == &[2]
+    ));
+}
+
+#[test]
+fn nulls_in_unique_column_are_not_duplicates() {
+    // Rows (1-based): 1 = 1.0, 2 = null, 3 = null, 4 = 2.0. Nulls are exempt from
+    // uniqueness, so repeated nulls alongside distinct values are fine.
+    let result = check_column(
+        "OPTIONAL DOUBLE id",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0, 2.0], Some(&[1, 0, 0, 1]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: id
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Ok, "got {:?}", result.items);
+}
+
+#[test]
+fn nulls_alongside_a_real_duplicate_report_only_the_duplicate() {
+    // Rows (1-based): 1 = 1.0, 2 = null, 3 = 1.0, 4 = null. The nulls are exempt;
+    // only the genuine repeat of 1.0 at row 3 is a duplicate.
+    let result = check_column(
+        "OPTIONAL DOUBLE id",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0, 1.0], Some(&[1, 0, 1, 0]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: id
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D02"),
+                kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+                ..
+            }] if columns == &["id"] && rows == &[3]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn nulls_in_unique_string_column_are_not_duplicates() {
+    // Exercises the single-byte-column path: two nulls, one value, no duplicate.
+    let result = check_column(
+        "OPTIONAL BYTE_ARRAY code (UTF8)",
+        |col| {
+            col.typed::<ByteArrayType>()
+                .write_batch(&[ByteArray::from("a")], Some(&[1, 0, 0]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: code
+              type: string
+              constraints: [unique]
+              examples: [a, b]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Ok, "got {:?}", result.items);
+}
+
+#[test]
+fn nulls_in_primary_key_are_not_reported_as_duplicates() {
+    // A PK with nulls fails D01 (primary_key implies required); D02 must not
+    // additionally flag the repeated nulls as duplicates. Rows: 1 = 1.0,
+    // 2 = null, 3 = 2.0, 4 = null — non-null values distinct, two nulls.
+    let result = check_column(
+        "OPTIONAL DOUBLE id",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0, 2.0], Some(&[1, 0, 1, 0]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: id
+              type: number(id)
+              constraints: [primary_key]
+              examples: [1, 2]
+        "},
+    );
+
+    assert!(
+        result.items.iter().any(|p| p.code == Some("D01")),
+        "expected a D01, got {:?}",
+        result.items
+    );
+    assert!(
+        result.items.iter().all(|p| p.code != Some("D02")),
+        "expected no D02, got {:?}",
+        result.items
+    );
+}
+
+/// Write a two-column parquet with a required `a` and an optional `b` (whose
+/// nulls follow `b_def`), both tagged `primary_key`, so a null in `b` exercises
+/// the composite-key null path.
+fn build_composite_key_optional_b(a: &[f64], b: &[f64], b_def: &[i16]) -> PathBuf {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    let schema = Arc::new(
+        parse_message_type("message schema { REQUIRED DOUBLE a; OPTIONAL DOUBLE b; }").unwrap(),
+    );
+    let file = File::create(&parquet).unwrap();
+    let mut writer =
+        SerializedFileWriter::new(file, schema, Arc::new(WriterProperties::builder().build()))
+            .unwrap();
+    let mut row_group = writer.next_row_group().unwrap();
+    let mut col_a = row_group.next_column().unwrap().unwrap();
+    col_a
+        .typed::<DoubleType>()
+        .write_batch(a, None, None)
+        .unwrap();
+    col_a.close().unwrap();
+    let mut col_b = row_group.next_column().unwrap().unwrap();
+    col_b
+        .typed::<DoubleType>()
+        .write_batch(b, Some(b_def), None)
+        .unwrap();
+    col_b.close().unwrap();
+    row_group.close().unwrap();
+    writer.close().unwrap();
+
+    write_dict(
+        &dir,
+        indoc! {"
+            tables:
+              - name: t
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: a
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+                  - name: b
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+        "},
+    )
+}
+
+#[test]
+fn nulls_in_composite_primary_key_are_not_reported_as_duplicates() {
+    // Rows: (1, 1.0), (2, null), (3, null). The two rows with a null in `b` fail
+    // D01, but must not be reported as a D02 duplicate of each other.
+    let result = validate_data(
+        &build_composite_key_optional_b(&[1.0, 2.0, 3.0], &[1.0], &[1, 0, 0]),
+        None,
+    );
+
+    assert!(
+        result.items.iter().any(|p| p.code == Some("D01")),
+        "expected a D01, got {:?}",
+        result.items
+    );
+    assert!(
+        result.items.iter().all(|p| p.code != Some("D02")),
+        "expected no D02, got {:?}",
+        result.items
+    );
+}
+
+/// Statistics disabled so the footer can't settle uniqueness — forcing the value
+/// scan, where physical comparison happens and normalization matters.
+fn scanned_column(
+    schema_col: &str,
+    write: impl FnOnce(&mut SerializedColumnWriter),
+    column: &str,
+) -> PathBuf {
+    build_column_with_properties(
+        schema_col,
+        write,
+        column,
+        WriterProperties::builder()
+            .set_statistics_enabled(EnabledStatistics::None)
+            .build(),
+    )
+}
+
+#[test]
+fn json_unique_column_skipped_with_warning() {
+    // Two JSON values that are logically equal but differ byte-wise. Comparing
+    // physically would flag them as duplicates, so the check is skipped (D03)
+    // rather than risk an unsound verdict.
+    let yaml = build_column(
+        "REQUIRED BYTE_ARRAY notes (JSON)",
+        |col| {
+            col.typed::<ByteArrayType>()
+                .write_batch(
+                    &[
+                        ByteArray::from(r#"{"a":1}"#),
+                        ByteArray::from(r#"{"a": 1}"#),
+                    ],
+                    None,
+                    None,
+                )
+                .unwrap();
+        },
+        indoc! {r#"
+            - name: notes
+              type: string
+              constraints: [unique]
+              examples: ["{}"]
+        "#},
+    );
+
+    let result = validate_data(&yaml, None);
+    assert_eq!(result.status(), Status::Warning, "got {:?}", result.items);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D03"),
+                kind: ProblemKind::UniquenessNotVerified { columns, reason },
+                ..
+            }] if columns == &["notes"] && reason == "json"
+        ),
+        "got {:?}",
+        result.items
+    );
+    #[cfg(unix)]
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &result.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
+}
+
+#[test]
+fn json_in_primary_key_skips_whole_key_with_warning() {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    let schema = Arc::new(
+        parse_message_type(
+            "message schema { REQUIRED INT64 id; REQUIRED BYTE_ARRAY payload (JSON); }",
+        )
+        .unwrap(),
+    );
+    let file = File::create(&parquet).unwrap();
+    let mut writer =
+        SerializedFileWriter::new(file, schema, Arc::new(WriterProperties::builder().build()))
+            .unwrap();
+    let mut row_group = writer.next_row_group().unwrap();
+    let mut id = row_group.next_column().unwrap().unwrap();
+    id.typed::<Int64Type>()
+        .write_batch(&[1, 2, 3], None, None)
+        .unwrap();
+    id.close().unwrap();
+    let mut payload = row_group.next_column().unwrap().unwrap();
+    payload
+        .typed::<ByteArrayType>()
+        .write_batch(
+            &[
+                ByteArray::from(r#"{"x":1}"#),
+                ByteArray::from(r#"{"x":2}"#),
+                ByteArray::from(r#"{"x":3}"#),
+            ],
+            None,
+            None,
+        )
+        .unwrap();
+    payload.close().unwrap();
+    row_group.close().unwrap();
+    writer.close().unwrap();
+
+    let yaml = write_dict(
+        &dir,
+        indoc! {r#"
+            tables:
+              - name: t
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: id
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+                  - name: payload
+                    type: string
+                    constraints: [primary_key]
+                    examples: ["{}"]
+        "#},
+    );
+
+    let result = validate_data(&yaml, None);
+    assert_eq!(result.status(), Status::Warning, "got {:?}", result.items);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D03"),
+                message,
+                kind: ProblemKind::UniquenessNotVerified { columns, reason },
+                ..
+            }] if columns == &["id", "payload"] && reason == "json" && message.contains("payload")
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn differently_encoded_decimals_are_duplicates() {
+    // Unscaled 1 encoded as `01` and as `00 01`: logically equal, so after
+    // normalization the second row is a duplicate.
+    let yaml = scanned_column(
+        "REQUIRED BYTE_ARRAY amount (DECIMAL(9,2))",
+        |col| {
+            col.typed::<ByteArrayType>()
+                .write_batch(
+                    &[
+                        ByteArray::from(vec![0x01_u8]),
+                        ByteArray::from(vec![0x00_u8, 0x01]),
+                        ByteArray::from(vec![0x02_u8]),
+                    ],
+                    None,
+                    None,
+                )
+                .unwrap();
+        },
+        indoc! {"
+            - name: amount
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    let result = validate_data(&yaml, None);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D02"),
+                kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+                ..
+            }] if columns == &["amount"] && rows == &[2]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn distinct_nan_bit_patterns_are_duplicates() {
+    // Two different NaN encodings collapse to one value, so the second is a
+    // duplicate of the first.
+    let nan1 = f64::from_bits(0x7ff8_0000_0000_0001);
+    let nan2 = f64::from_bits(0x7ff8_0000_0000_0002);
+    let yaml = scanned_column(
+        "REQUIRED DOUBLE score",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[nan1, nan2, 3.0], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: score
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    let result = validate_data(&yaml, None);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D02"),
+                kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+                ..
+            }] if columns == &["score"] && rows == &[2]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn int_backed_decimal_unique_column_passes() {
+    // Int-backed decimals are canonical, so distinct unscaled values are clean.
+    let yaml = scanned_column(
+        "REQUIRED INT64 amount (DECIMAL(9,2))",
+        |col| {
+            col.typed::<Int64Type>()
+                .write_batch(&[100, 200, 300], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: amount
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    assert_eq!(validate_data(&yaml, None).status(), Status::Ok);
+}

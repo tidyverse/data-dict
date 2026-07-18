@@ -1,0 +1,23 @@
+# expected: valid - representation values match their types and ranges are ascending.
+
+$version: 0.1.0
+$learn_more: http://data-dict.tidyverse.org/
+
+tables:
+  - name: table
+    columns:
+      - name: code
+        type: string
+        examples: ["1", "2", abc]
+      - name: count
+        type: number(quantity)
+        units: items
+        range: [0, 100]
+      - name: seen_on
+        type: date
+        range: [2019-04-01, 2025-12-18]
+      - name: seen_at
+        type: datetime
+        range: ["2024-01-31T09:30:00Z", "2024-02-01T00:00:00Z"]
+      - name: active
+        type: boolean

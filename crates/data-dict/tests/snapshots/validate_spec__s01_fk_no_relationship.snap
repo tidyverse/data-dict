@@ -1,0 +1,38 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+---
+# expected: S01
+# `food.food_category_id` is marked `foreign_key`, but no `relationships`
+# entry points it at a `primary_key`. Removing the `relationships` block
+# entirely is enough to trigger the rule.
+
+$version: "0.1.0"
+
+tables:
+  - name: food
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2]
+      - name: food_category_id
+        type: number(id)
+        constraints: [foreign_key]
+        examples: [1, 2]
+
+  - name: food_category
+    columns:
+      - name: id
+        type: number(id)
+        constraints: [primary_key]
+        examples: [1, 2]
+────────────────────────────────────────
+error[S01]: Every `foreign_key` column must have a matching relationship to a `primary_key`.
+  --> spec/s01-fk-no-relationship.yaml:17:23
+   |
+LL |   - name: food
+...
+LL |       - name: food_category_id
+LL |         type: number(id)
+LL |         constraints: [foreign_key]
+   |                       ^^^^^^^^^^^ is `foreign_key` but no relationship points it at a `primary_key`

@@ -202,10 +202,10 @@ impl<'a> Parser<'a> {
         }
         // Keyword must be followed by a non-identifier character (so we don't
         // match `andante` as `AND` + `ante`).
-        if let Some(&b) = self.src.get(end) {
-            if b.is_ascii_alphanumeric() || b == b'_' {
-                return Err(self.err(format!("expected `{}`", kw.to_uppercase())));
-            }
+        if let Some(&b) = self.src.get(end)
+            && (b.is_ascii_alphanumeric() || b == b'_')
+        {
+            return Err(self.err(format!("expected `{}`", kw.to_uppercase())));
         }
         self.pos = end;
         Ok(())
@@ -217,7 +217,8 @@ mod tests {
     use super::*;
 
     fn parse(s: &str) -> JoinExpr {
-        JoinExpr::parse(s).unwrap_or_else(|e| panic!("parse({s:?}) failed: {} at {}", e.message, e.at))
+        JoinExpr::parse(s)
+            .unwrap_or_else(|e| panic!("parse({s:?}) failed: {} at {}", e.message, e.at))
     }
 
     #[test]
@@ -261,7 +262,7 @@ mod tests {
     #[test]
     fn accepts_double_equals() {
         // `==` is an alternate spelling of `=`. Useful because most
-        // programming languages spell equality that way and the linter
+        // programming languages spell equality that way and the validator
         // shouldn't punish that habit.
         let j = parse("food.fdc_id == food_nutrient.fdc_id");
         assert_eq!(j.conjuncts.len(), 1);
@@ -354,12 +355,11 @@ mod tests {
     #[test]
     fn qcols_yields_all_refs_in_source_order() {
         let j = parse("a.x = b.y AND c.z = d.w");
-        let cols: Vec<(&str, &str)> =
-            j.qcols().map(|q| (q.table.as_str(), q.column.as_str())).collect();
-        assert_eq!(
-            cols,
-            vec![("a", "x"), ("b", "y"), ("c", "z"), ("d", "w")]
-        );
+        let cols: Vec<(&str, &str)> = j
+            .qcols()
+            .map(|q| (q.table.as_str(), q.column.as_str()))
+            .collect();
+        assert_eq!(cols, vec![("a", "x"), ("b", "y"), ("c", "z"), ("d", "w")]);
     }
 
     #[test]

@@ -1,3 +1,0 @@
-# expected: fails - top-level `version` key is required.
-
-tables: {}

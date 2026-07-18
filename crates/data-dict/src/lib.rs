@@ -1,120 +1,143 @@
 //! Core library for the `data-dict.yaml` specification.
 //!
-//! [`validate`] runs two passes on a document:
+//! Validation happens at three levels — [`validate_spec`], [`validate_meta`],
+//! [`validate_data`] — each a strict superset of the last; `site/validation.md`
+//! defines them and their `S##`/`M##`/`D##` checks.
 //!
-//! 1. Structural validation against the embedded `schema.yaml` for spec
-//!    version 0.1.0, via the `quarto-yaml-validation` crate.
-//! 2. Cross-table semantic linting (see [`lint`]) — foreign-key targets,
-//!    `join` expression parsing, `conflicts` column resolution, cardinality
-//!    consistency.
-//!
-//! The second pass only runs if the first succeeds: there is no point
-//! chasing FK references in a document whose `tables` block is malformed.
+//! Every level reports its findings as a single [`ProblemSet`]: one vector of
+//! [`Problem`]s, whatever their origin (I/O, the schema, a spec check, a
+//! metadata or data mismatch). A level pushes its problems and stops the run
+//! short by returning early; the meta and data levels validate the spec first
+//! and compare against a dataset only when it is free of errors. This module
+//! holds the shared [`Level`] and the `compare_dataset` driver the meta and
+//! data levels build on.
 
-use std::path::Path;
-use std::sync::OnceLock;
+use std::path::{Path, PathBuf};
 
-use quarto_source_map::SourceContext;
-use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic};
-
-pub mod data;
 pub mod join_expr;
-pub mod lint;
 pub mod lower;
 pub mod model;
+pub mod problem;
+pub mod validate_data;
+pub mod validate_meta;
+pub mod validate_spec;
 
-use model::DataDict;
+pub use problem::{Problem, ProblemKind, ProblemSet, RenderStyle, Severity, SpanLocation, Status};
+pub use quarto_source_map::SourceContext;
+pub use validate_data::validate_data;
+pub use validate_meta::validate_meta;
+pub(crate) use validate_spec::{load, validate_and_lower};
+pub use validate_spec::{validate_spec, validate_spec_str};
 
-const SCHEMA_YAML: &str = include_str!("../../../schema.yaml");
+use model::{DataDict, Table};
 
-fn schema() -> &'static Schema {
-    static SCHEMA: OnceLock<Schema> = OnceLock::new();
-    SCHEMA.get_or_init(|| {
-        let yaml = quarto_yaml::parse(SCHEMA_YAML)
-            .expect("embedded schema.yaml must be parseable YAML");
-        Schema::from_yaml(&yaml)
-            .expect("embedded schema.yaml must compile to a valid schema")
-    })
+pub const SPEC_MD: &str = include_str!("../../../site/spec.md");
+
+/// Which of the three validation levels a check belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Level {
+    Spec,
+    Meta,
+    Data,
 }
 
-/// Errors returned by [`validate`].
-#[derive(Debug)]
-pub enum Error {
-    /// I/O failure reading the document.
-    Io(std::io::Error),
-    /// The document is not parseable as YAML.
-    Parse(quarto_yaml::Error),
-    /// The document failed structural and/or semantic validation. The string
-    /// is a rendered, human-readable report covering every diagnostic, with
-    /// source-location highlighting.
-    Invalid(String),
+/// The shared prologue for `validate_meta` and `validate_data`, so they differ
+/// only in the `checks` they pass.
+///
+/// Validates the spec first and stops if it has errors. Otherwise it validates
+/// every table (or just `table`, when named), locating each table's data through
+/// its `source` and reading the parquet file `source.parquet` points at, resolved
+/// relative to `dict_path`. A table with no `source` (M04) or an unreadable one
+/// (M05) is reported and skipped; the remaining tables are still checked.
+pub(crate) fn compare_dataset(
+    dict_path: &Path,
+    table: Option<&str>,
+    checks: impl Fn(&Table, &Path, &[(String, String)], &mut ProblemSet),
+) -> ProblemSet {
+    let (mut problems, doc) = match load(dict_path) {
+        Ok(loaded) => loaded,
+        Err(problems) => return problems,
+    };
+    let Some(dict) = validate_and_lower(&doc, &mut problems) else {
+        return problems;
+    };
+    let Some(tables) = select_tables(&dict, table, &mut problems) else {
+        return problems;
+    };
+    let base_dir = dict_path.parent().unwrap_or_else(|| Path::new(""));
+    for table in tables {
+        if let Some((parquet_path, actual)) = read_parquet(table, base_dir, &mut problems) {
+            checks(table, &parquet_path, &actual, &mut problems);
+        }
+    }
+    problems
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::Io(e) => write!(f, "{e}"),
-            Error::Parse(e) => write!(f, "{e}"),
-            Error::Invalid(s) => f.write_str(s),
+/// Locate and read a table's data from its `source`, returning the resolved
+/// parquet path and its column schema. Reports the source problem and returns
+/// `None` when the table has no `source` (M04) or its parquet file can't be read
+/// (M05), so the caller skips it.
+fn read_parquet(
+    table: &Table,
+    base_dir: &Path,
+    out: &mut ProblemSet,
+) -> Option<(PathBuf, Vec<(String, String)>)> {
+    let Some(source) = &table.source else {
+        out.push_located(
+            ProblemKind::MissingSource,
+            Severity::Error,
+            "A table validated against data must declare a `source`.",
+            "has no `source`",
+            [table.name.span.clone()],
+        );
+        return None;
+    };
+    let parquet_path = base_dir.join(&source.parquet.value);
+    match data_dict_parquet::column_types(&parquet_path) {
+        Ok(actual) => Some((parquet_path, actual)),
+        Err(e) => {
+            out.push_located(
+                ProblemKind::UnreadableSource,
+                Severity::Error,
+                "A table's `source` must point at a readable Parquet file.",
+                e.to_string(),
+                [table.name.span.clone(), source.parquet.span.clone()],
+            );
+            None
         }
     }
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Error::Io(e) => Some(e),
-            Error::Parse(e) => Some(e),
-            Error::Invalid(_) => None,
-        }
-    }
-}
-
-/// Validate a `data-dict.yaml` file at `path`: structural schema check
-/// followed by cross-table semantic linting.
-pub fn validate(path: &Path) -> Result<(), Error> {
-    validate_and_lower(path).map(|_| ())
-}
-
-/// Validate a `data-dict.yaml` file at `path` and return the lowered
-/// [`DataDict`] model. Runs the same two passes as [`validate`] — structural
-/// schema check then cross-table semantic linting — and only returns the model
-/// when both succeed.
-pub fn validate_and_lower(path: &Path) -> Result<DataDict, Error> {
-    let content = std::fs::read_to_string(path).map_err(Error::Io)?;
-    let filename = path.display().to_string();
-
-    let doc = quarto_yaml::parse_file(&content, &filename).map_err(Error::Parse)?;
-
-    let mut source_ctx = SourceContext::new();
-    let file_id = quarto_yaml::file_id_for_filename(&filename);
-    source_ctx.add_file_with_id(file_id, filename, Some(content));
-
-    let registry = SchemaRegistry::new();
-    if let Err(err) = quarto_yaml_validation::validate(&doc, schema(), &registry, &source_ctx) {
-        let diagnostic = ValidationDiagnostic::from_validation_error(&err, &source_ctx);
-        return Err(Error::Invalid(diagnostic.to_text(&source_ctx)));
-    }
-
-    let (dict, mut diagnostics) = lower::lower(&doc);
-    diagnostics.extend(lint::lint(&dict));
-    if !diagnostics.is_empty() {
-        let rendered: Vec<String> = diagnostics
-            .iter()
-            .map(|d| d.to_text(&source_ctx))
-            .collect();
-        return Err(Error::Invalid(rendered.join("\n")));
-    }
-
-    Ok(dict)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn embedded_schema_compiles() {
-        let _ = schema();
+/// The tables to validate: the one named by `table`, or all of them. Records a
+/// `TableNotFound` pre-flight failure and returns `None` when a named table is
+/// absent.
+fn select_tables<'a>(
+    dict: &'a DataDict,
+    table: Option<&str>,
+    out: &mut ProblemSet,
+) -> Option<Vec<&'a Table>> {
+    match table {
+        Some(name) => match dict.table(name) {
+            Some(table) => Some(vec![table]),
+            None => {
+                let available = dict
+                    .tables
+                    .iter()
+                    .map(|t| t.name.value.clone())
+                    .collect::<Vec<_>>();
+                out.push(Problem::preflight(
+                    ProblemKind::TableNotFound {
+                        available: available.clone(),
+                    },
+                    format!(
+                        "table \"{name}\" is not in the data dictionary (available: {})",
+                        available.join(", ")
+                    ),
+                ));
+                None
+            }
+        },
+        None => Some(dict.tables.iter().collect()),
     }
 }
