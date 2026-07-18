@@ -167,7 +167,20 @@ pub enum ProblemKind {
     /// `D01` — a `required` (or `primary_key`) column contains nulls. `rows`
     /// lists the first few offending row numbers (1-based); `count` is the total.
     NullsInRequired { count: usize, rows: Vec<usize> },
-    /// `D03` — an `enum` column contains values outside its declared `values`.
+    /// `D02` — a unique column or composite primary key contains duplicates.
+    DuplicateValues {
+        columns: Vec<String>,
+        count: usize,
+        rows: Vec<usize>,
+    },
+    /// `D03` — a `unique` column or `primary_key` uses a type whose values can't
+    /// be compared, so its uniqueness was not checked. `reason` is a short slug
+    /// naming the barrier (e.g. `json`); `columns` are the key's columns.
+    UniquenessNotVerified {
+        columns: Vec<String>,
+        reason: String,
+    },
+    /// `D04` — an `enum` column contains values outside its declared `values`.
     /// `count` is the total; `rows` lists the first few offending row numbers
     /// (1-based) and `values` the first few distinct offending values.
     ValuesOutsideEnum {
@@ -189,7 +202,9 @@ impl ProblemKind {
             ProblemKind::MissingSource => "M04",
             ProblemKind::UnreadableSource => "M05",
             ProblemKind::NullsInRequired { .. } => "D01",
-            ProblemKind::ValuesOutsideEnum { .. } => "D03",
+            ProblemKind::DuplicateValues { .. } => "D02",
+            ProblemKind::UniquenessNotVerified { .. } => "D03",
+            ProblemKind::ValuesOutsideEnum { .. } => "D04",
             _ => return None,
         })
     }
@@ -204,9 +219,10 @@ impl ProblemKind {
             | ProblemKind::ExtraInData { .. }
             | ProblemKind::MissingSource
             | ProblemKind::UnreadableSource => Level::Meta,
-            ProblemKind::NullsInRequired { .. } | ProblemKind::ValuesOutsideEnum { .. } => {
-                Level::Data
-            }
+            ProblemKind::NullsInRequired { .. }
+            | ProblemKind::DuplicateValues { .. }
+            | ProblemKind::UniquenessNotVerified { .. }
+            | ProblemKind::ValuesOutsideEnum { .. } => Level::Data,
             _ => return None,
         })
     }
@@ -698,13 +714,22 @@ mod tests {
             Some(Level::Data)
         );
         assert_eq!(
+            ProblemKind::DuplicateValues {
+                columns: vec!["id".into()],
+                count: 1,
+                rows: vec![2],
+            }
+            .code(),
+            Some("D02")
+        );
+        assert_eq!(
             ProblemKind::ValuesOutsideEnum {
                 count: 1,
                 rows: vec![2],
                 values: vec!["x".into()],
             }
             .code(),
-            Some("D03")
+            Some("D04")
         );
         assert_eq!(ProblemKind::Io.code(), None);
         assert_eq!(ProblemKind::Io.level(), None);

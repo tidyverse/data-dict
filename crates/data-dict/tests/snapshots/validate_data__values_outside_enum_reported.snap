@@ -12,7 +12,7 @@ tables:
         type: enum
         values: [active, banned]
 ────────────────────────────────────────
-error[D03]: An enum column's values must all be among its declared `values`.
+error[D04]: An enum column's values must all be among its declared `values`.
   --> dict.yaml:10:17
    |
 LL |   - name: t

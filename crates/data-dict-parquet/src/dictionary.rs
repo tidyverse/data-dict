@@ -1,4 +1,4 @@
-//! Dictionary-page fast path for enum membership (D03).
+//! Dictionary-page fast path for enum membership (D04).
 //!
 //! Enums are low-cardinality and so almost always dictionary-encoded, which
 //! means a column chunk's distinct values sit in one small dictionary page

@@ -6,7 +6,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use data_dict_parquet::{ColumnMeta, ColumnNeeds, ColumnStats};
+use data_dict_parquet::{ColumnMeta, ColumnNeeds, ColumnStats, UniquenessCheck, UniquenessStats};
 
 use crate::model::{Column, Constraint, Table};
 use crate::problem::{Problem, ProblemKind, ProblemSet, Severity};
@@ -90,6 +90,71 @@ fn value_issues(
         }
     }
 
+    // Uniqueness (D02) compares values by their physical encoding, which is only
+    // sound for comparable types (see `site/validation.md`). A column whose type
+    // can't be compared is skipped with a D03 warning rather than checked wrongly.
+    let barriers = data_dict_parquet::uniqueness_barriers(parquet_path)?;
+    let mut uniqueness = Vec::new();
+    for col in table
+        .columns
+        .iter()
+        .filter(|col| col.has(Constraint::Unique) && present(&col.name.value))
+    {
+        if let Some(&reason) = barriers.get(&col.name.value) {
+            out.push(uniqueness_not_verified_column(table, col, reason));
+            continue;
+        }
+        let Some(meta) = metadata.get(&col.name.value) else {
+            continue;
+        };
+        match crate::validate_meta::validate_d02_unique_column(table, col, meta) {
+            CheckResult::Pass => {}
+            CheckResult::Inconclusive => uniqueness.push(UniquenessTarget::Column(col)),
+            CheckResult::Fail(problem) => out.push(*problem),
+        }
+    }
+    let primary_key = table
+        .columns
+        .iter()
+        .filter(|col| col.has(Constraint::PrimaryKey))
+        .collect::<Vec<_>>();
+    if !primary_key.is_empty() && primary_key.iter().all(|col| present(&col.name.value)) {
+        let barrier = primary_key
+            .iter()
+            .find_map(|col| barriers.get(&col.name.value).map(|&reason| (col, reason)));
+        match barrier {
+            Some((col, reason)) => {
+                out.push(uniqueness_not_verified_primary_key(
+                    table,
+                    &primary_key,
+                    &col.name.value,
+                    reason,
+                ));
+            }
+            None => uniqueness.push(UniquenessTarget::PrimaryKey(primary_key)),
+        }
+    }
+    if !uniqueness.is_empty() {
+        let checks = uniqueness
+            .iter()
+            .map(UniquenessTarget::check)
+            .collect::<Vec<_>>();
+        let results = data_dict_parquet::uniqueness_stats(parquet_path, &checks, SAMPLE_LIMIT)?;
+        for (target, stats) in uniqueness.iter().zip(&results) {
+            if stats.duplicate_count == 0 {
+                continue;
+            }
+            match target {
+                UniquenessTarget::Column(col) => {
+                    out.push(duplicates_in_unique_column(table, col, stats));
+                }
+                UniquenessTarget::PrimaryKey(columns) => {
+                    out.push(duplicates_in_primary_key(table, columns, stats));
+                }
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -147,12 +212,12 @@ impl ColumnCheck for RequiredNotNull {
     }
 }
 
-/// D03 — an `enum` column's values must all be among its declared `values`.
+/// D04 — an `enum` column's values must all be among its declared `values`.
 struct EnumMembership;
 
 impl ColumnCheck for EnumMembership {
     fn check_meta(&self, _table: &Table, col: &Column, _meta: &ColumnMeta) -> CheckResult {
-        crate::validate_meta::validate_d03_enum_membership(col)
+        crate::validate_meta::validate_d04_enum_membership(col)
     }
 
     fn needs(&self, col: &Column) -> ColumnNeeds {
@@ -200,7 +265,7 @@ fn values_outside_enum(table: &Table, col: &Column, stats: &ColumnStats) -> Prob
         .as_ref()
         .map_or_else(|| col.name.span.clone(), |values| values.span.clone());
     Problem {
-        code: Some("D03"),
+        code: Some("D04"),
         severity: Severity::Error,
         message: format!("has {count} value{plural} outside the allowed set ({sample}; {rows})"),
         column: None,
@@ -246,5 +311,179 @@ fn nulls_in_required_data(table: &Table, col: &Column, count: usize, rows: Vec<u
             constraint_span,
         ],
         kind: ProblemKind::NullsInRequired { count, rows },
+    }
+}
+
+fn duplicates_in_unique_column(table: &Table, col: &Column, stats: &UniquenessStats) -> Problem {
+    let count = stats.duplicate_count;
+    let detail = crate::problem::format_rows(&stats.duplicate_rows, count);
+    let plural = if count == 1 { "" } else { "s" };
+    let constraint_span = col
+        .constraints
+        .iter()
+        .find(|constraint| constraint.value == Constraint::Unique)
+        .map_or_else(
+            || col.name.span.clone(),
+            |constraint| constraint.span.clone(),
+        );
+    Problem {
+        code: Some("D02"),
+        severity: Severity::Error,
+        message: format!("has {count} repeated occurrence{plural} ({detail})"),
+        column: None,
+        expected: Some("A unique column must not contain duplicate values.".into()),
+        hint: None,
+        suggestion: None,
+        context: vec![
+            table.name.span.clone(),
+            col.name.span.clone(),
+            constraint_span,
+        ],
+        kind: ProblemKind::DuplicateValues {
+            columns: vec![col.name.value.clone()],
+            count,
+            rows: stats.duplicate_rows.clone(),
+        },
+    }
+}
+
+fn duplicates_in_primary_key(
+    table: &Table,
+    columns: &[&Column],
+    stats: &UniquenessStats,
+) -> Problem {
+    let count = stats.duplicate_count;
+    let detail = crate::problem::format_rows(&stats.duplicate_rows, count);
+    let plural = if count == 1 { "" } else { "s" };
+    let last = columns
+        .last()
+        .expect("a primary key has at least one column");
+    let constraint_span = last
+        .constraints
+        .iter()
+        .find(|constraint| constraint.value == Constraint::PrimaryKey)
+        .map_or_else(
+            || last.name.span.clone(),
+            |constraint| constraint.span.clone(),
+        );
+    Problem {
+        code: Some("D02"),
+        severity: Severity::Error,
+        message: format!("has {count} repeated occurrence{plural} ({detail})"),
+        column: None,
+        expected: Some("The primary key must uniquely identify every row.".into()),
+        hint: None,
+        suggestion: None,
+        context: std::iter::once(table.name.span.clone())
+            .chain(columns.iter().map(|col| col.name.span.clone()))
+            .chain(std::iter::once(constraint_span))
+            .collect(),
+        kind: ProblemKind::DuplicateValues {
+            columns: columns.iter().map(|col| col.name.value.clone()).collect(),
+            count,
+            rows: stats.duplicate_rows.clone(),
+        },
+    }
+}
+
+/// A human phrase for a uniqueness barrier slug (see
+/// `data_dict_parquet::uniqueness_barriers`), used in the D03 message.
+fn barrier_phrase(reason: &str) -> &'static str {
+    match reason {
+        "json" => "JSON",
+        "bson" => "BSON",
+        "float16" => "a 16-bit float",
+        "nested" => "a nested type",
+        _ => "an unrecognized type",
+    }
+}
+
+fn uniqueness_not_verified_column(table: &Table, col: &Column, reason: &str) -> Problem {
+    let constraint_span = col
+        .constraints
+        .iter()
+        .find(|constraint| constraint.value == Constraint::Unique)
+        .map_or_else(
+            || col.name.span.clone(),
+            |constraint| constraint.span.clone(),
+        );
+    Problem {
+        code: Some("D03"),
+        severity: Severity::Warning,
+        message: format!(
+            "`{}` has {}, whose values can't be compared for uniqueness",
+            col.name.value,
+            barrier_phrase(reason)
+        ),
+        column: None,
+        expected: Some("Uniqueness can only be verified for comparable types.".into()),
+        hint: None,
+        suggestion: None,
+        context: vec![
+            table.name.span.clone(),
+            col.name.span.clone(),
+            constraint_span,
+        ],
+        kind: ProblemKind::UniquenessNotVerified {
+            columns: vec![col.name.value.clone()],
+            reason: reason.to_string(),
+        },
+    }
+}
+
+fn uniqueness_not_verified_primary_key(
+    table: &Table,
+    columns: &[&Column],
+    barrier: &str,
+    reason: &str,
+) -> Problem {
+    let last = columns
+        .last()
+        .expect("a primary key has at least one column");
+    let constraint_span = last
+        .constraints
+        .iter()
+        .find(|constraint| constraint.value == Constraint::PrimaryKey)
+        .map_or_else(
+            || last.name.span.clone(),
+            |constraint| constraint.span.clone(),
+        );
+    Problem {
+        code: Some("D03"),
+        severity: Severity::Warning,
+        message: format!(
+            "primary key column `{}` has {}, whose values can't be compared for uniqueness",
+            barrier,
+            barrier_phrase(reason)
+        ),
+        column: None,
+        expected: Some("Uniqueness can only be verified for comparable types.".into()),
+        hint: None,
+        suggestion: None,
+        context: std::iter::once(table.name.span.clone())
+            .chain(columns.iter().map(|col| col.name.span.clone()))
+            .chain(std::iter::once(constraint_span))
+            .collect(),
+        kind: ProblemKind::UniquenessNotVerified {
+            columns: columns.iter().map(|col| col.name.value.clone()).collect(),
+            reason: reason.to_string(),
+        },
+    }
+}
+
+enum UniquenessTarget<'a> {
+    Column(&'a Column),
+    PrimaryKey(Vec<&'a Column>),
+}
+
+impl UniquenessTarget<'_> {
+    fn check(&self) -> UniquenessCheck {
+        let columns = match self {
+            UniquenessTarget::Column(col) => vec![col.name.value.clone()],
+            UniquenessTarget::PrimaryKey(columns) => {
+                columns.iter().map(|col| col.name.value.clone()).collect()
+            }
+        };
+        UniquenessCheck { columns }
     }
 }

@@ -13,7 +13,7 @@ use crate::ParquetError;
 pub struct ColumnNeeds {
     /// Count nulls and sample the row numbers where they occur.
     pub nulls: bool,
-    /// The set of allowed values (D03). When present, non-null values not in
+    /// The set of allowed values (D04). When present, non-null values not in
     /// the set are counted and sampled. Values are the canonical string form
     /// produced by [`field_key`]; the caller must canonicalize its set to match.
     pub allowed: Option<HashSet<String>>,
@@ -75,7 +75,7 @@ pub fn column_stats(
         .map(|(name, _, _)| (name.clone(), ColumnStats::default()))
         .collect();
 
-    // Fast path: settle the enum-membership need (D03) from dictionary pages
+    // Fast path: settle the enum-membership need (D04) from dictionary pages
     // where the data conforms, sparing those columns the value scan. A column
     // still scanned for its nulls skips the redundant dictionary read.
     let proven: HashSet<&str> = requested
@@ -145,7 +145,7 @@ pub fn column_stats(
     Ok(stats)
 }
 
-/// The canonical string form of a scalar field value, for set membership (D03).
+/// The canonical string form of a scalar field value, for set membership (D04).
 /// `None` for kinds that can't be an `enum` value (a matching `enum` column
 /// would already be an `M01` type mismatch). Integer and float forms follow
 /// Rust's `Display`, matching `Scalar::value_key` on the dictionary side.

@@ -105,7 +105,7 @@ impl Scalar {
         }
     }
 
-    /// A canonical string form for value-equality comparison against data (D03).
+    /// A canonical string form for value-equality comparison against data (D04).
     /// `None` for kinds that can't appear as a data value (`null`, compound).
     /// Must agree with the data side's canonicalization in `data-dict-parquet`.
     pub fn value_key(&self) -> Option<String> {
