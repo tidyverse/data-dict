@@ -2,18 +2,14 @@
 
 This document describes version **0.1.0** of the `data-dict.yaml` specification.
 
-A data dictionary has three kinds of top-level keys. `$`-prefixed metadata keys that describe the dictionary itself, descriptive keys that name and describe the dataset as a whole, and content keys that describe the data. The `$` prefix marks a key as meta, distinguishes it from content, and keeps these keys grouped at the top of the file.
+A data dictionary has three kinds of top-level keys: `$`-prefixed metadata keys that describe the dictionary itself, descriptive keys that name and describe the dataset as a whole, and content keys that describe the data. The `$` prefix marks a key as meta, distinguishes it from content, and keeps these keys grouped at the top of the file.
 
 The metadata keys are:
 
 * `$version` (required): the version of the `data-dict.yaml` spec the document conforms to. Currently `0.1.0`. While the spec is pre-1.0, breaking changes are expected, but once the spec stabilises at 1.0, breaking changes will always increment at least the minor version.
 * `$learn_more` (optional, but recommended): a URL where readers can learn about the `data-dict.yaml` format, so that people and tools meeting the file for the first time can find out what it is. Use <http://data-dict.tidyverse.org/>. Omitting it is valid, but a validator will emit a warning rather than an error (see [Validation](validation.md)).
 
-The descriptive keys identify and document the dataset as a whole:
-
-* `name` (optional): a human-readable name for the dataset, suitable for display in a user interface that lists several dictionaries. Unlike a table name, it has no uniqueness or character constraints — it's a title, not an identifier.
-* `description` (optional): a short, human-readable description of the dataset. May contain markdown, and is usually a few sentences or a paragraph.
-* `details` (optional): additional information about the dataset. Can be any length.
+The descriptive keys — `name`, `label`, `description`, and `details` — identify and document the dataset as a whole. All four are optional here, and work the same way at every level of the dictionary; see [Name, label, description & details](#name-label-description--details) for their full meaning. For the dataset, `name` is a terse identifier (e.g. `foodbank`) and `label` its human-readable title.
 
 In the common case of a dictionary that describes a single table, these top-level keys should be used to describe the dataset, leaving the table itself undescribed.
 
@@ -24,16 +20,12 @@ The content keys all hold the actual information about the data:
 * [`glossary`](#glossary) provides a place to define important domain-specific terms. This is a good place to write down those special words that your company loves to use.
 * [`version`](#version) records the version of the data the dictionary describes — a version number, a date, or an opaque hash.
 
-`name`, `description`, and `details` form a consistent trio that recurs at every level of the dictionary: the dataset as a whole (here), each [table](#tables), and each [column](#columns). `description` and `details` are always optional and mean the same thing at every level — a short summary and a longer free-text note. Only `name` differs in how it's written: it's an optional key here, the map key for a table, and the required `name` property for a column.
-
 ## Tables
 
-`tables` is a named list that describes each table in the dataset. Each key is the table's name, which must be non-empty and unique. Each table represents a rectangle of data with observations in the rows and variables in the columns. Each table has the following properties:
+`tables` is a list that describes each table in the dataset. Each table represents a rectangle of data with observations in the rows and variables in the columns. Each table has the following properties:
 
-* `description`: a human-readable description of the table. May contain markdown, and is usually a few sentences or a paragraph. A good description answers two questions:
-    * **What's the grain?** What does a row represent? (e.g. "each row is a food item", "each row is one patient visit").
-    * **What's the population?** What's been included or filtered out to produce this dataset? (e.g. "only completed orders from 2020 onwards", "excludes test accounts").
-* `details`: additional information about the table. This is the place for "here be dragons": assumptions baked into the data, known weak spots, surprising calculations, and known problems. Also covers how the data was collected or constructed. Can be any length.
+* `name` (required): the table's name. Used to match the table to the underlying data and to refer to it from `relationships`. Must be non-empty and unique within the dictionary.
+* `label`, `description`, `details`: human-readable documentation for the table; see [Name, label, description & details](#name-label-description--details).
 * `source`: ways to access the data. Optional at the spec level, so you can draft a dictionary before its data exists, but required to validate against data (see [Validation](validation.md)).
 * `columns` (required): an ordered list of column metadata.
 
@@ -41,7 +33,8 @@ For example:
 
 ```yaml
 tables:
-  food:
+  - name: food
+    label: Foods
     description: >
       Each row is a food item in the USDA FoodData Central database.
       Includes both branded and foundation foods.
@@ -49,6 +42,7 @@ tables:
       parquet: inst/parquet/food.parquet
     columns:
       - name: fdc_id
+        label: FoodData Central ID
         type: number(id)
         constraints: [primary_key]
         description: Unique identifier for the food item.
@@ -91,24 +85,30 @@ Each entry in the `columns` list is a column descriptor. Columns are matched to 
 Each descriptor has the following properties:
 
 * `name` (required): column name. Used to match the descriptor to a column in the underlying data. Must be non-empty and unique within a table.
+* `label`, `description`, `details`: human-readable documentation for the column; see [Name, label, description & details](#name-label-description--details).
 * `type`: the column's data type (see [Types](#types)). Should match (approximately) the underlying data type. Optional — see below.
 * `constraints`: a list of column-level constraints (see [Column constraints](#column-constraints)).
 * `display`: controls whether the column should appear in user-facing output (see [Display](#display)).
-* `description`: a human-readable description of the column. Can use markdown.
-* `details`: additional information about the column, e.g. how it was computed or edge cases to watch out for. Can be any length.
 
 Some properties only apply to certain types:
 
 * `units`: the unit of measurement, for `number(quantity)` columns only (see [Measures](#measures)).
 * `time_zone`: the time zone, for `datetime` columns only (see [Time zones](#time-zones)).
 
-Each column also needs describe some representative values, using exactly one of `values`, `range`, or `examples`. See [Representative values](#representative-values) for details.
+Each column also needs to describe some representative values, using exactly one of `values`, `range`, or `examples`. See [Representative values](#representative-values) for details.
 
-A column may also be listed with only its `name` and no `type`. This acknowledges the column without describing it and you should use it for columns that you don't care about but don't want flagged as undocumented. Such a column makes no claims about its contents, so it's never check, but it must still exist in the data.
+A column may also be listed with only its `name` and no `type`. This acknowledges the column without describing it and you should use it for columns that you don't care about but don't want flagged as undocumented. Such a column makes no claims about its contents, so it's never checked, but it must still exist in the data. Such columns should not be used in analysis or exposed in user interfaces.
 
-#### Description & details
+#### Name, label, description & details
 
-The `description` and `details` are free text fields that humans and agents can use to jot down important notes. The `description` should be short, typically a few sentences or at most a paragraph and will be displayed in user interfaces. The `details` can be any length, and is a good place to carefully record all the details of the table.
+`name`, `label`, `description`, and `details` document a dataset, table, or column, from terse to expansive. They mean the same thing at every level:
+
+* `name` identifies the thing. For a table or column it's an identifier matched against the underlying data, so it must be non-empty and unique (a table within the dictionary, a column within its table). For the dataset it's just a short, machine-friendly id (e.g. `foodbank`) with no constraints. It's the only one of the four that is ever required.
+* `label` is a short, human-readable title, useful when the `name` is terse or technical (e.g. `FoodData Central ID` for `fdc_id`). Plain text (no markdown), typically a few words, it stands in for the `name` in user interfaces.
+* `description` is a short summary, typically a few sentences or at most a paragraph. May contain markdown, and is displayed in user interfaces. A good table description answers two questions — **what's the grain?** (what does a row represent, e.g. "each row is a food item") and **what's the population?** (what's been included or filtered out, e.g. "only completed orders from 2020 onwards").
+* `details` is a free-text note of any length: the place to carefully record everything else, such as assumptions about potential unknowns, known weak spots, surprising calculations, and how the data was collected or constructed.
+
+Every field but `name` is optional at every level.
 
 #### Display
 
@@ -118,10 +118,12 @@ The optional `display` property controls whether a column should appear in user-
 - name: ssn
   type: string
   display: restricted
-  examples: [000-00-0000]
+  examples: ["000-00-0000", "123-45-6789"]
 ```
 
-A restricted column must be excluded from default user interfaces and other user-facing output, including tables, plots, and downloads. We can't guarantee this protection, but we hope it will steer agents (and humans!) away from showing it by default.
+A restricted column must be excluded from default user interfaces and other user-facing output, including tables, plots, and downloads. (And its examples should not include real data). We can't guarantee this protection, but we hope it will steer agents (and humans!) away from showing it by default.
+
+The primary use case is **personally identifiable information (PII)** — columns containing data such as names, email addresses, phone numbers, social security numbers, or other details that identify an individual. More broadly, `display: restricted` applies to any sensitive, confidential, or secret data that should not be surfaced by default.
 
 #### Types
 
@@ -157,11 +159,13 @@ A `number(quantity)` column can also declare its `units`: a free-text string nam
 
 #### Representative values
 
-Every type has some way of representing the data it contains: an exhaustive set of values, a range, or a handful of examples. Each such column carries exactly one of the following three properties, and which one is determined by the column's `type`:
+Every type has some way of representing the data it contains: an exhaustive set of values, a range, or a handful of examples. Each such column carries exactly one of the following three properties, determined by the column's `type`:
 
 * `values`: the allowed values for an `enum` column. Can be a list (`[M, F, U]`) when values are self-explanatory, or a map (`{M: Male, F: Female, U: Unknown}`) when values need labels. The values themselves must be scalars (string, number, or boolean); in the map form the labels must be strings. (`boolean` columns implicitly have `values: [true, false]`, no need to explicitly include it.)
 * `range`: a two-element list `[min, max]` giving the inclusive minimum and maximum *observed* in the column. Like `examples`, it describes the data rather than constraining it — a value outside the range will generate a warning, not a validation error. Used for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`. Both elements must match the column's type, and the minimum must not exceed the maximum.
-* `examples`: a list of ~5 representative values from the column. Used for all other types: `string`, `number`, and `number(id)`. Each example must match the column's type. A handful of concrete examples helps LLMs understand the column far better than a description alone. For instance, knowing that an id column holds `[1, 2, 3, 4, 5]` versus `[10000, 1235452, 234234]`. A good baseline is to select 5 evenly spaced values along the sorted unique values, and then add any particularly surprising values as you encounter them.
+
+    Either bound may be left open with negative infinity (`-.inf`) for the minimum or positive infinity (`.inf`) for the maximum. An open bound says the true extent is unknown or constantly moving, as in a daily export whose date column always runs up to the present. If you leave a bound open, make sure to describe the range in prose in the column's `description`.
+* `examples`: a list of ~5 representative values from the column. Used for all other types: `string`, `number`, and `number(id)`. Each example must match the column's type. A handful of concrete examples helps LLMs understand the column far better than a description alone. For instance, knowing that an id column holds `[1, 2, 3, 4, 5]` versus `[10000, 1235452, 234234]` tells a very different story. A good baseline is to select 5 evenly spaced values along the sorted unique values, and then add any particularly surprising values as you encounter them.
 
 `boolean` columns are the exception to this rule because they can only contain `true`, `false`, and (if not required) `null`.
 
@@ -180,7 +184,8 @@ Time zones are only meaningful for date-times, so `time_zone` is an error on any
 - name: observed_at
   type: datetime
   time_zone: UTC
-  range: [2020-01-01T00:00:00, 2024-12-31T23:59:59]
+  description: A running log; the newest timestamp advances with every export.
+  range: [2020-01-01T00:00:00, .inf]
 ```
 NB: when `time_zone` is present, write the column's `range` as plain, zoneless date-times; they're interpreted in the declared zone.
 
@@ -214,7 +219,7 @@ relationships:
 
 ## Glossary
 
-`glossary` is a map from term to definition. Each entry provides a plain-language definition of a domain-specific term used in the table or column descriptions, or is likely to be used by a domain expert working with this data.
+`glossary` is a map from term to definition. Each entry provides a plain-language definition of a domain-specific term that appears in the table or column descriptions or is likely to be used by a domain expert working with this data.
 
 ```yaml
 glossary:
@@ -227,7 +232,7 @@ glossary:
 
 `version` records the version of the data this dictionary describes, so people and tools can tell two snapshots of the data apart and know which one a given dictionary goes with. (This is distinct from `$version`, which records the version of the *spec* the document conforms to.)
 
-`version` is optional. It's a map with exactly one of three keys, which names both the kind of version and its value:
+`version` is optional, but if present it should appear at the top of the file. It's a map with exactly one of three keys, which names both the kind of version and its value:
 
 * `number`: a hand-curated version number with three dot-separated numeric components, optionally followed by a pre-release (`-…`) and/or build (`+…`) suffix, such as `1.2.0` or `1.2.0-rc.1`.
 * `date`: a release date in ISO 8601 form (`YYYY-MM-DD`), such as `2024-01-31`, for data refreshed on a schedule.

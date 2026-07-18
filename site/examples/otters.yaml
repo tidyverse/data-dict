@@ -1,14 +1,15 @@
 # source: https://github.com/hadley/otters
 
-version: 0.1.0
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+description: >
+  Morphometric measurements and pregnancy/dependency status from sea otters
+  captured or collected in Alaska, 1947-2019 by the U.S. Geological Survey
+  (USGS) and the U.S. Fish and Wildlife Service (USFWS).
+details: >
+  Source: <https://doi.org/10.5066/P9Q5PD3Y>
 tables:
-  otters:
-    description: >
-      Morphometric measurements and pregnancy/dependency status from sea otters
-      captured or collected in Alaska, 1947-2019 by the U.S. Geological Survey
-      (USGS) and the U.S. Fish and Wildlife Service (USFWS).
-    details: >
-      Source: <https://doi.org/10.5066/P9Q5PD3Y>
+  - name: otters
     source:
       parquet: otters.parquet
     columns:

@@ -1,7 +1,7 @@
 # expected: two errors (S07, S08) and a warning (S09), in emission order.
 $version: 0.1.0
 tables:
-  measurements:
+  - name: measurements
     source:
       parquet: measurements.parquet
     columns:

@@ -22,12 +22,12 @@ pub mod validate_data;
 pub mod validate_meta;
 pub mod validate_spec;
 
-pub use problem::{Problem, ProblemKind, ProblemSet, Severity, SpanLocation, Status};
+pub use problem::{Problem, ProblemKind, ProblemSet, RenderStyle, Severity, SpanLocation, Status};
 pub use quarto_source_map::SourceContext;
 pub use validate_data::validate_data;
 pub use validate_meta::validate_meta;
-pub use validate_spec::validate_spec;
 pub(crate) use validate_spec::{load, validate_and_lower};
+pub use validate_spec::{validate_spec, validate_spec_str};
 
 use model::{DataDict, Table};
 
@@ -102,11 +102,7 @@ fn read_parquet(
                 Severity::Error,
                 "A table's `source` must point at a readable Parquet file.",
                 e.to_string(),
-                [
-                    table.name.span.clone(),
-                    source.span.clone(),
-                    source.parquet.span.clone(),
-                ],
+                [table.name.span.clone(), source.parquet.span.clone()],
             );
             None
         }
@@ -122,10 +118,14 @@ fn select_tables<'a>(
     out: &mut ProblemSet,
 ) -> Option<Vec<&'a Table>> {
     match table {
-        Some(name) => match dict.tables.get(name) {
+        Some(name) => match dict.table(name) {
             Some(table) => Some(vec![table]),
             None => {
-                let available = dict.tables.keys().cloned().collect::<Vec<_>>();
+                let available = dict
+                    .tables
+                    .iter()
+                    .map(|t| t.name.value.clone())
+                    .collect::<Vec<_>>();
                 out.push(Problem::preflight(
                     ProblemKind::TableNotFound {
                         available: available.clone(),
@@ -138,6 +138,6 @@ fn select_tables<'a>(
                 None
             }
         },
-        None => Some(dict.tables.values().collect()),
+        None => Some(dict.tables.iter().collect()),
     }
 }

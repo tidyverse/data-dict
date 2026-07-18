@@ -79,7 +79,7 @@ fn build_column_with_properties(
         &dir,
         &formatdoc! {"
             tables:
-              t:
+              - name: t
                 source:
                   parquet: data.parquet
                 columns:
@@ -159,7 +159,10 @@ fn nulls_in_required_column_reported() {
         result.items
     );
     #[cfg(unix)]
-    assert_snapshot!(common::diagnostic(&yaml, &result.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &result.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]
@@ -264,7 +267,10 @@ fn values_outside_enum_reported() {
         result.items
     );
     #[cfg(unix)]
-    assert_snapshot!(common::diagnostic(&yaml, &result.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &result.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]

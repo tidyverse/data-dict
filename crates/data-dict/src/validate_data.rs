@@ -205,6 +205,8 @@ fn values_outside_enum(table: &Table, col: &Column, stats: &ColumnStats) -> Prob
         message: format!("has {count} value{plural} outside the allowed set ({sample}; {rows})"),
         column: None,
         expected: Some("An enum column's values must all be among its declared `values`.".into()),
+        hint: None,
+        suggestion: None,
         context: vec![table.name.span.clone(), col.name.span.clone(), values_span],
         kind: ProblemKind::ValuesOutsideEnum {
             count,
@@ -236,6 +238,8 @@ fn nulls_in_required_data(table: &Table, col: &Column, count: usize, rows: Vec<u
         message: format!("has {count} null value{plural} ({detail})"),
         column: None,
         expected: Some("A required column must not contain nulls.".into()),
+        hint: None,
+        suggestion: None,
         context: vec![
             table.name.span.clone(),
             col.name.span.clone(),

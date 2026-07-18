@@ -7,7 +7,7 @@ $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 
 tables:
-  food:
+  - name: food
     description: Foods.
     columns:
       - name: id
@@ -20,7 +20,7 @@ tables:
         description: Category id.
         examples: [1, 2, 3, 4, 5]
 
-  food_category:
+  - name: food_category
     columns:
       - name: id
         type: number(id)

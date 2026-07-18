@@ -9,7 +9,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 
 tables:
-  food:
+  - name: food
     columns:
       - name: id
         type: number(id)
@@ -19,7 +19,7 @@ tables:
         type: number(id)
         examples: [1, 2]
 
-  food_category:
+  - name: food_category
     columns:
       - name: id
         type: number(id)
@@ -30,10 +30,8 @@ relationships:
   - join: food.food_category_id = category.id
     cardinality: many-to-one
 ────────────────────────────────────────
-Error: [S02] A `join` must refer to known tables.
-    ╭─[ spec/s02-missing-table.yaml:27:35 ]
-    │
- 27 │   - join: food.food_category_id = category.id
-    │                                   ─────┬─────  
-    │                                        ╰─────── table `category` is not defined
-────╯
+error[S02]: A `join` must refer to known tables.
+  --> spec/s02-missing-table.yaml:27:35
+   |
+LL |   - join: food.food_category_id = category.id
+   |                                   ^^^^^^^^^^^ table `category` is not defined

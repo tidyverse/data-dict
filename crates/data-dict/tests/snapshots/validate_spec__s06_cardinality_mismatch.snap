@@ -10,7 +10,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 
 tables:
-  transaction:
+  - name: transaction
     columns:
       - name: id
         type: number(id)
@@ -21,7 +21,7 @@ tables:
         constraints: [required]
         examples: [1, 2]
 
-  account:
+  - name: account
     columns:
       - name: account_id
         type: number(id)
@@ -32,11 +32,9 @@ relationships:
   - join: transaction.account_id = account.account_id
     cardinality: many-to-one
 ────────────────────────────────────────
-Error: [S06] A `many-to-one` join must have a `primary_key` or `unique` column on its right ("one") side.
-    ╭─[ spec/s06-cardinality-mismatch.yaml:30:18 ]
-    │
- 29 │   - join: transaction.account_id = account.account_id
- 30 │     cardinality: many-to-one
-    │                  ─────┬─────  
-    │                       ╰─────── the right-side join column on `account` is not marked `primary_key` or `unique`
-────╯
+error[S06]: A `many-to-one` join must have a `primary_key` or `unique` column on its right ("one") side.
+  --> spec/s06-cardinality-mismatch.yaml:30:18
+   |
+LL |   - join: transaction.account_id = account.account_id
+LL |     cardinality: many-to-one
+   |                  ^^^^^^^^^^^ the right-side join column on `account` is not marked `primary_key` or `unique`

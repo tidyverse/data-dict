@@ -70,8 +70,8 @@ fn assert_invalid_dict(body: &str, expected: &[&str]) {
 }
 
 /// Validate the document at `path`, expected to fail, capturing its source and
-/// rendered errors (terminal styling stripped, temp path rewritten to the bare
-/// `dict.yaml`) for snapshotting.
+/// rendered errors (temp path rewritten to the bare `dict.yaml`) for
+/// snapshotting.
 fn failing(path: &Path) -> Diagnostic {
     let errors = diagnostics(path, Severity::Error);
     assert!(
@@ -122,7 +122,7 @@ fn diagnostics(path: &Path, severity: Severity) -> Vec<String> {
         .items
         .iter()
         .filter(|p| p.severity == severity)
-        .map(|p| p.to_text(&problems.source))
+        .map(|p| p.to_text(&problems.source, common::SNAPSHOT_STYLE))
         .collect()
 }
 
@@ -157,13 +157,13 @@ fn assert_invalid(path: PathBuf, expected: &[&str]) {
 }
 
 /// Validate a fixture that must fail, returning the rendered diagnostic with
-/// machine-specific noise stripped so it can be snapshotted. Used for the
+/// machine-specific noise removed so it can be snapshotted. Used for the
 /// long-form `spec/` fixtures — any document expected to error.
 ///
-/// The diagnostic carries two unstable bits: terminal styling (ANSI color
-/// escapes and OSC-8 hyperlinks, the latter embedding an absolute `file://`
-/// URL) and the absolute on-disk path of the fixture. We strip the escapes and
-/// rewrite the path to its `tests/fixtures/`-relative form.
+/// Diagnostics are rendered with [`common::SNAPSHOT_STYLE`] (no terminal
+/// styling, anonymized line numbers); the one remaining unstable bit is the
+/// absolute on-disk path of the fixture, which [`common::sanitize`] rewrites to
+/// its `tests/fixtures/`-relative form.
 fn failing_diagnostic(rel: &str) -> Diagnostic {
     let path = fixture(rel);
     let errors = diagnostics(&path, Severity::Error);
@@ -191,7 +191,7 @@ fn minimal() {
 fn typeless_column_needs_no_representation() {
     assert_valid_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: label
                 type: string
@@ -206,13 +206,15 @@ fn typeless_column_needs_no_representation() {
 #[test]
 fn top_level_description_no_s16() {
     assert_clean_dict(indoc! {"
-        name: FoodData Central
+        name: foodbank
+        label: FoodData Central
         description: A snapshot of the USDA FoodData Central database.
         details: Includes both branded and foundation foods.
         tables:
-          food:
+          - name: food
             columns:
               - name: id
+                label: FoodData Central ID
                 type: number(id)
                 examples: [1, 2, 3]
     "});
@@ -222,7 +224,7 @@ fn top_level_description_no_s16() {
 fn restricted_display_is_valid() {
     assert_clean_dict(indoc! {"
         tables:
-          people:
+          - name: people
             columns:
               - name: ssn
                 type: string
@@ -250,7 +252,8 @@ fn warn_missing_learn_more() {
 fn warn_single_table_description() {
     let diagnostic = warning_dict(indoc! {"
         tables:
-          food:
+          - name: food
+            label: Foods
             description: Each row is a food item.
             details: Collected from the USDA FoodData Central database.
             columns:
@@ -258,7 +261,7 @@ fn warn_single_table_description() {
                 type: number(id)
                 examples: [1, 2, 3]
     "});
-    diagnostic.assert_contains(&["S16", "description", "details"]);
+    diagnostic.assert_contains(&["S16", "label", "description", "details"]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
 }
@@ -277,8 +280,8 @@ fn warn_single_table_description() {
 
 #[test]
 fn missing_version() {
-    let diagnostic = failing_raw("tables: {}\n");
-    diagnostic.assert_contains(&["Missing required property '$version'"]);
+    let diagnostic = failing_raw("tables: []\n");
+    diagnostic.assert_contains(&["S18", "`$version` is not set"]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
 }
@@ -318,13 +321,13 @@ fn non_string_glossary_value() {
 fn enum_non_string_label() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: status
                 type: enum
                 values: {active: 1, inactive: 2}
     "});
-    diagnostic.assert_contains(&["YAML Validation Failed"]);
+    diagnostic.assert_contains(&["Q-1-11", "Expected array, got object"]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
 }
@@ -333,7 +336,7 @@ fn enum_non_string_label() {
 fn unknown_display_value() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          people:
+          - name: people
             columns:
               - name: ssn
                 type: string
@@ -409,7 +412,7 @@ fn s06_self_join_one_to_many() {
 fn s07_enum_without_values() {
     assert_snapshot!(failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: c
                 type: enum
@@ -420,7 +423,7 @@ fn s07_enum_without_values() {
 fn s07_range_type_missing_range() {
     assert_snapshot!(failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: weight
                 type: number(quantity)
@@ -433,7 +436,7 @@ fn s07_range_type_missing_range() {
 fn s07_other_type_missing_examples() {
     assert_snapshot!(failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: label
                 type: string
@@ -449,7 +452,7 @@ fn s07_other_type_missing_examples() {
 fn s07_boolean_no_examples_ok() {
     assert_valid_dict(indoc! {"
         tables:
-          account:
+          - name: account
             columns:
               - name: id
                 type: number(id)
@@ -464,7 +467,7 @@ fn s07_boolean_no_examples_ok() {
 fn s07_wrong_rep_on_enum() {
     assert_snapshot!(failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: status
                 type: enum
@@ -478,7 +481,7 @@ fn s07_wrong_rep_on_enum() {
 fn s07_range_on_string_type() {
     assert_snapshot!(failing_dict(indoc! {r#"
         tables:
-          table:
+          - name: table
             columns:
               - name: c
                 type: string
@@ -491,7 +494,7 @@ fn s07_range_on_string_type() {
 fn s07_examples_on_boolean() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: active
                 type: boolean
@@ -510,7 +513,7 @@ fn s07_examples_on_boolean() {
 fn s08_units_ok_on_quantity() {
     assert_valid_dict(indoc! {"
         tables:
-          measurements:
+          - name: measurements
             columns:
               - name: mass
                 type: number(quantity)
@@ -523,7 +526,7 @@ fn s08_units_ok_on_quantity() {
 fn s08_units_on_non_quantity() {
     assert_snapshot!(failing_dict(indoc! {"
         tables:
-          races:
+          - name: races
             columns:
               - name: finish_rank
                 type: number(ordinal)
@@ -538,7 +541,7 @@ fn s08_units_on_non_quantity() {
 fn s10_duplicate_column_name() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: id
                 type: number(id)
@@ -547,11 +550,30 @@ fn s10_duplicate_column_name() {
                 type: string
                 examples: [a, b, c]
     "});
-    diagnostic.assert_contains(&[
-        "S10",
-        "Column names must be unique",
-        "appears more than once",
-    ]);
+    diagnostic.assert_contains(&["S10", "Column names must be unique", "is duplicated"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// Table names must be unique across the dictionary. This was structurally
+// guaranteed while tables were a map keyed by name; as a list of `name`d
+// descriptors it is S10's job, mirroring the column case.
+#[test]
+fn s10_duplicate_table_name() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: food
+            columns:
+              - name: id
+                type: number(id)
+                examples: [1, 2, 3]
+          - name: food
+            columns:
+              - name: id
+                type: number(id)
+                examples: [1, 2, 3]
+    "});
+    diagnostic.assert_contains(&["S10", "Table names must be unique", "is duplicated"]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
 }
@@ -560,7 +582,7 @@ fn s10_duplicate_column_name() {
 fn s11_empty_table_name() {
     let diagnostic = failing_dict(indoc! {r#"
         tables:
-          "":
+          - name: ""
             columns:
               - name: id
                 type: number(id)
@@ -575,7 +597,7 @@ fn s11_empty_table_name() {
 fn s11_empty_column_name() {
     let diagnostic = failing_dict(indoc! {r#"
         tables:
-          table:
+          - name: table
             columns:
               - name: ""
                 type: string
@@ -592,7 +614,7 @@ fn s11_empty_column_name() {
 fn s12_wrong_value_type() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: count
                 type: number
@@ -607,7 +629,7 @@ fn s12_wrong_value_type() {
 fn s12_date_not_iso() {
     let diagnostic = failing_dict(indoc! {r#"
         tables:
-          table:
+          - name: table
             columns:
               - name: seen_on
                 type: date
@@ -623,7 +645,7 @@ fn s12_datetime_requires_timezone_errors() {
     assert_invalid_dict(
         indoc! {r#"
             tables:
-              table:
+              - name: table
                 columns:
                   - name: seen_at
                     type: datetime
@@ -637,7 +659,7 @@ fn s12_datetime_requires_timezone_errors() {
 fn s13_descending_range() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          table:
+          - name: table
             columns:
               - name: mass
                 type: number(quantity)
@@ -655,6 +677,42 @@ fn s13_descending_range() {
 #[test]
 fn s12_s13_valid_ok() {
     assert_valid(fixture("spec/s12-s13-valid-ok.yaml"));
+}
+
+// An open-ended range: `-.inf`/`.inf` leave a bound open on any range type,
+// including temporal columns whose other bound is an ISO 8601 string.
+#[test]
+fn s12_s13_infinite_bounds_ok() {
+    assert_valid_dict(indoc! {"
+        tables:
+          - name: table
+            columns:
+              - name: mass
+                type: number(quantity)
+                units: kg
+                range: [0, .inf]
+              - name: seen_on
+                type: date
+                range: [2019-04-01, .inf]
+              - name: seen_at
+                type: datetime
+                range: [-.inf, \"2024-02-01T00:00:00Z\"]
+    "});
+}
+
+// `.inf` as a minimum runs backwards even on a temporal column, where the
+// maximum is a finite ISO 8601 date.
+#[test]
+fn s13_infinite_bound_wrong_end() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: table
+            columns:
+              - name: seen_on
+                type: date
+                range: [.inf, 2019-04-01]
+    "});
+    diagnostic.assert_contains(&["S13", "is greater than the maximum"]);
 }
 
 // --- version (S17) -------------------------------------------------------
@@ -790,7 +848,7 @@ fn version_not_a_map_errors() {
 fn s14_time_zone_ok_on_datetime() {
     assert_valid_dict(indoc! {"
         tables:
-          events:
+          - name: events
             columns:
               - name: observed_at
                 type: datetime
@@ -803,7 +861,7 @@ fn s14_time_zone_ok_on_datetime() {
 fn s14_time_zone_on_non_datetime() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          events:
+          - name: events
             columns:
               - name: event_day
                 type: date
@@ -821,14 +879,50 @@ fn s14_time_zone_on_non_datetime() {
 fn s15_bad_time_zone() {
     let diagnostic = failing_dict(indoc! {"
         tables:
-          events:
+          - name: events
             columns:
               - name: observed_at
                 type: datetime
                 time_zone: PST
                 range: [2020-01-01T00:00:00, 2024-12-31T23:59:59]
     "});
-    diagnostic.assert_contains(&["S15", "not a valid time zone"]);
+    diagnostic.assert_contains(&["S15", "is not a valid time zone"]);
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
+}
+
+// --- in-memory entry point ----------------------------------------------
+
+#[test]
+fn validate_spec_str_accepts_valid_content() {
+    let content = indoc! {"
+        $version: 0.1.0
+        $learn_more: http://data-dict.tidyverse.org/
+        tables:
+          - name: t
+            description: A table.
+            source:
+              parquet: t.parquet
+            columns:
+              - name: c
+                type: string
+                examples: [a, b]
+                description: A column.
+    "};
+    let problems = data_dict::validate_spec_str(content, "buffer.yaml");
+    assert!(!problems.status().failed());
+}
+
+#[test]
+fn validate_spec_str_reports_located_schema_error() {
+    // Missing the required `$version` key: a structural schema failure that
+    // still resolves to a location in the buffer.
+    let problems = data_dict::validate_spec_str("tables: {}\n", "buffer.yaml");
+    assert!(problems.status().failed());
+    let schema_error = problems
+        .items
+        .iter()
+        .find(|p| p.code.is_some())
+        .expect("expected a coded schema problem");
+    assert!(schema_error.location(&problems.source).is_some());
 }

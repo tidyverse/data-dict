@@ -1,8 +1,9 @@
 # source: https://github.com/hadley/loan-application
 
-version: 0.1.0
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
 tables:
-  account:
+  - name: account
     description: >
       Static characteristics of bank accounts. Each account belongs to a
       branch in a district and has a statement issuance frequency.
@@ -33,7 +34,7 @@ tables:
         description: Date the account was created.
         range: [1993-01-01, 1997-12-29]
 
-  client:
+  - name: client
     description: >
       Characteristics of bank clients. Gender and birth date were originally
       encoded together in a "birth number"; they have been split into
@@ -62,7 +63,7 @@ tables:
         description: District where the client lives.
         examples: [1, 20, 39, 58, 77]
 
-  disp:
+  - name: disp
     description: >
       Dispositions linking clients to accounts. Describes the rights of
       clients to operate accounts. Only owners can issue permanent orders
@@ -93,7 +94,7 @@ tables:
         constraints: [required]
         description: Type of disposition.
 
-  order:
+  - name: order
     description: >
       Permanent (standing) payment orders on accounts. These are recurring
       debits set up by account owners.
@@ -134,7 +135,7 @@ tables:
           UVER: Loan payment
         description: Characterization of the payment. Empty string if not specified.
 
-  trans:
+  - name: trans
     description: >
       Individual transactions on accounts, including credits and debits
       from various sources.
@@ -203,7 +204,7 @@ tables:
         description: Account number of the transaction partner.
         examples: [0, 24118912, 49954766, 74343323, 99994199]
 
-  loan:
+  - name: loan
     description: >
       Loans granted for accounts. At most one loan can be granted per
       account. This is the primary target table for the PKDD'99 discovery
@@ -251,7 +252,7 @@ tables:
         constraints: [required]
         description: Status of the loan.
 
-  card:
+  - name: card
     description: >
       Credit cards issued to account holders via their dispositions.
       Multiple cards can be issued per account.
@@ -279,7 +280,7 @@ tables:
         description: Date the card was issued.
         range: [1993-11-07, 1998-12-29]
 
-  district:
+  - name: district
     description: >
       Demographic data for Czech districts. Column names A2–A16 are
       the original anonymized names from the PKDD'99 challenge.

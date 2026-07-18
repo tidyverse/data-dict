@@ -4,21 +4,19 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  races:
+  - name: races
     columns:
       - name: finish_rank
         type: number(ordinal)
         units: place
         range: [1, 100]
 ────────────────────────────────────────
-Error: [S08] A column with `units` must have type `number(quantity)`.
-   ╭─[ dict.yaml:8:16 ]
-   │
- 4 │   races:
- 5 │     columns:
- 6 │       - name: finish_rank
- 7 │         type: number(ordinal)
- 8 │         units: place
-   │                ──┬──  
-   │                  ╰──── has `units` but has type `number(ordinal)`
-───╯
+error[S08]: A column with `units` must have type `number(quantity)`.
+  --> dict.yaml:8:16
+   |
+LL |   - name: races
+LL |     columns:
+LL |       - name: finish_rank
+LL |         type: number(ordinal)
+LL |         units: place
+   |                ^^^^^ has `units` but has type `number(ordinal)`

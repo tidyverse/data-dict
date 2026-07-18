@@ -9,7 +9,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 
 tables:
-  food:
+  - name: food
     columns:
       - name: id
         type: number(id)
@@ -20,21 +20,19 @@ tables:
         constraints: [foreign_key]
         examples: [1, 2]
 
-  food_category:
+  - name: food_category
     columns:
       - name: id
         type: number(id)
         constraints: [primary_key]
         examples: [1, 2]
 ────────────────────────────────────────
-Error: [S01] Every `foreign_key` column must have a matching relationship to a `primary_key`.
-    ╭─[ spec/s01-fk-no-relationship.yaml:17:23 ]
-    │
-  9 │   food:
-    │ 
- 15 │       - name: food_category_id
- 16 │         type: number(id)
- 17 │         constraints: [foreign_key]
-    │                       ─────┬─────  
-    │                            ╰─────── is `foreign_key` but no relationship points it at a `primary_key`
-────╯
+error[S01]: Every `foreign_key` column must have a matching relationship to a `primary_key`.
+  --> spec/s01-fk-no-relationship.yaml:17:23
+   |
+LL |   - name: food
+...
+LL |       - name: food_category_id
+LL |         type: number(id)
+LL |         constraints: [foreign_key]
+   |                       ^^^^^^^^^^^ is `foreign_key` but no relationship points it at a `primary_key`

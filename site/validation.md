@@ -28,41 +28,48 @@ A validator reports two severities of problem: **errors** and **warnings**. The 
 
 ## Spec-validation checks
 
-When validating the spec, each problem with the dictionary is one of:
+| Code | Name | Sev | Description |
+|------|------|-----|-------------|
+| S01 | Unresolved foreign key | E | A `foreign_key` column has no `relationships` entry pointing it at a `primary_key` column. |
+| S02 | Unknown table | E | A relationship references a table that is not defined in `tables`. |
+| S03 | Unknown column | E | A relationship references a column that does not exist on its table. |
+| S04 | Invalid join | E | A `join` expression fails to parse, or references neither one (self-join) nor two tables. |
+| S05 | Unresolved conflict column | E | A name in `conflicts` is not a column on both sides of the join. |
+| S06 | Inconsistent cardinality | E | The declared cardinality is inconsistent with the constraints on the joined columns (e.g. `one-to-many` whose "one" side is not `primary_key` or `unique`). |
+| S07 | Wrong representation key | E | A column's data representation key is absent or wrong for its type (`enum` → `values`; `number(ordinal)`, `number(quantity)`, `date`, `datetime` → `range`; otherwise → `examples`). A `boolean` column must carry none of `values`, `range`, or `examples`. |
+| S08 | Units without quantity | E | A column has `units` but its type is not `number(quantity)`. |
+| S09 | Missing `$learn_more` | W | The document omits the recommended `$learn_more` key. |
+| S10 | Duplicate name | E | Two column descriptors within the same table share a `name`, or two table descriptors within the dictionary share a `name`. |
+| S11 | Empty name | E | A table name or a column `name` is empty. |
+| S12 | Wrong value type | E | A value in `range` or `examples` does not match the column's `type` — a number type wants numbers; `string` wants strings; `date` wants an ISO 8601 date (e.g. `2024-01-31`); `datetime` wants an ISO 8601 datetime, with an offset (e.g. `2024-01-31T09:30:00Z`) unless the column has a `time_zone`, in which case it's zoneless (e.g. `2024-01-31T09:30:00`). A `range` bound may instead be `-.inf` (minimum) or `.inf` (maximum) to leave that end open, on any range type. |
+| S13 | Descending range | E | A `range`'s minimum is greater than its maximum. An open bound counts as ordered only in its own place — `-.inf` as the minimum and `.inf` as the maximum; `.inf` as a minimum or `-.inf` as a maximum runs backwards. |
+| S14 | Time zone without datetime | E | A column has `time_zone` but its type is not `datetime`. |
+| S15 | Malformed time zone | E | A `time_zone` is not `naive`, `UTC`, or an IANA `Area/Location` name with a known area. The shape is checked, not the full tz database, so the accepted set doesn't go stale as zones are added or renamed. |
+| S16 | Misplaced single-table description | W | A dictionary with exactly one table carries `label`, `description`, or `details` on that table; for a single-table dictionary these belong at the top level. |
+| S17 | Malformed version | E | The top-level `version` does not give exactly one of `number`, `date`, or `hash`; its `number` is not three dot-separated numeric components (`MAJOR.MINOR.PATCH`) with an optional pre-release/build suffix; or its `date` is not a valid ISO 8601 date (`YYYY-MM-DD`). |
+| S18 | Missing `$version` | E | The document omits the required top-level `$version` key. |
 
-* **Unresolved foreign key** (S01, error): a `foreign_key` column has no `relationships` entry pointing it at a `primary_key` column.
-* **Unknown table** (S02, error): a relationship references a table that is not defined in `tables`.
-* **Unknown column** (S03, error): a relationship references a column that does not exist on its table.
-* **Invalid join** (S04, error): a `join` expression fails to parse, or references neither one (self-join) nor two tables.
-* **Unresolved conflict column** (S05, error): a name in `conflicts` is not a column on both sides of the join.
-* **Inconsistent cardinality** (S06, error): the declared cardinality is inconsistent with the constraints on the joined columns (e.g. `one-to-many` whose "one" side is not `primary_key` or `unique`).
-* **Wrong representation key** (S07, error): a column's data representation key is absent or wrong for its type (`enum` → `values`; `number(ordinal)`, `number(quantity)`, `date`, `datetime` → `range`; otherwise → `examples`). A `boolean` column must carry none of `values`, `range`, or `examples`.
-* **Units without quantity** (S08, error): a column has `units` but its type is not `number(quantity)`.
-* **Missing `$learn_more`** (S09, warning): the document omits the recommended `$learn_more` key.
-* **Duplicate column name** (S10, error): two column descriptors within the same table share a `name`.
-* **Empty name** (S11, error): a table name or a column `name` is empty.
-* **Wrong value type** (S12, error): a value in `range` or `examples` does not match the column's `type` — a number type wants numbers; `string` wants strings; `date` wants an ISO 8601 date (e.g. `2024-01-31`); `datetime` wants an ISO 8601 datetime, with an offset (e.g. `2024-01-31T09:30:00Z`) unless the column has a `time_zone`, in which case it's zoneless (e.g. `2024-01-31T09:30:00`).
-* **Descending range** (S13, error): a `range`'s minimum is greater than its maximum.
-* **Time zone without datetime** (S14, error): a column has `time_zone` but its type is not `datetime`.
-* **Malformed time zone** (S15, error): a `time_zone` is not `naive`, `UTC`, or an IANA `Area/Location` name with a known area. The shape is checked, not the full tz database, so the accepted set doesn't go stale as zones are added or renamed.
-* **Misplaced single-table description** (S16, warning): a dictionary with exactly one table carries `description` or `details` on that table; for a single-table dictionary these belong at the top level.
-* **Malformed version** (S17, error): the top-level `version` does not give exactly one of `number`, `date`, or `hash`; its `number` is not three dot-separated numeric components (`MAJOR.MINOR.PATCH`) with an optional pre-release/build suffix; or its `date` is not a valid ISO 8601 date (`YYYY-MM-DD`).
+: {tbl-colwidths="[7,23,5,65]"}
 
 (An `enum`'s `values` are constrained structurally by the schema rather than by an `S` check: each value must be a scalar, and in the map form each label must be a string. The `version` map's allowed keys and their value types are likewise structural; S17 covers only the semantics the schema can't express.)
 
 ## Metadata-validation checks
 
-When validating the data's metadata against the dictionary, each column mismatch is one of:
+| Code | Name | Sev | Description |
+|------|------|-----|-------------|
+| M01 | Type mismatch | E | A column's declared type is incompatible with the data. |
+| M02 | Missing column | E | A column the dictionary describes is absent from the data. This applies even to columns listed by name only — listing a column that doesn't exist is an error. |
+| M03 | Undocumented column | W | A column present in the data that the dictionary does not describe. This is a warning, not an error: if a production pipeline adds a column, validation should not fail, but you should document it (or at least list it by name) next time you touch the dictionary. |
+| M04 | Missing source | E | A table validated against data does not declare a `source`. `source` is optional at the spec level but required here, so a validated dictionary always records where its data comes from. |
+| M05 | Unreadable source | E | A table declares a `source`, but its data can't be read — the `source.parquet` file is absent, or present but not a readable Parquet file. The path is resolved relative to the dictionary file. |
 
-* **Type mismatch** (M01, error): a column's declared type is incompatible with the data.
-* **Missing column** (M02, error): a column the dictionary describes is absent from the data. This applies even to columns listed by name only — listing a column that doesn't exist is an error.
-* **Undocumented column** (M03, warning): a column present in the data that the dictionary does not describe. This is a warning, not an error: if a production pipeline adds a column, validation should not fail, but you should document it (or at least list it by name) next time you touch the dictionary.
-* **Missing source** (M04, error): a table validated against data does not declare a `source`. `source` is optional at the spec level but required here, so a validated dictionary always records where its data comes from.
-* **Unreadable source** (M05, error): a table declares a `source`, but its data can't be read — the `source.parquet` file is absent, or present but not a readable Parquet file. The path is resolved relative to the dictionary file.
+: {tbl-colwidths="[7,23,5,65]"}
 
 ## Data-validation checks
 
-When validating the data's values against the dictionary, each column mismatch is one of:
+| Code | Name | Sev | Description |
+|------|------|-----|-------------|
+| D01 | Nulls in a required column | E | A `required` or `primary_key` column contains nulls. |
+| D03 | Value outside enum | E | An `enum` column contains a (non-null) value that is not one of its declared `values`. |
 
-* **Nulls in a required column** (D01, error): a `required` or `primary_key` column contains nulls.
-* **Value outside enum** (D03, error): an `enum` column contains a (non-null) value that is not one of its declared `values`.
+: {tbl-colwidths="[7,23,5,65]"}

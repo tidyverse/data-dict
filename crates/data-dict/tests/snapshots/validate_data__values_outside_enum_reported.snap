@@ -4,7 +4,7 @@ source: crates/data-dict/tests/validate_data.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  t:
+  - name: t
     source:
       parquet: data.parquet
     columns:
@@ -12,14 +12,12 @@ tables:
         type: enum
         values: [active, banned]
 ────────────────────────────────────────
-Error: [D03] An enum column's values must all be among its declared `values`.
-    ╭─[ dict.yaml:10:17 ]
-    │
-  4 │   t:
-    │ 
-  8 │       - name: status
-  9 │         type: enum
- 10 │         values: [active, banned]
-    │                 ───────┬───────  
-    │                        ╰───────── has 1 value outside the allowed set (`sleepy`; row: 4)
-────╯
+error[D03]: An enum column's values must all be among its declared `values`.
+  --> dict.yaml:10:17
+   |
+LL |   - name: t
+...
+LL |       - name: status
+LL |         type: enum
+LL |         values: [active, banned]
+   |                 ^^^^^^^^^^^^^^^ has 1 value outside the allowed set (`sleepy`; row: 4)

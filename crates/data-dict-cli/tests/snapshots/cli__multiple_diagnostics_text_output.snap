@@ -2,33 +2,30 @@
 source: crates/data-dict-cli/tests/cli.rs
 expression: "sanitize(&stderr, &fixture.display().to_string())"
 ---
-Warning: [S09] A document should point readers to the spec with `$learn_more: http://data-dict.tidyverse.org/`.
-   ╭─[ <fixture>:2:1 ]
-   │
- 2 │ $version: 0.1.0
-   │ ────┬───  
-   │     ╰───── `$learn_more` is not set
-───╯
-
-Error: [S07] A `number(id)` column must describe its data with `examples`.
-   ╭─[ <fixture>:9:15 ]
-   │
- 4 │   measurements:
-   │ 
- 8 │       - name: id
- 9 │         type: number(id)
-   │               ─────┬────  
-   │                    ╰────── has type `number(id)` but is missing `examples`
-───╯
-
-Error: [S08] A column with `units` must have type `number(quantity)`.
-    ╭─[ <fixture>:13:16 ]
-    │
-  4 │   measurements:
-    │ 
- 10 │       - name: name
-    │ 
- 13 │         units: kg
-    │                ─┬  
-    │                 ╰── has `units` but has type `string`
-────╯
+warning[S09]: A document should point readers to the spec with `$learn_more`.
+ --> <fixture>:2:1
+  |
+2 | $version: 0.1.0
+  | ^ `$learn_more` is not set
+  |
+help: point readers to the spec
+  |
+2 + $learn_more: http://data-dict.tidyverse.org/
+  |
+error[S07]: A `number(id)` column must describe its data with `examples`.
+ --> <fixture>:9:15
+  |
+4 |   - name: measurements
+...
+8 |       - name: id
+9 |         type: number(id)
+  |               ^^^^^^^^^^ has type `number(id)` but is missing `examples`
+error[S08]: A column with `units` must have type `number(quantity)`.
+  --> <fixture>:13:16
+   |
+ 4 |   - name: measurements
+...
+10 |       - name: name
+...
+13 |         units: kg
+   |                ^^ has `units` but has type `string`

@@ -4,20 +4,18 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  table:
+  - name: table
     columns:
       - name: seen_on
         type: date
         range: ["2020-01-01", "20-01-2021"]
 ────────────────────────────────────────
-Error: [S12] Each `range` value of a `date` column must be an ISO 8601 date (YYYY-MM-DD).
-   ╭─[ dict.yaml:8:31 ]
-   │
- 4 │   table:
- 5 │     columns:
- 6 │       - name: seen_on
- 7 │         type: date
- 8 │         range: ["2020-01-01", "20-01-2021"]
-   │                               ─────┬────  
-   │                                    ╰────── is a string
-───╯
+error[S12]: Each `range` value of a `date` column must be an ISO 8601 date (YYYY-MM-DD).
+  --> dict.yaml:8:31
+   |
+LL |   - name: table
+LL |     columns:
+LL |       - name: seen_on
+LL |         type: date
+LL |         range: ["2020-01-01", "20-01-2021"]
+   |                               ^^^^^^^^^^ is a string

@@ -4,21 +4,19 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  events:
+  - name: events
     columns:
       - name: observed_at
         type: datetime
         time_zone: PST
         range: [2020-01-01T00:00:00, 2024-12-31T23:59:59]
 ────────────────────────────────────────
-Error: [S15] A `time_zone` must be `naive`, `UTC`, or an IANA `Area/Location` name.
-   ╭─[ dict.yaml:8:20 ]
-   │
- 4 │   events:
- 5 │     columns:
- 6 │       - name: observed_at
- 7 │         type: datetime
- 8 │         time_zone: PST
-   │                    ─┬─  
-   │                     ╰─── not a valid time zone
-───╯
+error[S15]: A `time_zone` must be `naive`, `UTC`, or an IANA `Area/Location` name.
+  --> dict.yaml:8:20
+   |
+LL |   - name: events
+LL |     columns:
+LL |       - name: observed_at
+LL |         type: datetime
+LL |         time_zone: PST
+   |                    ^^^ is not a valid time zone

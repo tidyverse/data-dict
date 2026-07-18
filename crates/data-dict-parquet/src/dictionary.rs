@@ -107,18 +107,18 @@ fn dictionary_in_set(page: &Page, physical: PhysicalType, allowed: &HashSet<Stri
     let count = *num_values as usize;
     match physical {
         PhysicalType::BYTE_ARRAY => byte_arrays_in_set(buf, count, allowed),
-        PhysicalType::INT32 => fixed_in_set::<4>(buf, count, allowed, |b| {
-            i32::from_le_bytes(b).to_string()
-        }),
-        PhysicalType::INT64 => fixed_in_set::<8>(buf, count, allowed, |b| {
-            i64::from_le_bytes(b).to_string()
-        }),
-        PhysicalType::FLOAT => fixed_in_set::<4>(buf, count, allowed, |b| {
-            f32::from_le_bytes(b).to_string()
-        }),
-        PhysicalType::DOUBLE => fixed_in_set::<8>(buf, count, allowed, |b| {
-            f64::from_le_bytes(b).to_string()
-        }),
+        PhysicalType::INT32 => {
+            fixed_in_set::<4>(buf, count, allowed, |b| i32::from_le_bytes(b).to_string())
+        }
+        PhysicalType::INT64 => {
+            fixed_in_set::<8>(buf, count, allowed, |b| i64::from_le_bytes(b).to_string())
+        }
+        PhysicalType::FLOAT => {
+            fixed_in_set::<4>(buf, count, allowed, |b| f32::from_le_bytes(b).to_string())
+        }
+        PhysicalType::DOUBLE => {
+            fixed_in_set::<8>(buf, count, allowed, |b| f64::from_le_bytes(b).to_string())
+        }
         _ => false,
     }
 }

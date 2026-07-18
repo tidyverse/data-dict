@@ -1,9 +1,10 @@
 # source: https://github.com/hadley/foodbank
 
-version: 0.1.0
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
 
 tables:
-  food:
+  - name: food
     description: >
       Any substance consumed by humans for nutrition, taste and/or aroma.
       Contains only foundation foods from the USDA FoodData Central
@@ -13,7 +14,6 @@ tables:
 
     source:
       parquet: inst/parquet/food.parquet
-      R: foodbank::food
 
     columns:
       - name: fdc_id
@@ -44,14 +44,13 @@ tables:
         description: >
           Date when the food was published to FoodData Central.
 
-  food_nutrient:
+  - name: food_nutrient
     description: >
       A nutrient value for a food. Amounts are per 100g of food, in the
       unit defined in the nutrient table.
 
     source:
       parquet: inst/parquet/food_nutrient.parquet
-      R: foodbank::food_nutrient
 
     columns:
       - name: id
@@ -118,14 +117,13 @@ tables:
           Minimum purchase year of all acquisitions used to derive
           the nutrient value.
 
-  nutrient:
+  - name: nutrient
     description: >
       The chemical constituents of a food officially recognized as
       essential to human health.
 
     source:
       parquet: inst/parquet/nutrient.parquet
-      R: foodbank::nutrient
 
     columns:
       - name: id
@@ -175,7 +173,7 @@ tables:
           Display order used by USDA to sort nutrients in reports;
           more important nutrients appear first.
 
-  food_portion:
+  - name: food_portion
     description: >
       Discrete amounts of food, used to convert from per-100g nutrient
       values to common serving sizes. To convert:
@@ -183,7 +181,6 @@ tables:
 
     source:
       parquet: inst/parquet/food_portion.parquet
-      R: foodbank::food_portion
 
     columns:
       - name: id
@@ -251,12 +248,11 @@ tables:
           Minimum purchase year of all acquisitions used to derive
           the measure value.
 
-  measure_unit:
+  - name: measure_unit
     description: Units for measuring quantities of foods.
 
     source:
       parquet: inst/parquet/measure_unit.parquet
-      R: foodbank::measure_unit
 
     columns:
       - name: id
@@ -276,12 +272,11 @@ tables:
           - sandwich
           - whole
 
-  food_category:
+  - name: food_category
     description: Foods of defined similarity.
 
     source:
       parquet: inst/parquet/food_category.parquet
-      R: foodbank::food_category
 
     columns:
       - name: id

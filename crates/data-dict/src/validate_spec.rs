@@ -10,22 +10,26 @@
 //! The second pass only runs if the first succeeds: there is no point chasing
 //! FK references in a document whose `tables` block is malformed.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::OnceLock;
 
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime};
 use quarto_source_map::SourceInfo;
 use quarto_yaml::YamlWithSourceInfo;
-use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic};
+use quarto_yaml_validation::error::ValidationErrorKind;
+use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic, ValidationError};
 
 use crate::join_expr::{JoinExpr, QCol};
 use crate::model::{Cardinality, Column, DataDict, Scalar, Spanned, Table};
-use crate::problem::{Problem, ProblemKind, ProblemSet, subspan};
+use crate::problem::{Problem, ProblemKind, ProblemSet, Suggestion, subspan};
 use crate::{SourceContext, lower};
 
 /// The canonical documentation URL suggested for `$learn_more`.
 pub const LEARN_MORE_URL: &str = "http://data-dict.tidyverse.org/";
+
+/// The spec version this validator implements, suggested for a missing `$version`.
+pub const SPEC_VERSION: &str = "0.1.0";
 
 const SCHEMA_YAML: &str = include_str!("../../../schema.yaml");
 
@@ -54,6 +58,17 @@ pub fn validate_spec(path: &Path) -> ProblemSet {
     problems
 }
 
+/// The content twin of [`validate_spec`]: validates in-memory `content` (no I/O,
+/// for an unsaved buffer), attributing problems to `filename`.
+pub fn validate_spec_str(content: &str, filename: &str) -> ProblemSet {
+    let (mut problems, doc) = match load_str(content, filename) {
+        Ok(loaded) => loaded,
+        Err(problems) => return problems,
+    };
+    validate_and_lower(&doc, &mut problems);
+    problems
+}
+
 /// Read, parse, and schema-check the document at `path`, creating the run's
 /// [`ProblemSet`] with the document's source — this is where every level starts.
 /// `Ok((problems, doc))` hands back the fresh set and the parsed AST to validate;
@@ -65,8 +80,16 @@ pub(crate) fn load(path: &Path) -> Result<(ProblemSet, YamlWithSourceInfo), Prob
         Err(e) => return Err(ProblemSet::from_preflight(ProblemKind::Io, e.to_string())),
     };
     let filename = path.display().to_string();
+    load_str(&content, &filename)
+}
 
-    let doc = match quarto_yaml::parse_file(&content, &filename) {
+/// The content twin of [`load`]: parses and schema-checks in-memory `content`
+/// without reading a file, so it never fails with [`ProblemKind::Io`].
+pub(crate) fn load_str(
+    content: &str,
+    filename: &str,
+) -> Result<(ProblemSet, YamlWithSourceInfo), ProblemSet> {
+    let doc = match quarto_yaml::parse_file(content, filename) {
         Ok(doc) => doc,
         Err(e) => {
             return Err(ProblemSet::from_preflight(
@@ -77,21 +100,74 @@ pub(crate) fn load(path: &Path) -> Result<(ProblemSet, YamlWithSourceInfo), Prob
     };
 
     let mut source = SourceContext::new();
-    let file_id = quarto_yaml::file_id_for_filename(&filename);
-    source.add_file_with_id(file_id, filename, Some(content));
+    let file_id = quarto_yaml::file_id_for_filename(filename);
+    source.add_file_with_id(file_id, filename.to_string(), Some(content.to_string()));
 
     let registry = SchemaRegistry::new();
     if let Err(err) = quarto_yaml_validation::validate(&doc, schema(), &registry, &source) {
+        // Lift the structural error into our own vocabulary so it renders through
+        // the annotate-snippets pipeline like every other diagnostic, rather than
+        // the validator's own (ariadne) text.
         let diagnostic = ValidationDiagnostic::from_validation_error(&err, &source);
-        // The structural diagnostic is already rendered (with source
-        // highlighting) into its message; the pre-flight problem carries it as-is.
-        let message = diagnostic.to_text(&source);
+        let span = schema_error_span(&err);
+        let hints = diagnostic.hints();
+        let hint = (!hints.is_empty()).then(|| hints.join(" "));
         let mut problems = ProblemSet::new(source);
-        problems.push(Problem::preflight(ProblemKind::Schema, message));
+        problems.push(Problem::schema(
+            err.error_code(),
+            schema_expected(&err.kind),
+            err.message(),
+            span,
+            hint,
+        ));
         return Err(problems);
     }
 
     Ok((ProblemSet::new(source), doc))
+}
+
+/// The tightest span for a structural error. The validator points an unknown
+/// property at its enclosing object; narrow that to the offending key so the
+/// annotation lands on the property itself. Other errors keep the node the
+/// validator attached.
+fn schema_error_span(err: &ValidationError) -> Option<SourceInfo> {
+    let node = err.yaml_node.as_ref()?;
+    if let ValidationErrorKind::UnknownProperty { property } = &err.kind
+        && let Some(entry) = node.as_hash().and_then(|entries| {
+            entries
+                .iter()
+                .find(|e| e.key.yaml.as_str() == Some(property))
+        })
+    {
+        return Some(entry.key_span.clone());
+    }
+    Some(node.source_info.clone())
+}
+
+/// The general rule a structural error violates, stated independently of the
+/// offending value, to lead the diagnostic (the validator's own `message`
+/// carries the concrete finding). Sentence case, ending with a full stop, like
+/// every other `expected`.
+fn schema_expected(kind: &ValidationErrorKind) -> &'static str {
+    use ValidationErrorKind::*;
+    match kind {
+        TypeMismatch { .. } => "A value must have the type its schema requires.",
+        MissingRequiredProperty { .. } => "A required property must be present.",
+        UnknownProperty { .. } => "An object may only contain the properties its schema defines.",
+        InvalidEnumValue { .. } => "A value must be one of its schema's allowed values.",
+        NumberOutOfRange { .. } => "A number must fall within its allowed range.",
+        NumberNotMultipleOf { .. } => "A number must be a multiple of its schema's step.",
+        StringLengthInvalid { .. } => "A string's length must be within its allowed bounds.",
+        StringPatternMismatch { .. } => "A string must match its schema's pattern.",
+        ArrayLengthInvalid { .. } => "An array's length must be within its allowed bounds.",
+        ArrayItemsNotUnique => "An array's items must be unique.",
+        ObjectPropertyCountInvalid { .. } => {
+            "An object's property count must be within its allowed bounds."
+        }
+        UnresolvedReference { .. } => "A schema reference must resolve.",
+        DuplicateKey { .. } => "A mapping key must not appear more than once.",
+        Other { .. } => "The document must satisfy the schema.",
+    }
 }
 
 /// Lower the parsed document `doc` and run the S## semantic checks, pushing any
@@ -105,6 +181,7 @@ pub(crate) fn validate_and_lower(
     check_spec(&dict, out);
     validate_s09_learn_more(doc, out);
     validate_s17_version(doc, out);
+    validate_s18_version_present(doc, out);
     out.sort();
 
     if out.status().failed() {
@@ -131,9 +208,12 @@ fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
     validate_s06_cardinality_consistency(dict, out);
     validate_s16_single_table_description(dict, out);
 
-    for table in dict.tables.values() {
-        validate_s11_table_name(table, out);
-        let mut seen: HashSet<String> = HashSet::new();
+    let mut seen_tables: HashMap<String, SourceInfo> = HashMap::new();
+    for table in &dict.tables {
+        if validate_s11_table_name(table, out) {
+            validate_s10_unique_table_name(table, &mut seen_tables, out);
+        }
+        let mut seen: HashMap<String, SourceInfo> = HashMap::new();
         for col in &table.columns {
             validate_s01_foreign_key(dict, table, col, out);
             validate_s08_units(table, col, out);
@@ -157,7 +237,7 @@ fn validate_s02_relationship_table_refs(dict: &DataDict, out: &mut ProblemSet) {
     for rel in &dict.relationships {
         let Some(join) = &rel.join else { continue };
         for q in join.qcols() {
-            if !dict.tables.contains_key(&q.table) {
+            if dict.table(&q.table).is_none() {
                 let span = subspan(&rel.join_text.span, q.start, q.end)
                     .unwrap_or_else(|| rel.join_text.span.clone());
                 out.push_spec_error(
@@ -179,7 +259,7 @@ fn validate_s03_relationship_column_refs(dict: &DataDict, out: &mut ProblemSet) 
             for q in join.qcols() {
                 // Skip if the table doesn't exist — S02 handles that case
                 // and a column report would be noise.
-                let Some(table) = dict.tables.get(&q.table) else {
+                let Some(table) = dict.table(&q.table) else {
                     continue;
                 };
                 if table.column(&q.column).is_none() {
@@ -238,7 +318,7 @@ fn validate_s01_foreign_key(dict: &DataDict, table: &Table, col: &Column, out: &
                 if fk_side.table != table_name || fk_side.column != col.name.value {
                     return false;
                 }
-                let Some(other_tbl) = dict.tables.get(&pk_side.table) else {
+                let Some(other_tbl) = dict.table(&pk_side.table) else {
                     return false;
                 };
                 let Some(other_col) = other_tbl.column(&pk_side.column) else {
@@ -277,7 +357,7 @@ fn validate_s05_conflicts_present_on_both_sides(dict: &DataDict, out: &mut Probl
         for c in &rel.conflicts {
             let mut missing_from: Vec<&str> = Vec::new();
             for t_name in &tables {
-                let Some(table) = dict.tables.get(*t_name) else {
+                let Some(table) = dict.table(t_name) else {
                     // S02 already flagged the missing table; skip to avoid
                     // a cascade of confusing reports.
                     continue;
@@ -325,8 +405,7 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
         // cardinality against a column that doesn't exist would just produce a
         // redundant, confusing S06.
         let all_cols_resolve = join.qcols().all(|q| {
-            dict.tables
-                .get(&q.table)
+            dict.table(&q.table)
                 .is_some_and(|t| t.column(&q.column).is_some())
         });
         if !all_cols_resolve {
@@ -368,7 +447,10 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the join columns on `{}` or `{}` are not marked `primary_key` or `unique`",
                             lhs_table, rhs_table
                         ),
-                        [rel.join_text.span.clone(), card_span],
+                        [
+                            rel.join_text.span.clone(),
+                            card_span,
+                        ],
                     );
                 }
             }
@@ -383,7 +465,10 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the left-side join column on `{}` is not marked `primary_key` or `unique`",
                             lhs_table
                         ),
-                        [rel.join_text.span.clone(), card_span],
+                        [
+                            rel.join_text.span.clone(),
+                            card_span,
+                        ],
                     );
                 }
             }
@@ -396,7 +481,10 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                             "the right-side join column on `{}` is not marked `primary_key` or `unique`",
                             rhs_table
                         ),
-                        [rel.join_text.span.clone(), card_span],
+                        [
+                            rel.join_text.span.clone(),
+                            card_span,
+                        ],
                     );
                 }
             }
@@ -410,7 +498,7 @@ fn side_has_unique_implied(
     join: &JoinExpr,
     use_lhs: bool,
 ) -> bool {
-    let Some(table) = dict.tables.get(table_name) else {
+    let Some(table) = dict.table(table_name) else {
         return false;
     };
     join.conjuncts.iter().any(|conj| {
@@ -644,7 +732,7 @@ fn validate_s15_time_zone_format(table: &Table, col: &Column, out: &mut ProblemS
     out.push_spec_error(
         "S15",
         "A `time_zone` must be `naive`, `UTC`, or an IANA `Area/Location` name.",
-        "not a valid time zone",
+        "is not a valid time zone",
         spans,
     );
 }
@@ -654,22 +742,48 @@ fn validate_s15_time_zone_format(table: &Table, col: &Column, out: &mut ProblemS
 fn validate_s10_unique_name(
     table: &Table,
     col: &Column,
-    seen: &mut HashSet<String>,
+    seen: &mut HashMap<String, SourceInfo>,
     out: &mut ProblemSet,
 ) {
-    if !seen.insert(col.name.value.clone()) {
-        out.push_spec_error(
+    match seen.get(&col.name.value) {
+        Some(first) => out.push_spec_error(
             "S10",
             "Column names must be unique within a table.",
-            "appears more than once",
-            [table.name.span.clone(), col.name.span.clone()],
-        );
+            "is duplicated",
+            [
+                table.name.span.clone(),
+                first.clone(),
+                col.name.span.clone(),
+            ],
+        ),
+        None => {
+            seen.insert(col.name.value.clone(), col.name.span.clone());
+        }
+    }
+}
+
+fn validate_s10_unique_table_name(
+    table: &Table,
+    seen: &mut HashMap<String, SourceInfo>,
+    out: &mut ProblemSet,
+) {
+    match seen.get(&table.name.value) {
+        Some(first) => out.push_spec_error(
+            "S10",
+            "Table names must be unique within the dictionary.",
+            "is duplicated",
+            [first.clone(), table.name.span.clone()],
+        ),
+        None => {
+            seen.insert(table.name.value.clone(), table.name.span.clone());
+        }
     }
 }
 
 // --- S11 --------------------------------------------------------------
 
-fn validate_s11_table_name(table: &Table, out: &mut ProblemSet) {
+/// Returns whether the table has a name (so its uniqueness may be checked).
+fn validate_s11_table_name(table: &Table, out: &mut ProblemSet) -> bool {
     if table.name.value.is_empty() {
         out.push_spec_error(
             "S11",
@@ -677,7 +791,9 @@ fn validate_s11_table_name(table: &Table, out: &mut ProblemSet) {
             "table name is empty",
             [table.name.span.clone()],
         );
+        return false;
     }
+    true
 }
 
 /// Returns whether the column has a name (so its uniqueness may be checked).
@@ -746,6 +862,10 @@ fn validate_s12_value_types(table: &Table, col: &Column, out: &mut ProblemSet) -
     ok
 }
 
+fn is_infinite(value: &Scalar) -> bool {
+    matches!(value, Scalar::Number(f) if f.is_infinite())
+}
+
 fn value_matches_type(type_name: &str, value: &Scalar, tz_present: bool) -> bool {
     match type_name {
         "number" | "number(id)" | "number(ordinal)" | "number(quantity)" => {
@@ -755,8 +875,15 @@ fn value_matches_type(type_name: &str, value: &Scalar, tz_present: bool) -> bool
         // number and a quoted `'null'` as null; we can't tell those from a real
         // string. So `string` accepts any scalar and only rejects a list/map.
         "string" => !matches!(value, Scalar::Compound),
-        "date" => matches!(value, Scalar::String(s) if parse_date(s).is_some()),
-        "datetime" => matches!(value, Scalar::String(s) if datetime_parses(s, tz_present)),
+        // An infinite bound leaves that end of a temporal range open (spec:
+        // Representative values), so accept it alongside a real ISO 8601 value.
+        "date" => {
+            is_infinite(value) || matches!(value, Scalar::String(s) if parse_date(s).is_some())
+        }
+        "datetime" => {
+            is_infinite(value)
+                || matches!(value, Scalar::String(s) if datetime_parses(s, tz_present))
+        }
         _ => true,
     }
 }
@@ -826,7 +953,14 @@ fn validate_s13_range_order(table: &Table, col: &Column, out: &mut ProblemSet) {
 /// report). Numbers compare numerically; dates and datetimes compare as parsed
 /// instants, so mixed timezone offsets are handled correctly. A datetime column
 /// with a `time_zone` (`tz_present`) has zoneless bounds, compared as wall-clock.
+/// An infinite bound orders as `-inf` < any value < `+inf`, so it runs backwards
+/// only when it sits on the wrong end (`+inf` as minimum, `-inf` as maximum).
 fn range_descending(type_name: &str, lo: &Scalar, hi: &Scalar, tz_present: bool) -> bool {
+    if is_infinite(lo) || is_infinite(hi) {
+        let is_pos = |v: &Scalar| matches!(v, Scalar::Number(f) if *f == f64::INFINITY);
+        let is_neg = |v: &Scalar| matches!(v, Scalar::Number(f) if *f == f64::NEG_INFINITY);
+        return (is_pos(lo) && !is_pos(hi)) || (is_neg(hi) && !is_neg(lo));
+    }
     match (type_name, lo, hi) {
         ("date", Scalar::String(a), Scalar::String(b)) => match (parse_date(a), parse_date(b)) {
             (Some(a), Some(b)) => a > b,
@@ -851,25 +985,54 @@ fn range_descending(type_name: &str, lo: &Scalar, hi: &Scalar, tz_present: bool)
 
 // --- S16 --------------------------------------------------------------
 
-/// Warn when a single-table dictionary carries `description` or `details` on
-/// the table: for one table, those describe the dataset as a whole and belong
-/// at the top level.
+/// Warn when a single-table dictionary carries `label`, `description`, or
+/// `details` on the table: for one table, those describe the dataset as a whole
+/// and belong at the top level.
 fn validate_s16_single_table_description(dict: &DataDict, out: &mut ProblemSet) {
     if dict.tables.len() != 1 {
         return;
     }
-    let table = dict.tables.values().next().expect("one table");
-    for (key, span) in [
+    let table = dict.tables.first().expect("one table");
+    let present: Vec<(&str, &SourceInfo)> = [
+        ("label", &table.label),
         ("description", &table.description),
         ("details", &table.details),
-    ] {
-        let Some(span) = span else { continue };
-        out.push_spec_warning(
-            "S16",
-            "A single-table dictionary's description and details belong at the top level.",
-            format!("table `{}` has a `{key}`", table.name.value),
-            [table.name.span.clone(), span.clone()],
-        );
+    ]
+    .into_iter()
+    .filter_map(|(key, opt)| opt.as_ref().map(|span| (key, span)))
+    .collect();
+
+    if present.is_empty() {
+        return;
+    }
+
+    let keys: Vec<&str> = present.iter().map(|(k, _)| *k).collect();
+    let keys_fmt = fmt_backtick_list(&keys);
+    let verb = if keys.len() == 1 { "belongs" } else { "belong" };
+    let mut spans = vec![table.name.span.clone()];
+    spans.extend(present.iter().map(|(_, s)| (*s).clone()));
+
+    out.push_spec_warning(
+        "S16",
+        format!("A single-table dictionary's {keys_fmt} {verb} at the top level."),
+        format!("table `{}` has {keys_fmt}", table.name.value),
+        spans,
+    );
+}
+
+fn fmt_backtick_list(keys: &[&str]) -> String {
+    match keys {
+        [] => String::new(),
+        [k] => format!("`{k}`"),
+        [a, b] => format!("`{a}` and `{b}`"),
+        _ => {
+            let init = keys[..keys.len() - 1]
+                .iter()
+                .map(|k| format!("`{k}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{init}, and `{}`", keys[keys.len() - 1])
+        }
     }
 }
 
@@ -877,8 +1040,9 @@ fn validate_s16_single_table_description(dict: &DataDict, out: &mut ProblemSet) 
 
 /// Warn when the document omits the recommended `$learn_more` key. Unlike the
 /// other rules this inspects the raw AST, because `$learn_more` is top-level
-/// metadata that the lowered [`DataDict`] does not carry. The warning is
-/// anchored at the `$version` key, which the schema guarantees is present.
+/// metadata that the lowered [`DataDict`] does not carry. The key has no
+/// location of its own, so the warning is anchored at the document's first
+/// character.
 fn validate_s09_learn_more(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
     let Some(entries) = root.as_hash() else {
         return;
@@ -887,17 +1051,20 @@ fn validate_s09_learn_more(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
     if has("$learn_more").is_some() {
         return;
     }
-    let span = has("$version")
-        .map(|e| e.key_span.clone())
-        .unwrap_or_else(|| root.source_info.clone());
+    let span = subspan(&root.source_info, 0, 1).unwrap_or_else(|| root.source_info.clone());
+    // Insert the recommended key at the very start of the document.
+    let insert_at = subspan(&root.source_info, 0, 0).unwrap_or_else(|| span.clone());
     out.push_spec_warning(
         "S09",
-        format!(
-            "A document should point readers to the spec with `$learn_more: {LEARN_MORE_URL}`."
-        ),
+        "A document should point readers to the spec with `$learn_more`.",
         "`$learn_more` is not set",
         [span],
-    )
+    );
+    out.suggest_last(Suggestion {
+        title: "point readers to the spec".into(),
+        replacement: format!("$learn_more: {LEARN_MORE_URL}\n"),
+        span: insert_at,
+    });
 }
 
 // --- S17 --------------------------------------------------------------
@@ -982,6 +1149,39 @@ fn validate_s17_version(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
         }
         _ => {}
     }
+}
+
+// --- S18 --------------------------------------------------------------
+
+/// Error when the document omits the required top-level `$version` key. The
+/// schema leaves this key optional so its absence lands here with a patch
+/// (a present-but-wrong value is still an enum error at the schema level).
+/// Like S09, the missing key has no location of its own, so the error is
+/// anchored at the document's first character.
+fn validate_s18_version_present(root: &YamlWithSourceInfo, out: &mut ProblemSet) {
+    let Some(entries) = root.as_hash() else {
+        return;
+    };
+    if entries
+        .iter()
+        .any(|e| e.key.yaml.as_str() == Some("$version"))
+    {
+        return;
+    }
+    let span = subspan(&root.source_info, 0, 1).unwrap_or_else(|| root.source_info.clone());
+    // Insert the key at the very start of the document.
+    let insert_at = subspan(&root.source_info, 0, 0).unwrap_or_else(|| span.clone());
+    out.push_spec_error(
+        "S18",
+        "A document must declare the spec version it conforms to with `$version`.",
+        "`$version` is not set",
+        [span],
+    );
+    out.suggest_last(Suggestion {
+        title: "declare the spec version".into(),
+        replacement: format!("$version: {SPEC_VERSION}\n"),
+        span: insert_at,
+    });
 }
 
 /// A version `number` per the spec: three dot-separated numeric components

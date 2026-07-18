@@ -4,7 +4,8 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  food:
+  - name: food
+    label: Foods
     description: Each row is a food item.
     details: Collected from the USDA FoodData Central database.
     columns:
@@ -12,21 +13,11 @@ tables:
         type: number(id)
         examples: [1, 2, 3]
 ────────────────────────────────────────
-Warning: [S16] A single-table dictionary's description and details belong at the top level.
-   ╭─[ dict.yaml:5:5 ]
-   │
- 4 │   food:
- 5 │     description: Each row is a food item.
-   │     ─────┬─────  
-   │          ╰─────── table `food` has a `description`
-───╯
-
-Warning: [S16] A single-table dictionary's description and details belong at the top level.
-   ╭─[ dict.yaml:6:5 ]
-   │
- 4 │   food:
- 5 │     description: Each row is a food item.
- 6 │     details: Collected from the USDA FoodData Central database.
-   │     ───┬───  
-   │        ╰───── table `food` has a `details`
-───╯
+warning[S16]: A single-table dictionary's `label`, `description`, and `details` belong at the top level.
+  --> dict.yaml:7:5
+   |
+LL |   - name: food
+LL |     label: Foods
+LL |     description: Each row is a food item.
+LL |     details: Collected from the USDA FoodData Central database.
+   |     ^^^^^^^ table `food` has `label`, `description`, and `details`
