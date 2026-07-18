@@ -58,6 +58,17 @@ pub fn validate_spec(path: &Path) -> ProblemSet {
     problems
 }
 
+/// The content twin of [`validate_spec`]: validates in-memory `content` (no I/O,
+/// for an unsaved buffer), attributing problems to `filename`.
+pub fn validate_spec_str(content: &str, filename: &str) -> ProblemSet {
+    let (mut problems, doc) = match load_str(content, filename) {
+        Ok(loaded) => loaded,
+        Err(problems) => return problems,
+    };
+    validate_and_lower(&doc, &mut problems);
+    problems
+}
+
 /// Read, parse, and schema-check the document at `path`, creating the run's
 /// [`ProblemSet`] with the document's source — this is where every level starts.
 /// `Ok((problems, doc))` hands back the fresh set and the parsed AST to validate;
@@ -69,8 +80,16 @@ pub(crate) fn load(path: &Path) -> Result<(ProblemSet, YamlWithSourceInfo), Prob
         Err(e) => return Err(ProblemSet::from_preflight(ProblemKind::Io, e.to_string())),
     };
     let filename = path.display().to_string();
+    load_str(&content, &filename)
+}
 
-    let doc = match quarto_yaml::parse_file(&content, &filename) {
+/// The content twin of [`load`]: parses and schema-checks in-memory `content`
+/// without reading a file, so it never fails with [`ProblemKind::Io`].
+pub(crate) fn load_str(
+    content: &str,
+    filename: &str,
+) -> Result<(ProblemSet, YamlWithSourceInfo), ProblemSet> {
+    let doc = match quarto_yaml::parse_file(content, filename) {
         Ok(doc) => doc,
         Err(e) => {
             return Err(ProblemSet::from_preflight(
@@ -81,8 +100,8 @@ pub(crate) fn load(path: &Path) -> Result<(ProblemSet, YamlWithSourceInfo), Prob
     };
 
     let mut source = SourceContext::new();
-    let file_id = quarto_yaml::file_id_for_filename(&filename);
-    source.add_file_with_id(file_id, filename, Some(content));
+    let file_id = quarto_yaml::file_id_for_filename(filename);
+    source.add_file_with_id(file_id, filename.to_string(), Some(content.to_string()));
 
     let registry = SchemaRegistry::new();
     if let Err(err) = quarto_yaml_validation::validate(&doc, schema(), &registry, &source) {

@@ -890,3 +890,39 @@ fn s15_bad_time_zone() {
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
 }
+
+// --- in-memory entry point ----------------------------------------------
+
+#[test]
+fn validate_spec_str_accepts_valid_content() {
+    let content = indoc! {"
+        $version: 0.1.0
+        $learn_more: http://data-dict.tidyverse.org/
+        tables:
+          - name: t
+            description: A table.
+            source:
+              parquet: t.parquet
+            columns:
+              - name: c
+                type: string
+                examples: [a, b]
+                description: A column.
+    "};
+    let problems = data_dict::validate_spec_str(content, "buffer.yaml");
+    assert!(!problems.status().failed());
+}
+
+#[test]
+fn validate_spec_str_reports_located_schema_error() {
+    // Missing the required `$version` key: a structural schema failure that
+    // still resolves to a location in the buffer.
+    let problems = data_dict::validate_spec_str("tables: {}\n", "buffer.yaml");
+    assert!(problems.status().failed());
+    let schema_error = problems
+        .items
+        .iter()
+        .find(|p| p.code.is_some())
+        .expect("expected a coded schema problem");
+    assert!(schema_error.location(&problems.source).is_some());
+}
