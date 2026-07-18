@@ -195,7 +195,7 @@ NB: when `time_zone` is present, write the column's `range` as plain, zoneless d
 The `constraints` property is a list of constraint names. The supported constraints are:
 
 * `primary_key`: the set of columns with the `primary_key` constraint uniquely identifies each row. Implies `required` and `unique`.
-* `foreign_key`: the column references a primary key in another table (or in the current table, if a self-join). The specific relationship is defined in [`relationships`](#relationships).
+* `foreign_key`: the column references a primary key in another table (or in the current table, if a self-join). The specific relationship is defined in [`relationships`](#relationships). Validating the data checks that every value appears in the referenced primary key (see D05/D06 in [validation](validation.md)).
 * `required`: the column does not contain null/missing values.
 * `unique`: the column's values are distinct (no duplicates). Null/missing values are exempt — a `unique` column may contain multiple nulls, and nulls are never treated as duplicates.
 

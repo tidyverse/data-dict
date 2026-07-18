@@ -1,10 +1,13 @@
 //! Parquet reader for data-dict.yaml validation.
 
+mod column_scan;
 mod dictionary;
+mod foreign_key;
 mod metadata;
 mod scan;
 mod uniqueness;
 
+pub use foreign_key::{ForeignKeyCheck, ForeignKeyResult, ForeignKeyStats, foreign_key_stats};
 pub use metadata::{
     ColumnMeta, ColumnTypeInfo, column_meta, column_type_info, column_types, uniqueness_barriers,
 };

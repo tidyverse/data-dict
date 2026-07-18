@@ -307,28 +307,7 @@ fn validate_s01_foreign_key(dict: &DataDict, table: &Table, col: &Column, out: &
     if !col.has(ForeignKey) {
         return;
     }
-    let table_name = table.name.value.as_str();
-    let satisfied = dict.relationships.iter().any(|rel| {
-        let Some(join) = &rel.join else { return false };
-        // The FK column must appear on one side of some conjunct, and the
-        // corresponding other side must carry PrimaryKey.
-        join.conjuncts.iter().any(|conj| {
-            let sides = [(&conj.lhs, &conj.rhs), (&conj.rhs, &conj.lhs)];
-            sides.iter().any(|(fk_side, pk_side)| {
-                if fk_side.table != table_name || fk_side.column != col.name.value {
-                    return false;
-                }
-                let Some(other_tbl) = dict.table(&pk_side.table) else {
-                    return false;
-                };
-                let Some(other_col) = other_tbl.column(&pk_side.column) else {
-                    return false;
-                };
-                other_col.has(PrimaryKey)
-            })
-        })
-    });
-    if !satisfied {
+    if dict.resolve_foreign_key(table, col).is_none() {
         let fk_span = col
             .constraints
             .iter()

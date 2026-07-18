@@ -27,9 +27,14 @@ pub(crate) enum CheckResult {
 /// data the dictionary does not describe. Values are never read; see
 /// [`crate::validate_data::validate_data`] for the level that does.
 pub fn validate_meta(dict_path: &Path, table: Option<&str>) -> ProblemSet {
-    crate::compare_dataset(dict_path, table, |table, _parquet, actual, problems| {
-        meta_issues(table, actual, problems);
-    })
+    crate::compare_dataset(
+        dict_path,
+        table,
+        |table, _parquet, actual, problems| {
+            meta_issues(table, actual, problems);
+        },
+        |_dict, _readable, _problems| {},
+    )
 }
 
 /// Compare the dictionary's `table` against the actual column types read from

@@ -73,6 +73,8 @@ A validator reports two severities of problem: **errors** and **warnings**. The 
 | D02 | Duplicate values | E | A `unique` column contains duplicate values, or the combination of all `primary_key` columns does not uniquely identify every row. Only [comparable types](#comparable-types) are checked. Null/missing values are never counted as duplicates; for a composite primary key, a row with a null in any key column is not compared. |
 | D03 | Uniqueness not verified | W | A `unique` column or `primary_key` uses a type whose values can't be reliably compared, so its uniqueness was not checked. |
 | D04 | Value outside enum | E | An `enum` column contains a (non-null) value that is not one of its declared `values`. |
+| D05 | Foreign key not found | E | A `foreign_key` column contains a (non-null) value that does not appear in the `primary_key` column it references. Only [comparable types](#comparable-types) are checked; null/missing values are exempt (a null foreign key references nothing). Only single-column foreign keys are checked. |
+| D06 | Referential integrity not verified | W | A `foreign_key` column, or the `primary_key` it references, uses a type whose values can't be reliably compared, so the reference was not checked. |
 
 : {tbl-colwidths="[7,23,5,65]"}
 
@@ -87,3 +89,5 @@ For **Parquet**:
 * JSON and BSON, whose byte representation does not determine equality (two documents can differ only in whitespace or key order and still be equal), are **not** compared. Neither is any Parquet logical type the validator does not recognize — including future types such as `VARIANT` or `GEOMETRY`.
 
 For a non-comparable column, running the check anyway could silently miss duplicates and pass a dataset that should fail, so the check is skipped with a D03 warning instead. A composite primary key is skipped whole if any of its columns is non-comparable.
+
+The foreign-key check (D05) is governed by the same comparability rule: the foreign-key column and the primary-key column it references are compared by the same normalized value form, so both must be comparable. If either uses a non-comparable type, the reference could silently mismatch, so the check is skipped with a D06 warning instead.

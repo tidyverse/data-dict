@@ -23,3 +23,7 @@ criterion = "0.5"
 [[bench]]
 name = "uniqueness"
 harness = false
+
+[[bench]]
+name = "foreign_key"
+harness = false
