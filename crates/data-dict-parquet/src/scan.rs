@@ -147,8 +147,9 @@ pub fn column_stats(
 
 /// The canonical string form of a scalar field value, for set membership (D04).
 /// `None` for kinds that can't be an `enum` value (a matching `enum` column
-/// would already be an `M01` type mismatch). Integer and float forms follow
-/// Rust's `Display`, matching `Scalar::value_key` on the dictionary side.
+/// would already be an `M01` type mismatch). Each form follows the physical
+/// width's `Display`; `Scalar::value_keys` on the spec side offers both float
+/// widths so a `FLOAT` and a `DOUBLE` column each find a match.
 fn field_key(field: &Field) -> Option<String> {
     Some(match field {
         Field::Bool(v) => v.to_string(),

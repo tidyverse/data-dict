@@ -245,7 +245,7 @@ fn enum_allowed(col: &Column) -> Option<HashSet<String>> {
         values
             .items
             .iter()
-            .filter_map(|item| item.value.value_key())
+            .flat_map(|item| item.value.value_keys())
             .collect(),
     )
 }

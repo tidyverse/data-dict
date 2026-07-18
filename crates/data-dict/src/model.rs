@@ -119,16 +119,30 @@ impl Scalar {
         }
     }
 
-    /// A canonical string form for value-equality comparison against data (D04).
-    /// `None` for kinds that can't appear as a data value (`null`, compound).
-    /// Must agree with the data side's canonicalization in `data-dict-parquet`.
-    pub fn value_key(&self) -> Option<String> {
+    /// The canonical string forms this value can take in data, for value-equality
+    /// comparison (D04). Empty for kinds that can't appear as a data value
+    /// (`null`, compound). Must agree with the data side's canonicalization in
+    /// `data-dict-parquet`.
+    ///
+    /// A float yields two forms — its own (`f64`, matching a `DOUBLE` column) and
+    /// its narrowing to `f32` (matching a `FLOAT` column) — because a value like
+    /// `3.14159265358979` prints differently at each width, and the data side
+    /// formats at the column's physical width.
+    pub fn value_keys(&self) -> Vec<String> {
         match self {
-            Scalar::Int(n) => Some(n.to_string()),
-            Scalar::Float(n) => Some(n.to_string()),
-            Scalar::String(s) => Some(s.clone()),
-            Scalar::Bool(b) => Some(b.to_string()),
-            Scalar::Null | Scalar::Compound => None,
+            Scalar::Int(n) => vec![n.to_string()],
+            Scalar::Float(n) => {
+                let wide = n.to_string();
+                let narrow = (*n as f32).to_string();
+                if narrow == wide {
+                    vec![wide]
+                } else {
+                    vec![wide, narrow]
+                }
+            }
+            Scalar::String(s) => vec![s.clone()],
+            Scalar::Bool(b) => vec![b.to_string()],
+            Scalar::Null | Scalar::Compound => vec![],
         }
     }
 }

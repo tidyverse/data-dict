@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use data_dict::{Problem, ProblemKind, ProblemSet, Status, validate_data, validate_meta};
 use indoc::{formatdoc, indoc};
-use parquet::data_type::{ByteArray, ByteArrayType, DoubleType, Int32Type, Int64Type};
+use parquet::data_type::{ByteArray, ByteArrayType, DoubleType, FloatType, Int32Type, Int64Type};
 use parquet::file::properties::{EnabledStatistics, WriterProperties};
 use parquet::file::writer::{SerializedColumnWriter, SerializedFileWriter};
 use parquet::schema::parser::parse_message_type;
@@ -444,6 +444,42 @@ fn large_integer_enum_values_compare_exactly() {
                 kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
                 ..
             }] if rows == &[2] && values == &[other.to_string()]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+/// A `FLOAT` column stores values at f32 width, so a declared value that prints
+/// differently as f32 than as f64 (`8.31446261815324` → `8.314463`) must still
+/// be recognized as in-set. Only the genuinely-absent value is reported.
+#[test]
+fn float_enum_values_compare_at_column_width() {
+    // The declared value, narrowed to the column's f32 width as the writer would.
+    let precise = 8.31446261815324_f64 as f32;
+    let result = check_column(
+        "REQUIRED FLOAT ratio",
+        move |col| {
+            col.typed::<FloatType>()
+                .write_batch(&[precise, 2.5, 9.5], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: ratio
+              type: enum
+              values: [8.31446261815324, 2.5]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D04"),
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[3] && values == &["9.5"]
         ),
         "got {:?}",
         result.items
