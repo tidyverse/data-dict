@@ -188,6 +188,27 @@ pub enum ProblemKind {
         rows: Vec<usize>,
         values: Vec<String>,
     },
+    /// `D05` — a `foreign_key` column contains values absent from the
+    /// `primary_key` it references. `column` is the foreign-key column,
+    /// `references` names the target as `table.column`, `count` is the total, and
+    /// `rows`/`values` sample the first few offending row numbers (1-based) and
+    /// distinct values.
+    ForeignKeyNotFound {
+        column: String,
+        references: String,
+        count: usize,
+        rows: Vec<usize>,
+        values: Vec<String>,
+    },
+    /// `D06` — a `foreign_key` or the `primary_key` it references uses a type
+    /// whose values can't be compared, so the reference was not checked.
+    /// `references` names the target as `table.column`; `reason` is a barrier
+    /// slug (e.g. `json`).
+    ReferentialIntegrityNotVerified {
+        column: String,
+        references: String,
+        reason: String,
+    },
 }
 
 impl ProblemKind {
@@ -205,6 +226,8 @@ impl ProblemKind {
             ProblemKind::DuplicateValues { .. } => "D02",
             ProblemKind::UniquenessNotVerified { .. } => "D03",
             ProblemKind::ValuesOutsideEnum { .. } => "D04",
+            ProblemKind::ForeignKeyNotFound { .. } => "D05",
+            ProblemKind::ReferentialIntegrityNotVerified { .. } => "D06",
             _ => return None,
         })
     }
@@ -222,7 +245,9 @@ impl ProblemKind {
             ProblemKind::NullsInRequired { .. }
             | ProblemKind::DuplicateValues { .. }
             | ProblemKind::UniquenessNotVerified { .. }
-            | ProblemKind::ValuesOutsideEnum { .. } => Level::Data,
+            | ProblemKind::ValuesOutsideEnum { .. }
+            | ProblemKind::ForeignKeyNotFound { .. }
+            | ProblemKind::ReferentialIntegrityNotVerified { .. } => Level::Data,
             _ => return None,
         })
     }

@@ -9,7 +9,7 @@ mod common;
 use common::{assert_snapshot, temp_dir, write_dict};
 
 use std::fs::File;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use data_dict::{Problem, ProblemKind, ProblemSet, Status, validate_data, validate_meta};
@@ -1084,4 +1084,251 @@ fn int_backed_decimal_unique_column_passes() {
     );
 
     assert_eq!(validate_data(&yaml, None).status(), Status::Ok);
+}
+
+// --- Foreign keys (D05/D06) -------------------------------------------------
+
+/// Write a single-column parquet file at `path`.
+fn write_single_column(
+    path: &Path,
+    schema_col: &str,
+    write: impl FnOnce(&mut SerializedColumnWriter),
+) {
+    let message = format!("message schema {{ {schema_col}; }}");
+    let schema = Arc::new(parse_message_type(&message).unwrap());
+    let file = File::create(path).unwrap();
+    let mut writer =
+        SerializedFileWriter::new(file, schema, Arc::new(WriterProperties::builder().build()))
+            .unwrap();
+    let mut rg = writer.next_row_group().unwrap();
+    let mut col = rg.next_column().unwrap().unwrap();
+    write(&mut col);
+    col.close().unwrap();
+    rg.close().unwrap();
+    writer.close().unwrap();
+}
+
+/// Build a two-table dictionary with a foreign key `item.category_id` →
+/// `category.id`, backed by two single-column parquet files. `col_type` and
+/// `examples` supply the dictionary type and representation for both columns.
+fn build_fk(
+    child_schema: &str,
+    child_write: impl FnOnce(&mut SerializedColumnWriter),
+    parent_schema: &str,
+    parent_write: impl FnOnce(&mut SerializedColumnWriter),
+    col_type: &str,
+    examples: &str,
+) -> PathBuf {
+    let dir = temp_dir();
+    write_single_column(&dir.join("item.parquet"), child_schema, child_write);
+    write_single_column(&dir.join("category.parquet"), parent_schema, parent_write);
+    write_dict(
+        &dir,
+        &formatdoc! {"
+            tables:
+              - name: item
+                source:
+                  parquet: item.parquet
+                columns:
+                  - name: category_id
+                    type: {col_type}
+                    constraints: [foreign_key]
+                    examples: {examples}
+              - name: category
+                source:
+                  parquet: category.parquet
+                columns:
+                  - name: id
+                    type: {col_type}
+                    constraints: [primary_key]
+                    examples: {examples}
+            relationships:
+              - join: item.category_id = category.id
+                cardinality: many-to-one
+        "},
+    )
+}
+
+#[test]
+fn foreign_key_orphan_value_reported() {
+    // Child id 5 (row 3) has no matching primary key in the parent.
+    let yaml = build_fk(
+        "REQUIRED INT64 category_id",
+        |col| {
+            col.typed::<Int64Type>()
+                .write_batch(&[1, 2, 5], None, None)
+                .unwrap();
+        },
+        "REQUIRED INT64 id",
+        |col| {
+            col.typed::<Int64Type>()
+                .write_batch(&[1, 2, 3], None, None)
+                .unwrap();
+        },
+        "number(id)",
+        "[1, 2]",
+    );
+    let result = validate_data(&yaml, None);
+
+    assert_eq!(result.status(), Status::Error, "got {:?}", result.items);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D05"),
+                kind: ProblemKind::ForeignKeyNotFound { column, references, count: 1, rows, values },
+                ..
+            }] if column == "category_id"
+                && references == "category.id"
+                && rows == &[3]
+                && values == &["5"]
+        ),
+        "got {:?}",
+        result.items
+    );
+    #[cfg(unix)]
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &result.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
+}
+
+#[test]
+fn foreign_key_all_values_present_ok() {
+    let yaml = build_fk(
+        "REQUIRED INT64 category_id",
+        |col| {
+            col.typed::<Int64Type>()
+                .write_batch(&[1, 2, 1], None, None)
+                .unwrap();
+        },
+        "REQUIRED INT64 id",
+        |col| {
+            col.typed::<Int64Type>()
+                .write_batch(&[1, 2, 3], None, None)
+                .unwrap();
+        },
+        "number(id)",
+        "[1, 2]",
+    );
+    let result = validate_data(&yaml, None);
+    assert_eq!(result.status(), Status::Ok, "got {:?}", result.items);
+}
+
+#[test]
+fn foreign_key_null_values_are_exempt() {
+    // Rows: 1 = 1, 2 = null, 3 = 5. The null references nothing (exempt); only
+    // the orphan 5 at row 3 is reported, proving null rows are skipped and row
+    // numbering still counts them.
+    let yaml = build_fk(
+        "OPTIONAL INT64 category_id",
+        |col| {
+            col.typed::<Int64Type>()
+                .write_batch(&[1, 5], Some(&[1, 0, 1]), None)
+                .unwrap();
+        },
+        "REQUIRED INT64 id",
+        |col| {
+            col.typed::<Int64Type>()
+                .write_batch(&[1, 2, 3], None, None)
+                .unwrap();
+        },
+        "number(id)",
+        "[1, 2]",
+    );
+    let result = validate_data(&yaml, None);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D05"),
+                kind: ProblemKind::ForeignKeyNotFound { count: 1, rows, values, .. },
+                ..
+            }] if rows == &[3] && values == &["5"]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn foreign_key_string_orphan_reported() {
+    let yaml = build_fk(
+        "REQUIRED BYTE_ARRAY category_id (UTF8)",
+        write_strings(&["a", "b", "z"]),
+        "REQUIRED BYTE_ARRAY id (UTF8)",
+        write_strings(&["a", "b", "c"]),
+        "string",
+        "[a, b]",
+    );
+    let result = validate_data(&yaml, None);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D05"),
+                kind: ProblemKind::ForeignKeyNotFound { references, count: 1, rows, values, .. },
+                ..
+            }] if references == "category.id" && rows == &[3] && values == &["z"]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn foreign_key_across_int_widths_ok() {
+    // An INT32 child against an INT64 parent: both normalize to i64, so equal
+    // ids match despite the differing physical width.
+    let yaml = build_fk(
+        "REQUIRED INT32 category_id",
+        |col| {
+            col.typed::<Int32Type>()
+                .write_batch(&[1, 2], None, None)
+                .unwrap();
+        },
+        "REQUIRED INT64 id",
+        |col| {
+            col.typed::<Int64Type>()
+                .write_batch(&[1, 2, 3], None, None)
+                .unwrap();
+        },
+        "number(id)",
+        "[1, 2]",
+    );
+    let result = validate_data(&yaml, None);
+    assert_eq!(result.status(), Status::Ok, "got {:?}", result.items);
+}
+
+#[test]
+fn foreign_key_incomparable_type_not_verified() {
+    // The foreign-key column is JSON, whose values can't be compared, so the
+    // reference is reported as unverified (D06) rather than checked.
+    let yaml = build_fk(
+        "REQUIRED BYTE_ARRAY category_id (JSON)",
+        write_strings(&[r#"{"a":1}"#]),
+        "REQUIRED BYTE_ARRAY id (UTF8)",
+        write_strings(&["x"]),
+        "string",
+        r#"["{}"]"#,
+    );
+    let result = validate_data(&yaml, None);
+    assert_eq!(result.status(), Status::Warning, "got {:?}", result.items);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D06"),
+                kind: ProblemKind::ReferentialIntegrityNotVerified { column, references, reason },
+                ..
+            }] if column == "category_id" && references == "category.id" && reason == "json"
+        ),
+        "got {:?}",
+        result.items
+    );
+    #[cfg(unix)]
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &result.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }

@@ -6,9 +6,13 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use data_dict_parquet::{ColumnMeta, ColumnNeeds, ColumnStats, UniquenessCheck, UniquenessStats};
+use data_dict_parquet::{
+    ColumnMeta, ColumnNeeds, ColumnStats, ForeignKeyCheck, ForeignKeyResult, ForeignKeyStats,
+    UniquenessCheck, UniquenessStats,
+};
 
-use crate::model::{Column, Constraint, Table};
+use crate::ReadTables;
+use crate::model::{Column, Constraint, DataDict, Table};
 use crate::problem::{Problem, ProblemKind, ProblemSet, Severity};
 use crate::validate_meta::CheckResult;
 
@@ -23,12 +27,17 @@ const SAMPLE_LIMIT: usize = 5;
 /// below: reading the columns and pages the checks imply and reporting, for
 /// example, nulls in a required column.
 pub fn validate_data(dict_path: &Path, table: Option<&str>) -> ProblemSet {
-    crate::compare_dataset(dict_path, table, |table, parquet_path, actual, problems| {
-        crate::validate_meta::meta_issues(table, actual, problems);
-        if let Err(e) = value_issues(table, parquet_path, actual, problems) {
-            problems.push(Problem::preflight(ProblemKind::Parquet, e.to_string()));
-        }
-    })
+    crate::compare_dataset(
+        dict_path,
+        table,
+        |table, parquet_path, actual, problems| {
+            crate::validate_meta::meta_issues(table, actual, problems);
+            if let Err(e) = value_issues(table, parquet_path, actual, problems) {
+                problems.push(Problem::preflight(ProblemKind::Parquet, e.to_string()));
+            }
+        },
+        foreign_key_issues,
+    )
 }
 
 /// Run the value-level checks for the dictionary's `table` against the data,
@@ -466,6 +475,155 @@ fn uniqueness_not_verified_primary_key(
             .collect(),
         kind: ProblemKind::UniquenessNotVerified {
             columns: columns.iter().map(|col| col.name.value.clone()).collect(),
+            reason: reason.to_string(),
+        },
+    }
+}
+
+/// D05/D06 — referential integrity. Runs once over the tables that were read,
+/// checking each single-column foreign key's values against the `primary_key` it
+/// references, whose data may live in another table's source.
+fn foreign_key_issues(dict: &DataDict, readable: &ReadTables, out: &mut ProblemSet) {
+    let mut checks = Vec::new();
+    let mut targets = Vec::new();
+    for table in &dict.tables {
+        let Some((child_path, child_columns)) = readable.get(&table.name.value) else {
+            continue;
+        };
+        for col in &table.columns {
+            // A foreign key column absent from the data is already an M02; don't
+            // also fail its data read here.
+            if !col.has(Constraint::ForeignKey) || !child_columns.contains(&col.name.value) {
+                continue;
+            }
+            let Some((parent_table, parent_col)) = dict.resolve_foreign_key(table, col) else {
+                continue;
+            };
+            let Some((parent_path, parent_columns)) = readable.get(&parent_table.name.value) else {
+                continue;
+            };
+            if !parent_columns.contains(&parent_col.name.value) {
+                continue;
+            }
+            checks.push(ForeignKeyCheck {
+                child_path: child_path.clone(),
+                child_column: col.name.value.clone(),
+                parent_path: parent_path.clone(),
+                parent_column: parent_col.name.value.clone(),
+            });
+            targets.push((table, col, parent_table, parent_col));
+        }
+    }
+    if checks.is_empty() {
+        return;
+    }
+    let results = match data_dict_parquet::foreign_key_stats(&checks, SAMPLE_LIMIT) {
+        Ok(results) => results,
+        Err(e) => {
+            out.push(Problem::preflight(ProblemKind::Parquet, e.to_string()));
+            return;
+        }
+    };
+    for ((table, col, parent_table, parent_col), result) in targets.iter().zip(results) {
+        match result {
+            ForeignKeyResult::NotVerified { reason } => out.push(
+                referential_integrity_not_verified(table, col, parent_table, parent_col, reason),
+            ),
+            ForeignKeyResult::Checked(stats) if stats.orphan_count > 0 => {
+                out.push(foreign_key_not_found(
+                    table,
+                    col,
+                    parent_table,
+                    parent_col,
+                    &stats,
+                ));
+            }
+            ForeignKeyResult::Checked(_) => {}
+        }
+    }
+}
+
+fn fk_constraint_span(col: &Column) -> quarto_source_map::SourceInfo {
+    col.constraints
+        .iter()
+        .find(|constraint| constraint.value == Constraint::ForeignKey)
+        .map_or_else(
+            || col.name.span.clone(),
+            |constraint| constraint.span.clone(),
+        )
+}
+
+fn foreign_key_not_found(
+    table: &Table,
+    col: &Column,
+    parent_table: &Table,
+    parent_col: &Column,
+    stats: &ForeignKeyStats,
+) -> Problem {
+    let count = stats.orphan_count;
+    let detail = crate::problem::format_rows(&stats.orphan_rows, count);
+    let plural = if count == 1 { "" } else { "s" };
+    let sample = stats
+        .orphan_values
+        .iter()
+        .map(|value| format!("`{value}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let references = format!("{}.{}", parent_table.name.value, parent_col.name.value);
+    Problem {
+        code: Some("D05"),
+        severity: Severity::Error,
+        message: format!(
+            "has {count} value{plural} not found in `{references}` ({sample}; {detail})"
+        ),
+        column: None,
+        expected: Some(
+            "A foreign key's values must all appear in the primary key it references.".into(),
+        ),
+        hint: None,
+        suggestion: None,
+        context: vec![
+            table.name.span.clone(),
+            col.name.span.clone(),
+            fk_constraint_span(col),
+        ],
+        kind: ProblemKind::ForeignKeyNotFound {
+            column: col.name.value.clone(),
+            references,
+            count,
+            rows: stats.orphan_rows.clone(),
+            values: stats.orphan_values.clone(),
+        },
+    }
+}
+
+fn referential_integrity_not_verified(
+    table: &Table,
+    col: &Column,
+    parent_table: &Table,
+    parent_col: &Column,
+    reason: &str,
+) -> Problem {
+    let references = format!("{}.{}", parent_table.name.value, parent_col.name.value);
+    Problem {
+        code: Some("D06"),
+        severity: Severity::Warning,
+        message: format!(
+            "can't be verified against `{references}`: {} values aren't comparable",
+            barrier_phrase(reason)
+        ),
+        column: None,
+        expected: Some("Referential integrity can only be verified for comparable types.".into()),
+        hint: None,
+        suggestion: None,
+        context: vec![
+            table.name.span.clone(),
+            col.name.span.clone(),
+            fk_constraint_span(col),
+        ],
+        kind: ProblemKind::ReferentialIntegrityNotVerified {
+            column: col.name.value.clone(),
+            references,
             reason: reason.to_string(),
         },
     }

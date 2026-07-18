@@ -33,6 +33,37 @@ impl DataDict {
     pub fn table(&self, name: &str) -> Option<&Table> {
         self.tables.iter().find(|t| t.name.value == name)
     }
+
+    /// The `(table, column)` a single-column foreign key points at: the
+    /// `primary_key` on the other side of a relationship whose join names `col`.
+    /// `None` if `col` is not a foreign key, or no relationship resolves it (the
+    /// S01 case). Shared by the S01 spec check and the D05/D06 data checks.
+    pub fn resolve_foreign_key(&self, table: &Table, col: &Column) -> Option<(&Table, &Column)> {
+        if !col.has(Constraint::ForeignKey) {
+            return None;
+        }
+        let table_name = table.name.value.as_str();
+        for rel in &self.relationships {
+            let Some(join) = &rel.join else { continue };
+            for conj in &join.conjuncts {
+                for (fk_side, pk_side) in [(&conj.lhs, &conj.rhs), (&conj.rhs, &conj.lhs)] {
+                    if fk_side.table != table_name || fk_side.column != col.name.value {
+                        continue;
+                    }
+                    let Some(other_tbl) = self.table(&pk_side.table) else {
+                        continue;
+                    };
+                    let Some(other_col) = other_tbl.column(&pk_side.column) else {
+                        continue;
+                    };
+                    if other_col.has(Constraint::PrimaryKey) {
+                        return Some((other_tbl, other_col));
+                    }
+                }
+            }
+        }
+        None
+    }
 }
 
 #[derive(Debug, Clone)]
