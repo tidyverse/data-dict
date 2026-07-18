@@ -106,9 +106,27 @@ object:
                         length: 2
                     constraints:
                       arrayOf:
-                        enum: [primary_key, foreign_key, required, unique]
+                        anyOf:
+                          # structural barewords
+                          - enum: [primary_key, foreign_key, required, unique]
+                          # assertions
+                          - object:
+                              closed: true
+                              required: [assert]
+                              properties:
+                                assert: string
+                                description: string
                     examples:
                       arrayOf: any
+
+            constraints:
+              arrayOf:
+                object:
+                  closed: true
+                  required: [assert]
+                  properties:
+                    assert: string
+                    description: string
 
     relationships:
       arrayOf:
