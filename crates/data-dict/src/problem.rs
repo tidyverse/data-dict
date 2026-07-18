@@ -173,6 +173,13 @@ pub enum ProblemKind {
         count: usize,
         rows: Vec<usize>,
     },
+    /// `D03` — a `unique` column or `primary_key` uses a type whose values can't
+    /// be compared, so its uniqueness was not checked. `reason` is a short slug
+    /// naming the barrier (e.g. `json`); `columns` are the key's columns.
+    UniquenessNotVerified {
+        columns: Vec<String>,
+        reason: String,
+    },
 }
 
 impl ProblemKind {
@@ -188,6 +195,7 @@ impl ProblemKind {
             ProblemKind::UnreadableSource => "M05",
             ProblemKind::NullsInRequired { .. } => "D01",
             ProblemKind::DuplicateValues { .. } => "D02",
+            ProblemKind::UniquenessNotVerified { .. } => "D03",
             _ => return None,
         })
     }
@@ -202,9 +210,9 @@ impl ProblemKind {
             | ProblemKind::ExtraInData { .. }
             | ProblemKind::MissingSource
             | ProblemKind::UnreadableSource => Level::Meta,
-            ProblemKind::NullsInRequired { .. } | ProblemKind::DuplicateValues { .. } => {
-                Level::Data
-            }
+            ProblemKind::NullsInRequired { .. }
+            | ProblemKind::DuplicateValues { .. }
+            | ProblemKind::UniquenessNotVerified { .. } => Level::Data,
             _ => return None,
         })
     }

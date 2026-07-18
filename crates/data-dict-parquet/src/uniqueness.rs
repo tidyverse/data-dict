@@ -10,6 +10,7 @@ use parquet::file::reader::{FileReader, SerializedFileReader};
 use rayon::prelude::*;
 
 use crate::ParquetError;
+use crate::metadata::{Comparability, Normalization, uniqueness_comparability};
 
 /// Rows decoded per `read_records` call. Large enough to amortise per-call
 /// overhead, small enough that a batch of every scanned column stays in cache.
@@ -80,7 +81,7 @@ fn check_uniqueness(
             if rows == 0 {
                 break;
             }
-            dedup.scan(&batches, row_offset, sample_limit, &mut stat);
+            dedup.scan(&columns, &batches, row_offset, sample_limit, &mut stat);
             row_offset += rows;
         }
     }
@@ -93,6 +94,7 @@ struct PlannedColumn {
     leaf: usize,
     physical: PhysicalType,
     max_def: i16,
+    normalize: Normalization,
 }
 
 impl PlannedColumn {
@@ -121,11 +123,16 @@ fn plan_columns(
             .find(|&i| descr.column(i).name() == name)
             .ok_or_else(|| ParquetError::General(format!("Column not found: {name}")))?;
         let column = descr.column(leaf);
+        let normalize = match uniqueness_comparability(column.self_type()) {
+            Comparability::Comparable(normalize) => normalize,
+            Comparability::Incomparable(_) => Normalization::None,
+        };
         columns.push(PlannedColumn {
             name: name.clone(),
             leaf,
             physical: column.physical_type(),
             max_def: column.max_def_level(),
+            normalize,
         });
     }
     Ok(columns)
@@ -278,12 +285,57 @@ fn expand_bytes(nonnull: Vec<ByteArray>, def: &[i16], max_def: i16, records: usi
     ColumnBatch::Bytes { values, null }
 }
 
+/// Hash a float by value, not by bits: `-0.0`/`+0.0` collapse to one key and
+/// every NaN bit pattern collapses to one key, so logically-equal floats compare
+/// equal (see the "comparable types" section of `site/validation.md`).
 fn float_bits(value: &f32) -> i64 {
-    (if *value == 0.0 { 0 } else { value.to_bits() }) as i64
+    let bits = if *value == 0.0 {
+        0
+    } else if value.is_nan() {
+        f32::NAN.to_bits()
+    } else {
+        value.to_bits()
+    };
+    bits as i64
 }
 
 fn double_bits(value: &f64) -> i64 {
-    (if *value == 0.0 { 0 } else { value.to_bits() }) as i64
+    let bits = if *value == 0.0 {
+        0
+    } else if value.is_nan() {
+        f64::NAN.to_bits()
+    } else {
+        value.to_bits()
+    };
+    bits as i64
+}
+
+/// Apply a byte column's [`Normalization`] before hashing. Only decimals need it
+/// (trimming redundant leading sign bytes); everything else is returned as-is.
+fn normalize_bytes(bytes: &[u8], normalize: Normalization) -> &[u8] {
+    match normalize {
+        Normalization::DecimalBytes => normalize_decimal(bytes),
+        _ => bytes,
+    }
+}
+
+/// Canonical minimal two's-complement form: drop redundant leading sign-extension
+/// bytes so equal decimal values encoded at different byte lengths compare equal.
+/// Keeps at least one byte.
+fn normalize_decimal(bytes: &[u8]) -> &[u8] {
+    let mut start = 0;
+    while start + 1 < bytes.len() {
+        let sign = bytes[start];
+        let next_high = bytes[start + 1] & 0x80;
+        // A leading byte is redundant only when the next byte carries the same
+        // sign bit: 0x00 before a positive byte, or 0xFF before a negative one.
+        let redundant = (sign == 0x00 && next_high == 0) || (sign == 0xFF && next_high == 0x80);
+        if !redundant {
+            break;
+        }
+        start += 1;
+    }
+    &bytes[start..]
 }
 
 fn fixed_len_owned(value: parquet::data_type::FixedLenByteArray) -> ByteArray {
@@ -366,6 +418,7 @@ impl Dedup {
 
     fn scan(
         &mut self,
+        planned: &[PlannedColumn],
         batches: &[ColumnBatch],
         row_offset: usize,
         sample_limit: usize,
@@ -385,11 +438,12 @@ impl Dedup {
             }
             Dedup::SingleBytes { column, seen } => {
                 let batch = &batches[*column];
+                let normalize = planned[*column].normalize;
                 for row in 0..batch.len() {
                     if batch.is_null(row) {
                         continue;
                     }
-                    if !seen.insert(batch.bytes(row)) {
+                    if !seen.insert(normalize_bytes(batch.bytes(row), normalize)) {
                         record(stat, row_offset + row + 1, sample_limit);
                     }
                 }
@@ -406,7 +460,8 @@ impl Dedup {
                             key.push(1);
                             key.extend_from_slice(&batch.scalar(row).to_le_bytes());
                         } else {
-                            let value = batch.bytes(row);
+                            let value =
+                                normalize_bytes(batch.bytes(row), planned[column].normalize);
                             key.push(2);
                             key.extend_from_slice(&(value.len() as u32).to_le_bytes());
                             key.extend_from_slice(value);

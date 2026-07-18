@@ -90,12 +90,20 @@ fn value_issues(
         }
     }
 
+    // Uniqueness (D02) compares values by their physical encoding, which is only
+    // sound for comparable types (see `site/validation.md`). A column whose type
+    // can't be compared is skipped with a D03 warning rather than checked wrongly.
+    let barriers = data_dict_parquet::uniqueness_barriers(parquet_path)?;
     let mut uniqueness = Vec::new();
     for col in table
         .columns
         .iter()
         .filter(|col| col.has(Constraint::Unique) && present(&col.name.value))
     {
+        if let Some(&reason) = barriers.get(&col.name.value) {
+            out.push(uniqueness_not_verified_column(table, col, reason));
+            continue;
+        }
         let Some(meta) = metadata.get(&col.name.value) else {
             continue;
         };
@@ -111,7 +119,20 @@ fn value_issues(
         .filter(|col| col.has(Constraint::PrimaryKey))
         .collect::<Vec<_>>();
     if !primary_key.is_empty() && primary_key.iter().all(|col| present(&col.name.value)) {
-        uniqueness.push(UniquenessTarget::PrimaryKey(primary_key));
+        let barrier = primary_key
+            .iter()
+            .find_map(|col| barriers.get(&col.name.value).map(|&reason| (col, reason)));
+        match barrier {
+            Some((col, reason)) => {
+                out.push(uniqueness_not_verified_primary_key(
+                    table,
+                    &primary_key,
+                    &col.name.value,
+                    reason,
+                ));
+            }
+            None => uniqueness.push(UniquenessTarget::PrimaryKey(primary_key)),
+        }
     }
     if !uniqueness.is_empty() {
         let checks = uniqueness
@@ -291,6 +312,91 @@ fn duplicates_in_primary_key(
             columns: columns.iter().map(|col| col.name.value.clone()).collect(),
             count,
             rows: stats.duplicate_rows.clone(),
+        },
+    }
+}
+
+/// A human phrase for a uniqueness barrier slug (see
+/// `data_dict_parquet::uniqueness_barriers`), used in the D03 message.
+fn barrier_phrase(reason: &str) -> &'static str {
+    match reason {
+        "json" => "JSON",
+        "bson" => "BSON",
+        "float16" => "a 16-bit float",
+        "nested" => "a nested type",
+        _ => "an unrecognized type",
+    }
+}
+
+fn uniqueness_not_verified_column(table: &Table, col: &Column, reason: &str) -> Problem {
+    let constraint_span = col
+        .constraints
+        .iter()
+        .find(|constraint| constraint.value == Constraint::Unique)
+        .map_or_else(
+            || col.name.span.clone(),
+            |constraint| constraint.span.clone(),
+        );
+    Problem {
+        code: Some("D03"),
+        severity: Severity::Warning,
+        message: format!(
+            "`{}` has {}, whose values can't be compared for uniqueness",
+            col.name.value,
+            barrier_phrase(reason)
+        ),
+        column: None,
+        expected: Some("Uniqueness can only be verified for comparable types.".into()),
+        hint: None,
+        suggestion: None,
+        context: vec![
+            table.name.span.clone(),
+            col.name.span.clone(),
+            constraint_span,
+        ],
+        kind: ProblemKind::UniquenessNotVerified {
+            columns: vec![col.name.value.clone()],
+            reason: reason.to_string(),
+        },
+    }
+}
+
+fn uniqueness_not_verified_primary_key(
+    table: &Table,
+    columns: &[&Column],
+    barrier: &str,
+    reason: &str,
+) -> Problem {
+    let last = columns
+        .last()
+        .expect("a primary key has at least one column");
+    let constraint_span = last
+        .constraints
+        .iter()
+        .find(|constraint| constraint.value == Constraint::PrimaryKey)
+        .map_or_else(
+            || last.name.span.clone(),
+            |constraint| constraint.span.clone(),
+        );
+    Problem {
+        code: Some("D03"),
+        severity: Severity::Warning,
+        message: format!(
+            "primary key column `{}` has {}, whose values can't be compared for uniqueness",
+            barrier,
+            barrier_phrase(reason)
+        ),
+        column: None,
+        expected: Some("Uniqueness can only be verified for comparable types.".into()),
+        hint: None,
+        suggestion: None,
+        context: std::iter::once(table.name.span.clone())
+            .chain(columns.iter().map(|col| col.name.span.clone()))
+            .chain(std::iter::once(constraint_span))
+            .collect(),
+        kind: ProblemKind::UniquenessNotVerified {
+            columns: columns.iter().map(|col| col.name.value.clone()).collect(),
+            reason: reason.to_string(),
         },
     }
 }

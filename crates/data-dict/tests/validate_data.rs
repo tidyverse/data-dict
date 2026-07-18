@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use data_dict::{Problem, ProblemKind, ProblemSet, Status, validate_data, validate_meta};
 use indoc::{formatdoc, indoc};
-use parquet::data_type::{ByteArray, ByteArrayType, DoubleType};
+use parquet::data_type::{ByteArray, ByteArrayType, DoubleType, Int64Type};
 use parquet::file::properties::{EnabledStatistics, WriterProperties};
 use parquet::file::writer::{SerializedColumnWriter, SerializedFileWriter};
 use parquet::schema::parser::parse_message_type;
@@ -584,4 +584,241 @@ fn nulls_in_composite_primary_key_are_not_reported_as_duplicates() {
         "expected no D02, got {:?}",
         result.items
     );
+}
+
+/// Statistics disabled so the footer can't settle uniqueness — forcing the value
+/// scan, where physical comparison happens and normalization matters.
+fn scanned_column(
+    schema_col: &str,
+    write: impl FnOnce(&mut SerializedColumnWriter),
+    column: &str,
+) -> PathBuf {
+    build_column_with_properties(
+        schema_col,
+        write,
+        column,
+        WriterProperties::builder()
+            .set_statistics_enabled(EnabledStatistics::None)
+            .build(),
+    )
+}
+
+#[test]
+fn json_unique_column_skipped_with_warning() {
+    // Two JSON values that are logically equal but differ byte-wise. Comparing
+    // physically would flag them as duplicates, so the check is skipped (D03)
+    // rather than risk an unsound verdict.
+    let yaml = build_column(
+        "REQUIRED BYTE_ARRAY notes (JSON)",
+        |col| {
+            col.typed::<ByteArrayType>()
+                .write_batch(
+                    &[
+                        ByteArray::from(r#"{"a":1}"#),
+                        ByteArray::from(r#"{"a": 1}"#),
+                    ],
+                    None,
+                    None,
+                )
+                .unwrap();
+        },
+        indoc! {r#"
+            - name: notes
+              type: string
+              constraints: [unique]
+              examples: ["{}"]
+        "#},
+    );
+
+    let result = validate_data(&yaml, None);
+    assert_eq!(result.status(), Status::Warning, "got {:?}", result.items);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D03"),
+                kind: ProblemKind::UniquenessNotVerified { columns, reason },
+                ..
+            }] if columns == &["notes"] && reason == "json"
+        ),
+        "got {:?}",
+        result.items
+    );
+    #[cfg(unix)]
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &result.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
+}
+
+#[test]
+fn json_in_primary_key_skips_whole_key_with_warning() {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    let schema = Arc::new(
+        parse_message_type(
+            "message schema { REQUIRED INT64 id; REQUIRED BYTE_ARRAY payload (JSON); }",
+        )
+        .unwrap(),
+    );
+    let file = File::create(&parquet).unwrap();
+    let mut writer =
+        SerializedFileWriter::new(file, schema, Arc::new(WriterProperties::builder().build()))
+            .unwrap();
+    let mut row_group = writer.next_row_group().unwrap();
+    let mut id = row_group.next_column().unwrap().unwrap();
+    id.typed::<Int64Type>()
+        .write_batch(&[1, 2, 3], None, None)
+        .unwrap();
+    id.close().unwrap();
+    let mut payload = row_group.next_column().unwrap().unwrap();
+    payload
+        .typed::<ByteArrayType>()
+        .write_batch(
+            &[
+                ByteArray::from(r#"{"x":1}"#),
+                ByteArray::from(r#"{"x":2}"#),
+                ByteArray::from(r#"{"x":3}"#),
+            ],
+            None,
+            None,
+        )
+        .unwrap();
+    payload.close().unwrap();
+    row_group.close().unwrap();
+    writer.close().unwrap();
+
+    let yaml = write_dict(
+        &dir,
+        indoc! {r#"
+            tables:
+              - name: t
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: id
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+                  - name: payload
+                    type: string
+                    constraints: [primary_key]
+                    examples: ["{}"]
+        "#},
+    );
+
+    let result = validate_data(&yaml, None);
+    assert_eq!(result.status(), Status::Warning, "got {:?}", result.items);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D03"),
+                message,
+                kind: ProblemKind::UniquenessNotVerified { columns, reason },
+                ..
+            }] if columns == &["id", "payload"] && reason == "json" && message.contains("payload")
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn differently_encoded_decimals_are_duplicates() {
+    // Unscaled 1 encoded as `01` and as `00 01`: logically equal, so after
+    // normalization the second row is a duplicate.
+    let yaml = scanned_column(
+        "REQUIRED BYTE_ARRAY amount (DECIMAL(9,2))",
+        |col| {
+            col.typed::<ByteArrayType>()
+                .write_batch(
+                    &[
+                        ByteArray::from(vec![0x01_u8]),
+                        ByteArray::from(vec![0x00_u8, 0x01]),
+                        ByteArray::from(vec![0x02_u8]),
+                    ],
+                    None,
+                    None,
+                )
+                .unwrap();
+        },
+        indoc! {"
+            - name: amount
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    let result = validate_data(&yaml, None);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D02"),
+                kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+                ..
+            }] if columns == &["amount"] && rows == &[2]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn distinct_nan_bit_patterns_are_duplicates() {
+    // Two different NaN encodings collapse to one value, so the second is a
+    // duplicate of the first.
+    let nan1 = f64::from_bits(0x7ff8_0000_0000_0001);
+    let nan2 = f64::from_bits(0x7ff8_0000_0000_0002);
+    let yaml = scanned_column(
+        "REQUIRED DOUBLE score",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[nan1, nan2, 3.0], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: score
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    let result = validate_data(&yaml, None);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D02"),
+                kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+                ..
+            }] if columns == &["score"] && rows == &[2]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn int_backed_decimal_unique_column_passes() {
+    // Int-backed decimals are canonical, so distinct unscaled values are clean.
+    let yaml = scanned_column(
+        "REQUIRED INT64 amount (DECIMAL(9,2))",
+        |col| {
+            col.typed::<Int64Type>()
+                .write_batch(&[100, 200, 300], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: amount
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    assert_eq!(validate_data(&yaml, None).status(), Status::Ok);
 }
