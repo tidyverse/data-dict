@@ -891,6 +891,177 @@ fn s15_bad_time_zone() {
     assert_snapshot!(diagnostic);
 }
 
+// --- constraints (column & table assertions) -----------------------------
+//
+// The schema fixes only the *shape* of constraints: a column entry is either a
+// structural bareword or an assertion map (`assert` + optional `description`),
+// and a table entry is an assertion map only. The `assert` expression grammar
+// is not a structural concern, so any string passes here.
+
+// A column may mix structural barewords with assertion maps in one list, and an
+// assertion may carry an optional `description`.
+#[test]
+fn constraints_column_mixed_structural_and_assertion() {
+    assert_valid_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: postcode
+                type: string
+                examples: [AB1 2CD]
+                constraints:
+                  - required
+                  - assert: LENGTH(postcode) <= 10
+                    description: Postcodes are at most ten characters.
+    "});
+}
+
+// Table-level constraints are a list of assertion maps, the natural home for
+// rules that span columns.
+#[test]
+fn constraints_table_assertions() {
+    assert_valid_dict(indoc! {"
+        tables:
+          - name: survey
+            columns:
+              - name: start_date
+                type: date
+                range: [2000-01-01, 2030-01-01]
+              - name: end_date
+                type: date
+                range: [2000-01-01, 2030-01-01]
+            constraints:
+              - assert: end_date >= start_date
+                description: A contract can't end before it starts.
+              - assert: COLUMNS(*) IS NOT NULL
+    "});
+}
+
+// The `assert` grammar is validated semantically, not structurally: a string
+// that is not a well-formed expression still passes the schema.
+#[test]
+fn constraints_assert_expression_not_structurally_parsed() {
+    assert_valid_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: a
+                type: string
+                examples: [x]
+            constraints:
+              - assert: this is not <<< valid sql
+    "});
+}
+
+// A column constraint bareword must be one of the four structural names.
+#[test]
+fn constraints_column_unknown_bareword() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: a
+                type: string
+                examples: [x]
+                constraints:
+                  - primary
+    "});
+    diagnostic.assert_contains(&["Q-1-12", "primary_key", r#"got '"primary"'"#]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// A malformed column assertion map matches neither `anyOf` branch, so it falls
+// back to the enum branch's message rather than a precise "missing assert".
+#[test]
+fn constraints_column_malformed_assertion() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: a
+                type: string
+                examples: [x]
+                constraints:
+                  - description: missing the assert key
+    "});
+    diagnostic.assert_contains(&["Q-1-12", "primary_key"]);
+}
+
+// A table constraint must be an assertion map; a bareword is a plain string and
+// is rejected as the wrong type.
+#[test]
+fn constraints_table_bareword_rejected() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: a
+                type: string
+                examples: [x]
+            constraints:
+              - required
+    "});
+    diagnostic.assert_contains(&["Q-1-11", "Expected object, got string"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// A table assertion map must carry `assert`.
+#[test]
+fn constraints_table_missing_assert() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: a
+                type: string
+                examples: [x]
+            constraints:
+              - description: no assert here
+    "});
+    diagnostic.assert_contains(&["Q-1-10", "Missing required property 'assert'"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// Assertion maps are closed: an unknown key is rejected.
+#[test]
+fn constraints_table_unknown_property() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: a
+                type: string
+                examples: [x]
+            constraints:
+              - assert: end_date >= start_date
+                bogus: 1
+    "});
+    diagnostic.assert_contains(&["Q-1-18", "Unknown property 'bogus'"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// `assert` and `description` are both strings.
+#[test]
+fn constraints_table_assert_not_string() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: a
+                type: string
+                examples: [x]
+            constraints:
+              - assert: 42
+    "});
+    diagnostic.assert_contains(&["Q-1-11", "Expected string"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
 // --- in-memory entry point ----------------------------------------------
 
 #[test]
