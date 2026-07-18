@@ -819,20 +819,31 @@ pub enum ColumnKind {
 pub trait CheckEnv {
     /// The kind of column `name`, or `None` if the table has no such column.
     fn column(&self, name: &str) -> Option<ColumnKind>;
+    /// Every column on the table, in declaration order, with its kind. Used to
+    /// resolve a `COLUMNS(...)` selection to the columns it matches.
+    fn columns(&self) -> Vec<(String, ColumnKind)>;
     /// Whether `s` parses as an ISO 8601 date.
     fn is_date(&self, s: &str) -> bool;
     /// Whether `s` parses as an ISO 8601 datetime (offset or zoneless).
     fn is_datetime(&self, s: &str) -> bool;
 }
 
-/// One semantic problem found in an assertion, with its byte span in the source
-/// expression. `code` is `"S20"` (unknown column) or `"S21"` (ill-typed).
+/// One problem found in an assertion, with its byte span in the source
+/// expression. `code` is `"S20"` (unknown column), `"S21"` (ill-typed), or
+/// `"S22"` (empty column selection, a warning).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Finding {
     pub code: &'static str,
+    pub severity: FindingSeverity,
     pub message: String,
     pub start: usize,
     pub end: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FindingSeverity {
+    Error,
+    Warning,
 }
 
 /// The inferred type of a subexpression. `Any` is the permissive top: it stands
@@ -875,6 +886,15 @@ fn kind_to_ty(kind: ColumnKind) -> Ty {
     }
 }
 
+/// The nouns of `types` joined with "or", e.g. "a number or a string".
+fn join_nouns(types: &[Ty]) -> String {
+    types
+        .iter()
+        .map(|t| t.noun())
+        .collect::<Vec<_>>()
+        .join(" or ")
+}
+
 /// Check a parsed assertion against `env`, returning every S20/S21 finding in
 /// source order. The expression must evaluate to a boolean, at most one
 /// `COLUMNS(...)` may appear, and every operand must be well-typed.
@@ -885,19 +905,23 @@ pub fn check(expr: &AssertExpr, env: &dyn CheckEnv) -> Vec<Finding> {
         columns_spans: Vec::new(),
     };
     let ty = cx.infer(&expr.root);
-    if !matches!(ty, Ty::Bool | Ty::Any) {
-        cx.findings.push(Finding {
-            code: "S21",
-            message: format!("this assertion is {}, not a boolean", ty.noun()),
-            start: expr.root.start,
-            end: expr.root.end,
-        });
+    // The assertion as a whole must be boolean. A bare top-level COLUMNS(...)
+    // stands for each selected column, so every one of those must be boolean.
+    if let ExprKind::Columns(sel) = &expr.root.kind {
+        cx.require_columns(&expr.root, sel, &[Ty::Bool], "an assertion");
+    } else if !matches!(ty, Ty::Bool | Ty::Any) {
+        cx.report(
+            "S21",
+            format!("this assertion is {}, not a boolean", ty.noun()),
+            &expr.root,
+        );
     }
     // At most one COLUMNS(...) may appear; flag every one past the first.
     if cx.columns_spans.len() > 1 {
         for &(start, end) in &cx.columns_spans[1..] {
             cx.findings.push(Finding {
                 code: "S21",
+                severity: FindingSeverity::Error,
                 message: "an assertion may use at most one `COLUMNS(...)`".to_string(),
                 start,
                 end,
@@ -918,6 +942,7 @@ impl Checker<'_> {
     fn report(&mut self, code: &'static str, message: impl Into<String>, e: &Expr) {
         self.findings.push(Finding {
             code,
+            severity: FindingSeverity::Error,
             message: message.into(),
             start: e.start,
             end: e.end,
@@ -925,20 +950,39 @@ impl Checker<'_> {
     }
 
     /// Require `e` to have a type in `allowed` (with `Any` always accepted),
-    /// reporting an S21 against `e` naming `ctx` if not.
+    /// reporting an S21 against `e` naming `ctx` if not. A `COLUMNS(...)` operand
+    /// is checked per selected column, since the predicate applies to each.
     fn require(&mut self, e: &Expr, allowed: &[Ty], ctx: &str) {
+        if let ExprKind::Columns(sel) = &e.kind {
+            self.infer(e);
+            self.require_columns(e, sel, allowed, ctx);
+            return;
+        }
         let ty = self.infer(e);
         if ty != Ty::Any && !allowed.contains(&ty) {
-            let want = allowed
-                .iter()
-                .map(|t| t.noun())
-                .collect::<Vec<_>>()
-                .join(" or ");
             self.report(
                 "S21",
-                format!("{ctx} expects {want}, found {}", ty.noun()),
+                format!("{ctx} expects {}, found {}", join_nouns(allowed), ty.noun()),
                 e,
             );
+        }
+    }
+
+    /// Require every column a `COLUMNS(...)` node selects to satisfy `allowed`.
+    fn require_columns(&mut self, cols: &Expr, sel: &ColumnsSelector, allowed: &[Ty], ctx: &str) {
+        for (name, kind) in self.matched_columns(sel) {
+            let ty = kind_to_ty(kind);
+            if ty != Ty::Any && !allowed.contains(&ty) {
+                self.report(
+                    "S21",
+                    format!(
+                        "{ctx} expects {}, but column `{name}` is {}",
+                        join_nouns(allowed),
+                        ty.noun()
+                    ),
+                    cols,
+                );
+            }
         }
     }
 
@@ -1019,6 +1063,7 @@ impl Checker<'_> {
                 if !UNITS.contains(&unit.to_ascii_lowercase().as_str()) {
                     self.findings.push(Finding {
                         code: "S21",
+                        severity: FindingSeverity::Error,
                         message: format!(
                             "`{unit}` is not an interval unit (use seconds, minutes, hours, days, or weeks)"
                         ),
@@ -1032,7 +1077,7 @@ impl Checker<'_> {
             ExprKind::Case { whens, els } => self.infer_case(whens, els.as_deref()),
             ExprKind::Columns(sel) => {
                 self.columns_spans.push((e.start, e.end));
-                self.check_columns(sel);
+                self.validate_selector(sel, e);
                 Ty::Any
             }
         }
@@ -1057,27 +1102,59 @@ impl Checker<'_> {
         Ty::Number
     }
 
-    /// Two operands are comparable when their types agree, either is permissive,
-    /// or one is a string literal naming a date/datetime the other side is.
+    /// Check that `a` and `b` may be compared. When one side is a `COLUMNS(...)`
+    /// selection, each selected column must be comparable with the other side.
     fn check_comparable(&mut self, a: &Expr, b: &Expr) {
+        if let ExprKind::Columns(sel) = &a.kind {
+            self.infer(a);
+            self.compare_columns(a, sel, b);
+            return;
+        }
+        if let ExprKind::Columns(sel) = &b.kind {
+            self.infer(b);
+            self.compare_columns(b, sel, a);
+            return;
+        }
         let at = self.infer(a);
         let bt = self.infer(b);
-        if at == Ty::Any || bt == Ty::Any || at == bt {
-            return;
+        if !self.types_comparable(at, a, bt, b) {
+            self.report(
+                "S21",
+                format!("cannot compare {} with {}", at.noun(), bt.noun()),
+                b,
+            );
         }
-        // Dates and datetimes are the same temporal domain, so comparing one
-        // against the other (e.g. a `date` column against `NOW()`) is fine.
-        if matches!(at, Ty::Date | Ty::Datetime) && matches!(bt, Ty::Date | Ty::Datetime) {
-            return;
+    }
+
+    /// Each column a `COLUMNS(...)` node selects must be comparable with `other`.
+    fn compare_columns(&mut self, cols: &Expr, sel: &ColumnsSelector, other: &Expr) {
+        let ot = self.infer(other);
+        for (name, kind) in self.matched_columns(sel) {
+            let ct = kind_to_ty(kind);
+            if !self.types_comparable(ct, cols, ot, other) {
+                self.report(
+                    "S21",
+                    format!(
+                        "column `{name}` ({}) cannot be compared with {}",
+                        ct.noun(),
+                        ot.noun()
+                    ),
+                    cols,
+                );
+            }
         }
-        if self.date_literal_ok(a, at, bt) || self.date_literal_ok(b, bt, at) {
-            return;
-        }
-        self.report(
-            "S21",
-            format!("cannot compare {} with {}", at.noun(), bt.noun()),
-            b,
-        );
+    }
+
+    /// Two types are comparable when they agree, either is permissive, both are
+    /// temporal (a `date` against `NOW()`), or one operand is a string literal
+    /// naming the date/datetime the other side is.
+    fn types_comparable(&self, at: Ty, a: &Expr, bt: Ty, b: &Expr) -> bool {
+        at == Ty::Any
+            || bt == Ty::Any
+            || at == bt
+            || (matches!(at, Ty::Date | Ty::Datetime) && matches!(bt, Ty::Date | Ty::Datetime))
+            || self.date_literal_ok(a, at, bt)
+            || self.date_literal_ok(b, bt, at)
     }
 
     /// True when `lit` is a string literal whose text parses as `other_ty`, a
@@ -1104,30 +1181,48 @@ impl Checker<'_> {
         }
     }
 
-    fn check_columns(&mut self, sel: &ColumnsSelector) {
+    /// Validate a `COLUMNS(...)` selector itself (independent of how its result
+    /// is used): the regex must compile (S21), listed names must exist (S20), and
+    /// a regex matching no columns is a likely-dead selection (S22, a warning).
+    fn validate_selector(&mut self, sel: &ColumnsSelector, cols: &Expr) {
         match sel {
             ColumnsSelector::All => {}
             ColumnsSelector::Regex {
                 pattern,
                 start,
                 end,
-            } => {
-                if let Err(err) = regex::Regex::new(pattern) {
+            } => match regex::Regex::new(pattern) {
+                Err(err) => {
                     let detail = err.to_string();
                     let first = detail.lines().next().unwrap_or("invalid regex");
                     self.findings.push(Finding {
                         code: "S21",
+                        severity: FindingSeverity::Error,
                         message: format!("invalid regular expression: {first}"),
                         start: *start,
                         end: *end,
                     });
                 }
-            }
+                Ok(re) => {
+                    if !self.env.columns().iter().any(|(n, _)| re.is_match(n)) {
+                        self.findings.push(Finding {
+                            code: "S22",
+                            severity: FindingSeverity::Warning,
+                            message: format!(
+                                "`COLUMNS('{pattern}')` matches no columns on this table"
+                            ),
+                            start: cols.start,
+                            end: cols.end,
+                        });
+                    }
+                }
+            },
             ColumnsSelector::List(names) => {
                 for n in names {
                     if self.env.column(&n.name).is_none() {
                         self.findings.push(Finding {
                             code: "S20",
+                            severity: FindingSeverity::Error,
                             message: format!("column `{}` is not on this table", n.name),
                             start: n.start,
                             end: n.end,
@@ -1135,6 +1230,28 @@ impl Checker<'_> {
                     }
                 }
             }
+        }
+    }
+
+    /// The columns a selector matches, with their kinds. A regex that fails to
+    /// compile (already reported) matches nothing; unknown list names (already
+    /// reported) are skipped.
+    fn matched_columns(&self, sel: &ColumnsSelector) -> Vec<(String, ColumnKind)> {
+        match sel {
+            ColumnsSelector::All => self.env.columns(),
+            ColumnsSelector::Regex { pattern, .. } => match regex::Regex::new(pattern) {
+                Ok(re) => self
+                    .env
+                    .columns()
+                    .into_iter()
+                    .filter(|(n, _)| re.is_match(n))
+                    .collect(),
+                Err(_) => Vec::new(),
+            },
+            ColumnsSelector::List(names) => names
+                .iter()
+                .filter_map(|n| self.env.column(&n.name).map(|k| (n.name.clone(), k)))
+                .collect(),
         }
     }
 
@@ -1210,18 +1327,35 @@ mod tests {
     }
 
     struct TestEnv;
+    impl TestEnv {
+        const COLUMNS: &[(&str, ColumnKind)] = &[
+            ("n", ColumnKind::Number),
+            ("qty", ColumnKind::Number),
+            ("s", ColumnKind::String),
+            ("postcode", ColumnKind::String),
+            ("flag", ColumnKind::Bool),
+            ("q3", ColumnKind::Bool),
+            ("q4", ColumnKind::Bool),
+            ("d", ColumnKind::Date),
+            ("start_date", ColumnKind::Date),
+            ("end_date", ColumnKind::Date),
+            ("ts", ColumnKind::Datetime),
+            ("e", ColumnKind::Enum),
+            ("u", ColumnKind::Untyped),
+        ];
+    }
     impl CheckEnv for TestEnv {
         fn column(&self, name: &str) -> Option<ColumnKind> {
-            Some(match name {
-                "n" | "qty" => ColumnKind::Number,
-                "s" | "postcode" => ColumnKind::String,
-                "flag" | "q3" | "q4" => ColumnKind::Bool,
-                "d" | "start_date" | "end_date" => ColumnKind::Date,
-                "ts" => ColumnKind::Datetime,
-                "e" => ColumnKind::Enum,
-                "u" => ColumnKind::Untyped,
-                _ => return None,
-            })
+            Self::COLUMNS
+                .iter()
+                .find(|(n, _)| *n == name)
+                .map(|(_, k)| *k)
+        }
+        fn columns(&self) -> Vec<(String, ColumnKind)> {
+            Self::COLUMNS
+                .iter()
+                .map(|(n, k)| (n.to_string(), *k))
+                .collect()
         }
         fn is_date(&self, s: &str) -> bool {
             chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok()
@@ -1514,5 +1648,63 @@ mod tests {
         assert!(check_str("e = 'anything'").is_empty());
         assert!(check_str("u > 5").is_empty());
         assert!(check_str("u").is_empty());
+    }
+
+    #[test]
+    fn columns_regex_matching_nothing_is_s22_warning() {
+        let f = check_str("COLUMNS('zzz_nope') IS NOT NULL");
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].code, "S22");
+        assert_eq!(f[0].severity, FindingSeverity::Warning);
+    }
+
+    #[test]
+    fn columns_regex_matching_something_is_clean() {
+        // `q3`, `q4`, `qty` all contain `q`.
+        assert!(check_str("COLUMNS('q') IS NOT NULL").is_empty());
+    }
+
+    #[test]
+    fn columns_star_is_never_a_zero_match_warning() {
+        assert!(check_str("COLUMNS(*) IS NOT NULL").is_empty());
+    }
+
+    #[test]
+    fn columns_type_checked_against_matched_columns() {
+        // `q3` and `q4` are booleans, so requiring them to be strings is S21.
+        let f = check_str("LENGTH(COLUMNS('q[34]')) > 0");
+        assert!(
+            f.iter()
+                .any(|f| f.code == "S21" && f.message.contains("`q3`"))
+        );
+    }
+
+    #[test]
+    fn columns_type_ok_when_all_matches_fit() {
+        // `start_date`/`end_date` are dates; comparing the selection to a date
+        // literal is fine.
+        assert!(check_str("COLUMNS('_date') >= '2000-01-01'").is_empty());
+    }
+
+    #[test]
+    fn columns_comparison_against_wrong_type_is_s21() {
+        // The `_date` columns are dates, not numbers.
+        let f = check_str("COLUMNS('_date') > 0");
+        assert!(
+            f.iter()
+                .any(|f| f.code == "S21" && f.message.contains("start_date"))
+        );
+    }
+
+    #[test]
+    fn bare_columns_must_be_boolean_per_column() {
+        // A bare COLUMNS selection of number columns is not a boolean assertion.
+        let f = check_str("COLUMNS('qty')");
+        assert!(
+            f.iter()
+                .any(|f| f.code == "S21" && f.message.contains("qty"))
+        );
+        // A bare COLUMNS of booleans is a fine assertion.
+        assert!(check_str("COLUMNS([q3, q4])").is_empty());
     }
 }

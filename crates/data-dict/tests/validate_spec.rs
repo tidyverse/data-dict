@@ -1081,6 +1081,43 @@ fn constraints_date_literal_comparison_ok() {
     "});
 }
 
+// S22: a `COLUMNS('<regex>')` that matches no column is a warning, not an error.
+#[test]
+fn constraints_s22_columns_regex_matches_nothing() {
+    let diagnostic = warning_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: a
+                type: number
+                examples: [1, 2]
+            constraints:
+              - assert: COLUMNS('zzz_nope') IS NOT NULL
+    "});
+    diagnostic.assert_contains(&["S22", "matches no columns"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// S21: a `COLUMNS(...)` selection is type-checked per matched column, so
+// applying LENGTH to a matched numeric column is an error.
+#[test]
+fn constraints_s21_columns_wrong_type() {
+    assert_invalid_dict(
+        indoc! {"
+            tables:
+              - name: t
+                columns:
+                  - name: amount_paid
+                    type: number
+                    examples: [1, 2]
+                constraints:
+                  - assert: LENGTH(COLUMNS('amount')) > 0
+        "},
+        &["S21", "amount_paid"],
+    );
+}
+
 // A column constraint bareword must be one of the four structural names.
 #[test]
 fn constraints_column_unknown_bareword() {

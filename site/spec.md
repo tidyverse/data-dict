@@ -279,7 +279,7 @@ To apply the same predicate to a group of columns without repeating it, an asser
 * `COLUMNS('<regex>')`: columns whose name matches the regular expression. The pattern is an [RE2](https://github.com/google/re2/wiki/Syntax) regular expression matched unanchored (a partial match, as in DuckDB), so `COLUMNS('q')` selects every column whose name contains a `q`; anchor it with `^`/`$` to match the whole name. (This is the one place a regex is unanchored — `SIMILAR TO` anchors.)
 * `COLUMNS([a, b, c])`: an explicit list of column names.
 
-The enclosing expression is evaluated once per selected column, and the assertion holds only when it is true for **every** selected column (the results are combined with `AND`). At most one `COLUMNS(...)` may appear in an `assert` expression, so there's no ambiguity about how multiple selections would combine. So:
+The enclosing expression is evaluated once per selected column, and the assertion holds only when it is true for **every** selected column (the results are combined with `AND`). At most one `COLUMNS(...)` may appear in an `assert` expression, so there's no ambiguity about how multiple selections would combine. Because the predicate is applied to each selected column, every one of them must fit the way the expression uses it — `LENGTH(COLUMNS('name_.*'))` requires that each matched column is a string, just as a bare column reference would. A `COLUMNS('<regex>')` whose pattern matches no column is almost always a typo, so it's reported as a warning (the assertion would otherwise hold vacuously). So:
 
 ```yaml
 constraints:

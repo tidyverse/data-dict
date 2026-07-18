@@ -242,10 +242,9 @@ struct TableEnv<'a> {
     table: &'a Table,
 }
 
-impl CheckEnv for TableEnv<'_> {
-    fn column(&self, name: &str) -> Option<ColumnKind> {
-        let col = self.table.column(name)?;
-        Some(match col.col_type.as_ref().map(|t| t.value.as_str()) {
+impl TableEnv<'_> {
+    fn kind_of(col: &Column) -> ColumnKind {
+        match col.col_type.as_ref().map(|t| t.value.as_str()) {
             Some("string") => ColumnKind::String,
             Some("number" | "number(id)" | "number(ordinal)" | "number(quantity)") => {
                 ColumnKind::Number
@@ -255,7 +254,21 @@ impl CheckEnv for TableEnv<'_> {
             Some("datetime") => ColumnKind::Datetime,
             Some("enum") => ColumnKind::Enum,
             _ => ColumnKind::Untyped,
-        })
+        }
+    }
+}
+
+impl CheckEnv for TableEnv<'_> {
+    fn column(&self, name: &str) -> Option<ColumnKind> {
+        self.table.column(name).map(Self::kind_of)
+    }
+
+    fn columns(&self) -> Vec<(String, ColumnKind)> {
+        self.table
+            .columns
+            .iter()
+            .map(|c| (c.name.value.clone(), Self::kind_of(c)))
+            .collect()
     }
 
     fn is_date(&self, s: &str) -> bool {
@@ -284,15 +297,17 @@ fn validate_table_assertions(table: &Table, out: &mut ProblemSet) {
     }
 }
 
-/// Run the S20/S21 checks for one parsed assertion, turning each finding into a
-/// located problem. `enclosing` are the outer nodes (table, and column for a
-/// column assertion) shown as context before the offending token.
+/// Run the S20/S21/S22 checks for one parsed assertion, turning each finding
+/// into a located problem. `enclosing` are the outer nodes (table, and column
+/// for a column assertion) shown as context before the offending token.
 fn run_assertion_check(
     env: &dyn CheckEnv,
     assertion: &Assertion,
     enclosing: &[&Spanned<String>],
     out: &mut ProblemSet,
 ) {
+    use crate::assert_expr::FindingSeverity;
+
     let Some(expr) = &assertion.expr else { return };
     for finding in assert_expr::check(expr, env) {
         let span = subspan(&assertion.text.span, finding.start, finding.end)
@@ -301,9 +316,17 @@ fn run_assertion_check(
         spans.push(span);
         let expected = match finding.code {
             "S20" => "An assertion may only reference columns of its table.",
+            "S22" => "A `COLUMNS(...)` selection should match at least one column.",
             _ => "An assertion must be a well-typed boolean expression.",
         };
-        out.push_spec_error(finding.code, expected, finding.message, spans);
+        match finding.severity {
+            FindingSeverity::Error => {
+                out.push_spec_error(finding.code, expected, finding.message, spans)
+            }
+            FindingSeverity::Warning => {
+                out.push_spec_warning(finding.code, expected, finding.message, spans)
+            }
+        }
     }
 }
 
