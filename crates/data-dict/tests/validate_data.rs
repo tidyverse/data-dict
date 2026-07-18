@@ -413,6 +413,43 @@ fn numeric_enum_values_are_checked() {
     );
 }
 
+/// Integer enum values past f64's exact range (2^53) must compare exactly: the
+/// declared value and the identical data value must not be routed through f64,
+/// which would collapse them to different strings and flag conforming data.
+#[test]
+fn large_integer_enum_values_compare_exactly() {
+    // 2^53 + 1, not representable as f64.
+    let big = 9007199254740993_i64;
+    let other = 9007199254740995_i64;
+    let result = check_column(
+        "REQUIRED INT64 id",
+        move |col| {
+            col.typed::<Int64Type>()
+                .write_batch(&[big, other, big], None, None)
+                .unwrap();
+        },
+        &formatdoc! {"
+            - name: id
+              type: enum
+              values: [{big}, 42]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D04"),
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[2] && values == &[other.to_string()]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
 /// With dictionary encoding disabled, the D04 dictionary fast-path can't prove
 /// conformance and must fall back to the value scan — which still finds the
 /// violation and its exact row.

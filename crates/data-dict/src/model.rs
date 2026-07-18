@@ -85,7 +85,11 @@ pub struct Representation {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Scalar {
-    Number(f64),
+    /// An integer, kept distinct from `Float` so its exact value survives for
+    /// value-equality (D04); routing every number through `f64` would lose
+    /// precision past 2^53.
+    Int(i64),
+    Float(f64),
     String(String), // includes date/times
     Bool(bool),
     Null,
@@ -97,11 +101,21 @@ impl Scalar {
     /// English noun phrase naming the scalar's kind, for diagnostics.
     pub fn noun(&self) -> &'static str {
         match self {
-            Scalar::Number(_) => "a number",
+            Scalar::Int(_) | Scalar::Float(_) => "a number",
             Scalar::String(_) => "a string",
             Scalar::Bool(_) => "a boolean",
             Scalar::Null => "null",
             Scalar::Compound => "a list or map",
+        }
+    }
+
+    /// The numeric value as `f64` for ordering comparisons (S13 range order),
+    /// or `None` if not a number.
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            Scalar::Int(n) => Some(*n as f64),
+            Scalar::Float(n) => Some(*n),
+            _ => None,
         }
     }
 
@@ -110,7 +124,8 @@ impl Scalar {
     /// Must agree with the data side's canonicalization in `data-dict-parquet`.
     pub fn value_key(&self) -> Option<String> {
         match self {
-            Scalar::Number(n) => Some(n.to_string()),
+            Scalar::Int(n) => Some(n.to_string()),
+            Scalar::Float(n) => Some(n.to_string()),
             Scalar::String(s) => Some(s.clone()),
             Scalar::Bool(b) => Some(b.to_string()),
             Scalar::Null | Scalar::Compound => None,

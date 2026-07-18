@@ -197,9 +197,9 @@ fn lower_scalar(node: &YamlWithSourceInfo) -> Scalar {
     if let Some(b) = yaml.as_bool() {
         Scalar::Bool(b)
     } else if let Some(i) = yaml.as_i64() {
-        Scalar::Number(i as f64)
+        Scalar::Int(i)
     } else if let Some(f) = yaml.as_f64() {
-        Scalar::Number(f)
+        Scalar::Float(f)
     } else if let Some(s) = yaml.as_str() {
         Scalar::String(s.to_string())
     } else if node.as_array().is_some() || node.as_hash().is_some() {
