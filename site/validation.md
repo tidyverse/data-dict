@@ -70,6 +70,6 @@ A validator reports two severities of problem: **errors** and **warnings**. The 
 | Code | Name | Sev | Description |
 |------|------|-----|-------------|
 | D01 | Nulls in a required column | E | A `required` or `primary_key` column contains nulls. |
-| D02 | Duplicate values | E | A `unique` column contains duplicate values, or the combination of all `primary_key` columns does not uniquely identify every row. |
+| D02 | Duplicate values | E | A `unique` column contains duplicate values, or the combination of all `primary_key` columns does not uniquely identify every row. Null/missing values are never counted as duplicates; for a composite primary key, a row with a null in any key column is not compared. |
 
 : {tbl-colwidths="[7,23,5,65]"}

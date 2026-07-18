@@ -197,7 +197,7 @@ The `constraints` property is a list of constraint names. The supported constrai
 * `primary_key`: the set of columns with the `primary_key` constraint uniquely identifies each row. Implies `required` and `unique`.
 * `foreign_key`: the column references a primary key in another table (or in the current table, if a self-join). The specific relationship is defined in [`relationships`](#relationships).
 * `required`: the column does not contain null/missing values.
-* `unique`: the column's values are distinct (no duplicates).
+* `unique`: the column's values are distinct (no duplicates). Null/missing values are exempt — a `unique` column may contain multiple nulls, and nulls are never treated as duplicates.
 
 ## Relationships
 

@@ -308,16 +308,19 @@ fn physical_mismatch(column: &PlannedColumn) -> ParquetError {
 /// a scalar column hashes bare `i64`s, a single byte column hashes the value
 /// bytes directly, and only a composite key pays for length-framing (so its
 /// columns never collide across different splits).
+///
+/// Nulls never count as duplicates: a row with a null in any key column is
+/// skipped, matching SQL uniqueness (multiple nulls are allowed) and avoiding a
+/// spurious D02 alongside the D01 that a null in a `required`/`primary_key`
+/// column already draws.
 enum Dedup {
     Scalar {
         column: usize,
         seen: HashSet<i64>,
-        null_seen: bool,
     },
     SingleBytes {
         column: usize,
         seen: ByteKeys,
-        null_seen: bool,
     },
     Bytes {
         columns: Vec<usize>,
@@ -347,13 +350,11 @@ impl Dedup {
                 return Dedup::Scalar {
                     column: *only,
                     seen: HashSet::with_capacity(rows),
-                    null_seen: false,
                 };
             }
             return Dedup::SingleBytes {
                 column: *only,
                 seen: ByteKeys::with_capacity(rows),
-                null_seen: false,
             };
         }
         Dedup::Bytes {
@@ -371,48 +372,36 @@ impl Dedup {
         stat: &mut UniquenessStats,
     ) {
         match self {
-            Dedup::Scalar {
-                column,
-                seen,
-                null_seen,
-            } => {
+            Dedup::Scalar { column, seen } => {
                 let batch = &batches[*column];
                 for row in 0..batch.len() {
-                    let duplicate = if batch.is_null(row) {
-                        std::mem::replace(null_seen, true)
-                    } else {
-                        !seen.insert(batch.scalar(row))
-                    };
-                    if duplicate {
+                    if batch.is_null(row) {
+                        continue;
+                    }
+                    if !seen.insert(batch.scalar(row)) {
                         record(stat, row_offset + row + 1, sample_limit);
                     }
                 }
             }
-            Dedup::SingleBytes {
-                column,
-                seen,
-                null_seen,
-            } => {
+            Dedup::SingleBytes { column, seen } => {
                 let batch = &batches[*column];
                 for row in 0..batch.len() {
-                    let duplicate = if batch.is_null(row) {
-                        std::mem::replace(null_seen, true)
-                    } else {
-                        !seen.insert(batch.bytes(row))
-                    };
-                    if duplicate {
+                    if batch.is_null(row) {
+                        continue;
+                    }
+                    if !seen.insert(batch.bytes(row)) {
                         record(stat, row_offset + row + 1, sample_limit);
                     }
                 }
             }
             Dedup::Bytes { columns, seen, key } => {
                 let rows = batches[columns[0]].len();
-                for row in 0..rows {
+                'row: for row in 0..rows {
                     key.clear();
                     for &column in columns.iter() {
                         let batch = &batches[column];
                         if batch.is_null(row) {
-                            key.push(0);
+                            continue 'row;
                         } else if let ColumnBatch::Scalar { .. } = batch {
                             key.push(1);
                             key.extend_from_slice(&batch.scalar(row).to_le_bytes());

@@ -407,3 +407,181 @@ fn composite_primary_key_is_checked_collectively() {
         }] if columns == &["a", "b"] && rows == &[2]
     ));
 }
+
+#[test]
+fn nulls_in_unique_column_are_not_duplicates() {
+    // Rows (1-based): 1 = 1.0, 2 = null, 3 = null, 4 = 2.0. Nulls are exempt from
+    // uniqueness, so repeated nulls alongside distinct values are fine.
+    let result = check_column(
+        "OPTIONAL DOUBLE id",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0, 2.0], Some(&[1, 0, 0, 1]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: id
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Ok, "got {:?}", result.items);
+}
+
+#[test]
+fn nulls_alongside_a_real_duplicate_report_only_the_duplicate() {
+    // Rows (1-based): 1 = 1.0, 2 = null, 3 = 1.0, 4 = null. The nulls are exempt;
+    // only the genuine repeat of 1.0 at row 3 is a duplicate.
+    let result = check_column(
+        "OPTIONAL DOUBLE id",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0, 1.0], Some(&[1, 0, 1, 0]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: id
+              type: number(id)
+              constraints: [unique]
+              examples: [1, 2]
+        "},
+    );
+
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D02"),
+                kind: ProblemKind::DuplicateValues { columns, count: 1, rows },
+                ..
+            }] if columns == &["id"] && rows == &[3]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn nulls_in_unique_string_column_are_not_duplicates() {
+    // Exercises the single-byte-column path: two nulls, one value, no duplicate.
+    let result = check_column(
+        "OPTIONAL BYTE_ARRAY code (UTF8)",
+        |col| {
+            col.typed::<ByteArrayType>()
+                .write_batch(&[ByteArray::from("a")], Some(&[1, 0, 0]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: code
+              type: string
+              constraints: [unique]
+              examples: [a, b]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Ok, "got {:?}", result.items);
+}
+
+#[test]
+fn nulls_in_primary_key_are_not_reported_as_duplicates() {
+    // A PK with nulls fails D01 (primary_key implies required); D02 must not
+    // additionally flag the repeated nulls as duplicates. Rows: 1 = 1.0,
+    // 2 = null, 3 = 2.0, 4 = null — non-null values distinct, two nulls.
+    let result = check_column(
+        "OPTIONAL DOUBLE id",
+        |col| {
+            col.typed::<DoubleType>()
+                .write_batch(&[1.0, 2.0], Some(&[1, 0, 1, 0]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: id
+              type: number(id)
+              constraints: [primary_key]
+              examples: [1, 2]
+        "},
+    );
+
+    assert!(
+        result.items.iter().any(|p| p.code == Some("D01")),
+        "expected a D01, got {:?}",
+        result.items
+    );
+    assert!(
+        result.items.iter().all(|p| p.code != Some("D02")),
+        "expected no D02, got {:?}",
+        result.items
+    );
+}
+
+/// Write a two-column parquet with a required `a` and an optional `b` (whose
+/// nulls follow `b_def`), both tagged `primary_key`, so a null in `b` exercises
+/// the composite-key null path.
+fn build_composite_key_optional_b(a: &[f64], b: &[f64], b_def: &[i16]) -> PathBuf {
+    let dir = temp_dir();
+    let parquet = dir.join("data.parquet");
+    let schema = Arc::new(
+        parse_message_type("message schema { REQUIRED DOUBLE a; OPTIONAL DOUBLE b; }").unwrap(),
+    );
+    let file = File::create(&parquet).unwrap();
+    let mut writer =
+        SerializedFileWriter::new(file, schema, Arc::new(WriterProperties::builder().build()))
+            .unwrap();
+    let mut row_group = writer.next_row_group().unwrap();
+    let mut col_a = row_group.next_column().unwrap().unwrap();
+    col_a
+        .typed::<DoubleType>()
+        .write_batch(a, None, None)
+        .unwrap();
+    col_a.close().unwrap();
+    let mut col_b = row_group.next_column().unwrap().unwrap();
+    col_b
+        .typed::<DoubleType>()
+        .write_batch(b, Some(b_def), None)
+        .unwrap();
+    col_b.close().unwrap();
+    row_group.close().unwrap();
+    writer.close().unwrap();
+
+    write_dict(
+        &dir,
+        indoc! {"
+            tables:
+              - name: t
+                source:
+                  parquet: data.parquet
+                columns:
+                  - name: a
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+                  - name: b
+                    type: number(id)
+                    constraints: [primary_key]
+                    examples: [1, 2]
+        "},
+    )
+}
+
+#[test]
+fn nulls_in_composite_primary_key_are_not_reported_as_duplicates() {
+    // Rows: (1, 1.0), (2, null), (3, null). The two rows with a null in `b` fail
+    // D01, but must not be reported as a D02 duplicate of each other.
+    let result = validate_data(
+        &build_composite_key_optional_b(&[1.0, 2.0, 3.0], &[1.0], &[1, 0, 0]),
+        None,
+    );
+
+    assert!(
+        result.items.iter().any(|p| p.code == Some("D01")),
+        "expected a D01, got {:?}",
+        result.items
+    );
+    assert!(
+        result.items.iter().all(|p| p.code != Some("D02")),
+        "expected no D02, got {:?}",
+        result.items
+    );
+}
