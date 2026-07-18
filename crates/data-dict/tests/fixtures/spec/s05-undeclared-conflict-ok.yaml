@@ -6,7 +6,7 @@
 $version: "0.1.0"
 
 tables:
-  food:
+  - name: food
     columns:
       - name: id
         type: number(id)
@@ -16,7 +16,7 @@ tables:
         type: number(quantity)
         range: [0, 1000]
 
-  food_nutrient:
+  - name: food_nutrient
     columns:
       - name: id
         type: number(id)
@@ -31,5 +31,5 @@ tables:
         range: [0, 1000]
 
 relationships:
-  - cardinality: one-to-many
-    join: food.id = food_nutrient.food_id
+  - join: food.id = food_nutrient.food_id
+    cardinality: one-to-many

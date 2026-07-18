@@ -4,7 +4,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  table:
+  - name: table
     columns:
       - name: id
         type: number(id)
@@ -13,12 +13,12 @@ tables:
         type: string
         examples: [a, b, c]
 ────────────────────────────────────────
-Error: [S10] Column names must be unique within a table.
-   ╭─[ dict.yaml:9:15 ]
-   │
- 4 │   table:
-   │ 
- 9 │       - name: id
-   │               ─┬  
-   │                ╰── appears more than once
-───╯
+error[S10]: Column names must be unique within a table.
+  --> dict.yaml:9:15
+   |
+LL |   - name: table
+LL |     columns:
+LL |       - name: id
+...
+LL |       - name: id
+   |               ^^ is duplicated

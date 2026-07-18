@@ -1,0 +1,24 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+tables:
+  - name: food
+    columns:
+      - name: id
+        type: number(id)
+        examples: [1, 2, 3]
+  - name: food
+    columns:
+      - name: id
+        type: number(id)
+        examples: [1, 2, 3]
+────────────────────────────────────────
+error[S10]: Table names must be unique within the dictionary.
+  --> dict.yaml:9:11
+   |
+LL |   - name: food
+...
+LL |   - name: food
+   |           ^^^^ is duplicated

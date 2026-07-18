@@ -7,7 +7,7 @@ $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 
 tables:
-  food:
+  - name: food
     description: Foods.
     columns:
       - name: id
@@ -20,7 +20,7 @@ tables:
         description: Category id.
         examples: [1, 2, 3, 4, 5]
 
-  food_category:
+  - name: food_category
     columns:
       - name: id
         type: number(id)
@@ -34,6 +34,6 @@ tables:
         examples: [Dairy, Fruit, Grain, Meat, Vegetable]
 
 relationships:
-  - description: Each food belongs to one category.
+  - join: food.food_category_id = food_category.id
     cardinality: many-to-one
-    join: food.food_category_id = food_category.id
+    description: Each food belongs to one category.

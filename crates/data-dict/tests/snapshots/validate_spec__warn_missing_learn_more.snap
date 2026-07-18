@@ -3,10 +3,13 @@ source: crates/data-dict/tests/validate_spec.rs
 ---
 $version: 0.1.0
 ────────────────────────────────────────
-Warning: [S09] A document should point readers to the spec with `$learn_more: http://data-dict.tidyverse.org/`.
-   ╭─[ dict.yaml:1:1 ]
-   │
- 1 │ $version: 0.1.0
-   │ ────┬───  
-   │     ╰───── `$learn_more` is not set
-───╯
+warning[S09]: A document should point readers to the spec with `$learn_more`.
+  --> dict.yaml:1:1
+   |
+LL | $version: 0.1.0
+   | ^ `$learn_more` is not set
+   |
+help: point readers to the spec
+   |
+LL + $learn_more: http://data-dict.tidyverse.org/
+   |

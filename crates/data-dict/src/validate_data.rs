@@ -212,8 +212,13 @@ fn nulls_in_required_data(table: &Table, col: &Column, count: usize, rows: Vec<u
         message: format!("has {count} null value{plural} ({detail})"),
         column: None,
         expected: Some("A required column must not contain nulls.".into()),
-        span: Some(constraint_span),
-        context: vec![table.name.span.clone(), col.name.span.clone()],
+        hint: None,
+        suggestion: None,
+        context: vec![
+            table.name.span.clone(),
+            col.name.span.clone(),
+            constraint_span,
+        ],
         kind: ProblemKind::NullsInRequired { count, rows },
     }
 }
@@ -236,8 +241,13 @@ fn duplicates_in_unique_column(table: &Table, col: &Column, stats: &UniquenessSt
         message: format!("has {count} repeated occurrence{plural} ({detail})"),
         column: None,
         expected: Some("A unique column must not contain duplicate values.".into()),
-        span: Some(constraint_span),
-        context: vec![table.name.span.clone(), col.name.span.clone()],
+        hint: None,
+        suggestion: None,
+        context: vec![
+            table.name.span.clone(),
+            col.name.span.clone(),
+            constraint_span,
+        ],
         kind: ProblemKind::DuplicateValues {
             columns: vec![col.name.value.clone()],
             count,
@@ -271,9 +281,11 @@ fn duplicates_in_primary_key(
         message: format!("has {count} repeated occurrence{plural} ({detail})"),
         column: None,
         expected: Some("The primary key must uniquely identify every row.".into()),
-        span: Some(constraint_span),
+        hint: None,
+        suggestion: None,
         context: std::iter::once(table.name.span.clone())
             .chain(columns.iter().map(|col| col.name.span.clone()))
+            .chain(std::iter::once(constraint_span))
             .collect(),
         kind: ProblemKind::DuplicateValues {
             columns: columns.iter().map(|col| col.name.value.clone()).collect(),

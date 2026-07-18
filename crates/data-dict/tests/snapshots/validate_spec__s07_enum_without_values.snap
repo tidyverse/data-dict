@@ -4,18 +4,16 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  table:
+  - name: table
     columns:
       - name: c
         type: enum
 ────────────────────────────────────────
-Error: [S07] An `enum` column must list its categories with `values`.
-   ╭─[ dict.yaml:7:15 ]
-   │
- 4 │   table:
-   │ 
- 6 │       - name: c
- 7 │         type: enum
-   │               ──┬─  
-   │                 ╰─── has type `enum` but is missing `values`
-───╯
+error[S07]: An `enum` column must list its categories with `values`.
+  --> dict.yaml:7:15
+   |
+LL |   - name: table
+LL |     columns:
+LL |       - name: c
+LL |         type: enum
+   |               ^^^^ has type `enum` but is missing `values`

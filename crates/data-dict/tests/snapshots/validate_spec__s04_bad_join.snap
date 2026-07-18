@@ -9,7 +9,7 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 
 tables:
-  food:
+  - name: food
     columns:
       - name: id
         type: number(id)
@@ -19,7 +19,7 @@ tables:
         type: number(id)
         examples: [1, 2]
 
-  food_category:
+  - name: food_category
     columns:
       - name: id
         type: number(id)
@@ -27,13 +27,11 @@ tables:
         examples: [1, 2]
 
 relationships:
-  - cardinality: many-to-one
-    join: food.food_category_id ~ food_category.id
+  - join: food.food_category_id ~ food_category.id
+    cardinality: many-to-one
 ────────────────────────────────────────
-Error: [S04]
-    ╭─[ spec/s04-bad-join.yaml:28:33 ]
-    │
- 28 │     join: food.food_category_id ~ food_category.id
-    │                                 │ 
-    │                                 ╰─ `join` expression does not parse: expected one of `=`, `>=`, `<=`, `>`, `<`
-────╯
+error[S04]: 
+  --> spec/s04-bad-join.yaml:27:33
+   |
+LL |   - join: food.food_category_id ~ food_category.id
+   |                                 ^ `join` expression does not parse: expected one of `=`, `>=`, `<=`, `>`, `<`

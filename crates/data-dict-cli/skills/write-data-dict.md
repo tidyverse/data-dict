@@ -74,6 +74,9 @@ a plausible-sounding description for a column whose meaning you had to guess.
     c.  For each column, create an entry with:
 
         -   `name`: must match the actual column name exactly.
+        -   `label` (optional): a short, human-readable title, worth adding when
+            the `name` is terse or technical (e.g. `FoodData Central ID` for
+            `fdc_id`). Plain text, a few words.
         -   `type`: choose the analytical type that is *consistent with the
             physical type* of the column.
         -   `constraints`: list any that apply (`primary_key`, `required`,

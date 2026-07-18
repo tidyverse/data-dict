@@ -13,7 +13,6 @@
 //! next level is caught by the driver checking [`ProblemSet::status`] before
 //! descending. Fatality is control flow, not data.
 
-use quarto_error_reporting::DiagnosticMessageBuilder;
 use quarto_source_map::{SourceContext, SourceInfo};
 
 use crate::Level;
@@ -46,10 +45,27 @@ impl Status {
     }
 }
 
+/// How to render a diagnostic to text.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RenderStyle {
+    /// Emit ANSI colour and OSC-8 hyperlinks. Turn off for piped or redirected
+    /// output; pass the destination's [`IsTerminal`](std::io::IsTerminal) state.
+    pub color: bool,
+    /// Replace line numbers with `LL` so snapshots don't churn when unrelated
+    /// lines shift. Testing aid; leave off for real output.
+    pub anonymized_line_numbers: bool,
+}
+
 /// One problem found while validating, at any level. `code` and `column` are
 /// present only when meaningful (spec problems have a code but no column;
-/// pre-flight failures have neither); `span`/`context` drive source-highlighted
-/// rendering and are never serialized; `kind` is the structured payload.
+/// pre-flight failures have neither); `context` drives source-highlighted
+/// rendering; `kind` is the structured payload.
+///
+/// The derive skips the raw `context` spans (they hold internal byte offsets, of
+/// no use to a JSON consumer). Instead the primary span's resolved line/column
+/// [`SpanLocation`] is serialized under a `location` key by a custom step at the
+/// CLI boundary, where the [`SourceContext`] needed to resolve it is available
+/// (see `problems_to_json`).
 #[derive(Debug, serde::Serialize)]
 pub struct Problem {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -63,16 +79,47 @@ pub struct Problem {
     /// what was found instead.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expected: Option<String>,
-    /// The YAML span this problem points at (spec problems only). Display-only.
-    #[serde(skip)]
-    pub span: Option<SourceInfo>,
-    /// Enclosing source lines shown faded (unlabelled) around the primary
-    /// label, locating it within the document (e.g. the table and column a bad
-    /// value sits in). Display-only; ordered outermost-first.
+    /// Advisory text shown as a `help:` line below the excerpt. For a concrete
+    /// edit, prefer [`suggestion`](Self::suggestion), which renders a patch.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
+    /// A suggested fix, rendered below the excerpt as an annotate-snippets patch
+    /// (a `+`/`-` diff) under a `help:` title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<Suggestion>,
+    /// The YAML spans this problem points at, ordered outermost-first: the
+    /// **last** span is the primary highlight (carrying `message`) and any
+    /// preceding spans are the enclosing nodes that locate it (e.g. the table
+    /// and column a bad value sits in), shown as unlabelled context lines.
+    /// Empty for problems with no location (column-located and pre-flight
+    /// failures). Display-only; see the type-level note on how the primary span
+    /// reaches the JSON output.
     #[serde(skip)]
     pub context: Vec<SourceInfo>,
     #[serde(flatten)]
     pub kind: ProblemKind,
+}
+
+impl Problem {
+    /// The primary (highlighted) span, or `None` for unlocated problems.
+    fn primary_span(&self) -> Option<&SourceInfo> {
+        self.context.last()
+    }
+
+    /// The enclosing context spans surrounding the primary highlight, outermost-first.
+    fn context_spans(&self) -> &[SourceInfo] {
+        self.context.split_last().map_or(&[], |(_, rest)| rest)
+    }
+}
+
+/// A suggested fix: splice `replacement` into the source at `span` (an empty
+/// span inserts). `title` is a lowercase description shown as the `help:` line.
+#[derive(Debug, serde::Serialize)]
+pub struct Suggestion {
+    pub title: String,
+    pub replacement: String,
+    #[serde(skip)]
+    pub span: SourceInfo,
 }
 
 /// A resolved source span as 0-based line/column bounds, for JSON consumers.
@@ -177,8 +224,9 @@ impl Problem {
             message: message.into(),
             column: None,
             expected: None,
-            span: Some(span),
-            context: Vec::new(),
+            hint: None,
+            suggestion: None,
+            context: vec![span],
             kind: ProblemKind::Spec,
         }
     }
@@ -196,7 +244,8 @@ impl Problem {
             expected: Some(
                 "Every column in the data should be described in the dictionary.".into(),
             ),
-            span: None,
+            hint: None,
+            suggestion: None,
             context: Vec::new(),
             kind: ProblemKind::ExtraInData { actual },
         }
@@ -210,9 +259,36 @@ impl Problem {
             message: message.into(),
             column: None,
             expected: None,
-            span: None,
+            hint: None,
+            suggestion: None,
             context: Vec::new(),
             kind,
+        }
+    }
+
+    /// A structural schema-validation failure, lifted from
+    /// `quarto-yaml-validation` into the shared vocabulary so it renders like
+    /// every other diagnostic. `expected` states the general rule (from the
+    /// error's kind) and leads the rendering; `message` is the validator's
+    /// concrete finding. `span` is the offending node, when the error carries
+    /// one; `hint` is its fix suggestion.
+    pub(crate) fn schema(
+        code: &'static str,
+        expected: &'static str,
+        message: impl Into<String>,
+        span: Option<SourceInfo>,
+        hint: Option<String>,
+    ) -> Self {
+        Problem {
+            code: Some(code),
+            severity: Severity::Error,
+            message: message.into(),
+            column: None,
+            expected: Some(expected.to_string()),
+            hint,
+            suggestion: None,
+            context: span.into_iter().collect(),
+            kind: ProblemKind::Schema,
         }
     }
 
@@ -220,7 +296,7 @@ impl Problem {
     /// for JSON consumers, e.g. an editor placing the diagnostic in the file.
     /// `None` for problems with no span (column-located and pre-flight failures).
     pub fn location(&self, ctx: &SourceContext) -> Option<SpanLocation> {
-        let span = self.span.as_ref()?;
+        let span = self.primary_span()?;
         let start = span.map_offset(0, ctx)?.location;
         let end = span.map_offset(span.length(), ctx)?.location;
         Some(SpanLocation {
@@ -235,31 +311,103 @@ impl Problem {
     /// highlighting; the rest render as a `severity [code]: message` line (or
     /// just the message when there is no code). When `expected` is set it leads
     /// the output and `message` follows on its own line as the "found" detail.
-    pub fn to_text(&self, ctx: &SourceContext) -> String {
-        match &self.span {
-            Some(span) => self.render_with_source(span, ctx),
+    pub fn to_text(&self, ctx: &SourceContext, style: RenderStyle) -> String {
+        match self.primary_span() {
+            Some(span) => self.render_with_source(span, ctx, style),
             None => self.render_plain(),
         }
     }
 
-    fn render_with_source(&self, span: &SourceInfo, ctx: &SourceContext) -> String {
-        let header = match (self.code, &self.expected) {
-            (Some(c), Some(e)) => format!("[{c}] {e}"),
-            (Some(c), None) => format!("[{c}]"),
-            (None, Some(e)) => e.clone(),
-            (None, None) => String::new(),
+    fn render_with_source(
+        &self,
+        span: &SourceInfo,
+        ctx: &SourceContext,
+        style: RenderStyle,
+    ) -> String {
+        use annotate_snippets::{AnnotationKind, Group, Level, Patch, Renderer, Snippet};
+
+        // The excerpt is drawn from the primary span's root file; drop to the
+        // plain rendering if it (or its offsets) can't be resolved.
+        let Some(file_id) = span.root_file_id() else {
+            return self.render_plain();
         };
-        let mut builder = match self.severity {
-            Severity::Error => DiagnosticMessageBuilder::error(header),
-            Severity::Warning => DiagnosticMessageBuilder::warning(header),
+        let Some(file) = ctx.get_file(file_id) else {
+            return self.render_plain();
         };
-        for ctx_span in &self.context {
-            builder = builder.add_faded_at("", ctx_span.clone());
+        let Some(content) = file.content.as_deref() else {
+            return self.render_plain();
+        };
+        let len = content.len();
+        let byte_range = |s: &SourceInfo| -> Option<std::ops::Range<usize>> {
+            if s.root_file_id() != Some(file_id) {
+                return None;
+            }
+            let start = s.map_offset(0, ctx)?.location.offset.min(len);
+            let end = s
+                .map_offset(s.length(), ctx)
+                .map_or(start, |m| m.location.offset);
+            Some(start..end.min(len).max(start))
+        };
+        let Some(primary) = byte_range(span) else {
+            return self.render_plain();
+        };
+
+        // Enclosing nodes are shown (not folded away) but left unannotated, so
+        // the location reads at a glance without underline/label clutter.
+        let mut snippet = Snippet::source(content)
+            .path(file.path.as_str())
+            .line_start(1);
+        for ctx_span in self.context_spans() {
+            if let Some(range) = byte_range(ctx_span) {
+                snippet = snippet.annotation(AnnotationKind::Visible.span(range));
+            }
         }
-        builder = builder
-            .problem(self.message.clone())
-            .with_location(span.clone());
-        builder.build().to_text(Some(ctx))
+        // The "found" detail sits inline beside the primary underline.
+        snippet = snippet.annotation(
+            AnnotationKind::Primary
+                .span(primary)
+                .label(self.message.as_str()),
+        );
+
+        let level = match self.severity {
+            Severity::Error => Level::ERROR,
+            Severity::Warning => Level::WARNING,
+        };
+        // The code becomes the bracketed id beside the level (`error[S07]`);
+        // `expected` is the title text.
+        let mut title = level.primary_title(self.expected.as_deref().unwrap_or_default());
+        if let Some(code) = self.code {
+            title = title.id(code);
+        }
+        let mut group = Group::with_title(title).element(snippet);
+        if let Some(hint) = &self.hint {
+            group = group.element(Level::HELP.message(hint.as_str()));
+        }
+        let mut groups = vec![group];
+
+        // A suggestion becomes a secondary `help:` group whose snippet carries a
+        // patch, so annotate-snippets renders it as a `+`/`-` diff.
+        if let Some(suggestion) = &self.suggestion
+            && let Some(range) = byte_range(&suggestion.span)
+        {
+            let patch = Snippet::source(content)
+                .path(file.path.as_str())
+                .line_start(1)
+                .patch(Patch::new(range, suggestion.replacement.as_str()));
+            groups.push(
+                Level::HELP
+                    .secondary_title(suggestion.title.as_str())
+                    .element(patch),
+            );
+        }
+        let renderer = if style.color {
+            Renderer::styled()
+        } else {
+            Renderer::plain()
+        };
+        renderer
+            .anonymized_line_numbers(style.anonymized_line_numbers)
+            .render(&groups)
     }
 
     fn render_plain(&self) -> String {
@@ -274,6 +422,12 @@ impl Problem {
         };
         if self.expected.is_some() {
             line.push_str(&format!("\n  {}", self.message));
+        }
+        if let Some(hint) = &self.hint {
+            line.push_str(&format!("\nhelp: {hint}"));
+        }
+        if let Some(suggestion) = &self.suggestion {
+            line.push_str(&format!("\nhelp: {}", suggestion.title));
         }
         line
     }
@@ -315,8 +469,8 @@ impl ProblemSet {
     /// Push a problem located in the document: `expected` states the rule,
     /// `actual` reports what was found, and `spans` locates it — the **last**
     /// span is the primary highlight carrying `actual`, and any preceding spans
-    /// are shown faded as enclosing context (outermost-first, e.g. the table
-    /// then the column). `spans` must be non-empty.
+    /// are shown as enclosing context (outermost-first, e.g. the table then the
+    /// column), each with a role label. `spans` must be non-empty.
     fn push_located_problem(
         &mut self,
         code: &'static str,
@@ -326,20 +480,31 @@ impl ProblemSet {
         actual: impl Into<String>,
         spans: impl IntoIterator<Item = SourceInfo>,
     ) {
-        let mut spans: Vec<SourceInfo> = spans.into_iter().collect();
-        let primary = spans
-            .pop()
-            .expect("a located problem needs at least the primary span");
+        let spans: Vec<SourceInfo> = spans.into_iter().collect();
+        assert!(
+            !spans.is_empty(),
+            "a located problem needs at least the primary span"
+        );
         self.push(Problem {
             code: Some(code),
             severity,
             message: actual.into(),
             column: None,
             expected: Some(expected.into()),
-            span: Some(primary),
+            hint: None,
+            suggestion: None,
             context: spans,
             kind,
         });
+    }
+
+    /// Attach a fix suggestion to the most recently pushed problem. Called right
+    /// after a `push_*` so `items.last` is that problem (the sort into source
+    /// order happens once, after every check has run).
+    pub(crate) fn suggest_last(&mut self, suggestion: Suggestion) {
+        if let Some(problem) = self.items.last_mut() {
+            problem.suggestion = Some(suggestion);
+        }
     }
 
     /// Push a spec problem (`S##`) at error severity; see
@@ -405,8 +570,7 @@ impl ProblemSet {
     /// last.
     pub fn sort(&mut self) {
         self.items.sort_by_key(|p| {
-            p.span
-                .as_ref()
+            p.primary_span()
                 .and_then(|s| s.resolve_byte_range())
                 .map(|(file, start, _)| (file, start))
                 .unwrap_or((usize::MAX, usize::MAX))
@@ -427,9 +591,13 @@ impl ProblemSet {
         status
     }
 
-    /// Render every problem to display text, in their current order.
-    pub fn render(&self) -> Vec<String> {
-        self.items.iter().map(|p| p.to_text(&self.source)).collect()
+    /// Render every problem to display text, in their current order. See
+    /// [`RenderStyle`] for the colour and line-number options.
+    pub fn render(&self, style: RenderStyle) -> Vec<String> {
+        self.items
+            .iter()
+            .map(|p| p.to_text(&self.source, style))
+            .collect()
     }
 }
 
@@ -494,7 +662,7 @@ mod tests {
     fn plain_problem_renders_expected_then_found() {
         let p = Problem::undocumented_column("notes", "string");
         assert_eq!(
-            p.to_text(&SourceContext::new()),
+            p.to_text(&SourceContext::new(), RenderStyle::default()),
             "warning [M03]: Every column in the data should be described in the dictionary.\n  \
              `notes` is in the data (`string`) but not the dictionary",
         );

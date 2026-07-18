@@ -6,7 +6,7 @@
 $version: "0.1.0"
 
 tables:
-  otters:
+  - name: otters
     columns:
       - name: otter_no
         type: number(id)
@@ -20,5 +20,5 @@ tables:
         examples: ["found in river", "tagged"]
 
 relationships:
-  - cardinality: one-to-many
-    join: otters.pup_number = otters.otter_no
+  - join: otters.pup_number = otters.otter_no
+    cardinality: one-to-many

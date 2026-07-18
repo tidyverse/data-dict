@@ -17,9 +17,11 @@
 
 object:
   closed: true
-  required: ["$version"]
   properties:
 
+    # Required, but its absence is checked by S18 (in validate_spec.rs) rather
+    # than the schema, so the omission carries a patch suggesting `$version`.
+    # A present-but-wrong value is still rejected here by the enum.
     "$version":
       enum: [0.1.0]
       description: >
@@ -29,77 +31,84 @@ object:
     # S09 in validate_spec.rs); a URL where readers can learn about the format.
     "$learn_more": string
 
-    # Descriptive keys for the whole dataset. `name` is a display title with 
-    # no uniqueness constraints; all three are optional.
+    # Descriptive keys for the whole dataset. `name` is a terse identifier and
+    # `label` a display title, both without uniqueness constraints; all are
+    # optional.
     name: string
+    label: string
     description: string
     details: string
 
     tables:
-      object:
-        # Keys are arbitrary table names, so no fixed `properties` — every
-        # value must match the table schema.
-        additionalProperties:
-          object:
-            closed: true
-            required: [columns]
-            properties:
+      arrayOf:
+        object:
+          closed: true
+          required: [name, columns]
+          properties:
 
-              description: string
-              details: string
+            # `anyOf: [string, null]` lets an empty/null name through to the
+            # semantic layer, where S11 reports it with a clear message; the
+            # YAML parser collapses `""` to null. Uniqueness is S10's job.
+            name:
+              anyOf:
+                - string
+                - null
+            label: string
+            description: string
+            details: string
 
-              source:
+            source:
+              object:
+                closed: true
+                minProperties: 1
+                properties:
+                  parquet: string
+
+            columns:
+              arrayOf:
                 object:
                   closed: true
-                  minProperties: 1
+                  required: [name]
                   properties:
-                    parquet: string
-
-              columns:
-                arrayOf:
-                  object:
-                    closed: true
-                    required: [name]
-                    properties:
-                      # `anyOf: [string, null]` lets an empty/null name through
-                      # to the semantic layer, where S11 reports it with a clear
-                      # message; the YAML parser collapses `""` to null.
-                      name:
-                        anyOf:
-                          - string
-                          - null
-                      description: string
-                      details: string
-                      display:
-                        enum: [restricted]
-                      units: string
-                      # Shape (S15) and placement (S14) are checked semantically
-                      time_zone: string
-                      type:
-                        enum: ["enum", "number(ordinal)", "number(quantity)", "date",
-                               "datetime", "number", "number(id)", "string", "boolean"]
-                      values:
-                        anyOf:
-                          - arrayOf:                  # [M, F, U]
-                              anyOf:
-                                - string
-                                - number
-                                - boolean
-                          - object:                   # {M: Male, F: Female, ...}
-                              additionalProperties: string
-                      range:
-                        anyOf:
-                          - arrayOf:
-                              schema: number
-                              length: 2
-                          - arrayOf:
-                              schema: string
-                              length: 2
-                      constraints:
-                        arrayOf:
-                          enum: [primary_key, foreign_key, required, unique]
-                      examples:
-                        arrayOf: any
+                    # `anyOf: [string, null]` lets an empty/null name through
+                    # to the semantic layer, where S11 reports it with a clear
+                    # message; the YAML parser collapses `""` to null.
+                    name:
+                      anyOf:
+                        - string
+                        - null
+                    label: string
+                    description: string
+                    details: string
+                    display:
+                      enum: [restricted]
+                    units: string
+                    # Shape (S15) and placement (S14) are checked semantically
+                    time_zone: string
+                    type:
+                      enum: ["enum", "number(ordinal)", "number(quantity)", "date",
+                             "datetime", "number", "number(id)", "string", "boolean"]
+                    values:
+                      anyOf:
+                        - arrayOf:                  # [M, F, U]
+                            anyOf:
+                              - string
+                              - number
+                              - boolean
+                        - object:                   # {M: Male, F: Female, ...}
+                            additionalProperties: string
+                    range:
+                      arrayOf:
+                        schema:
+                          anyOf:
+                            - number
+                            - string
+                        length: 2
+                    constraints:
+                      arrayOf:
+                        enum: [primary_key, foreign_key, required, unique]
+                    examples:
+                      arrayOf: any
 
     relationships:
       arrayOf:

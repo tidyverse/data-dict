@@ -58,51 +58,10 @@ fn multiple_diagnostics_json_output() {
     insta::assert_snapshot!(serde_json::to_string_pretty(&value).unwrap());
 }
 
-/// Strip terminal styling (ANSI SGR escapes and OSC-8 hyperlinks) and rewrite
-/// the fixture's absolute path to a stable placeholder, so the rendered
-/// diagnostic can be snapshotted.
+/// Rewrite the fixture's absolute path to a stable placeholder so the rendered
+/// diagnostic can be snapshotted. The CLI already renders plain (no colour) when
+/// its stderr is a pipe, as it is under the test harness, so there is no
+/// terminal styling to strip.
 fn sanitize(s: &str, fixture_path: &str) -> String {
-    strip_terminal_escapes(s).replace(fixture_path, "<fixture>")
-}
-
-/// Remove ANSI SGR sequences (`ESC [ ... m`) and OSC-8 hyperlink wrappers
-/// (`ESC ] 8 ; ; ... BEL|ST`) while leaving the visible text intact.
-fn strip_terminal_escapes(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == 0x1b && i + 1 < bytes.len() {
-            match bytes[i + 1] {
-                b'[' => {
-                    // CSI: run until a final byte in 0x40..=0x7e.
-                    i += 2;
-                    while i < bytes.len() && !(0x40..=0x7e).contains(&bytes[i]) {
-                        i += 1;
-                    }
-                    i += 1; // consume the final byte
-                }
-                b']' => {
-                    // OSC: run until BEL or ST (ESC \).
-                    i += 2;
-                    while i < bytes.len() {
-                        if bytes[i] == 0x07 {
-                            i += 1;
-                            break;
-                        }
-                        if bytes[i] == 0x1b && i + 1 < bytes.len() && bytes[i + 1] == b'\\' {
-                            i += 2;
-                            break;
-                        }
-                        i += 1;
-                    }
-                }
-                _ => i += 2,
-            }
-        } else {
-            out.push(bytes[i]);
-            i += 1;
-        }
-    }
-    String::from_utf8(out).expect("stripping ASCII escapes preserves UTF-8")
+    s.replace(fixture_path, "<fixture>")
 }

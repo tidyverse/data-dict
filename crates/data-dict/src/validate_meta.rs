@@ -109,8 +109,13 @@ fn nulls_in_required_meta(table: &Table, col: &Column, count: usize) -> Problem 
         message: format!("has {count} null value{plural}"),
         column: None,
         expected: Some("A required column must not contain nulls.".into()),
-        span: Some(constraint_span),
-        context: vec![table.name.span.clone(), col.name.span.clone()],
+        hint: None,
+        suggestion: None,
+        context: vec![
+            table.name.span.clone(),
+            col.name.span.clone(),
+            constraint_span,
+        ],
         kind: ProblemKind::NullsInRequired {
             count,
             rows: Vec::new(),
@@ -134,8 +139,13 @@ fn duplicates_meta(table: &Table, col: &Column, count: usize) -> Problem {
         message: format!("has {count} repeated occurrence{plural}"),
         column: None,
         expected: Some("A unique column must not contain duplicate values.".into()),
-        span: Some(constraint_span),
-        context: vec![table.name.span.clone(), col.name.span.clone()],
+        hint: None,
+        suggestion: None,
+        context: vec![
+            table.name.span.clone(),
+            col.name.span.clone(),
+            constraint_span,
+        ],
         kind: ProblemKind::DuplicateValues {
             columns: vec![col.name.value.clone()],
             count,

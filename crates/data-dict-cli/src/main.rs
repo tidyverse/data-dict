@@ -1,8 +1,9 @@
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
-use data_dict::ProblemSet;
+use data_dict::{ProblemSet, RenderStyle};
 
 #[derive(Parser)]
 #[command(name = "data-dict", version, about)]
@@ -31,6 +32,10 @@ enum Command {
         #[command(subcommand)]
         command: SkillCommand,
     },
+    /// Run the language server over stdio (used by editor extensions).
+    #[cfg(feature = "lsp")]
+    #[command(hide = true)]
+    Lsp,
 }
 
 /// Shared arguments for `validate-meta` and `validate-data`.
@@ -78,7 +83,7 @@ fn main() -> ExitCode {
                 }
             };
             let problems = data_dict::validate_spec(&path);
-            for line in problems.render() {
+            for line in problems.render(stderr_style()) {
                 eprintln!("{line}");
             }
             if problems.status().failed() {
@@ -114,6 +119,14 @@ fn main() -> ExitCode {
             print!("{skill}");
             ExitCode::SUCCESS
         }
+        #[cfg(feature = "lsp")]
+        Command::Lsp => match data_dict_lsp::run_stdio() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(err) => {
+                eprintln!("{err}");
+                ExitCode::FAILURE
+            }
+        },
     }
 }
 
@@ -140,6 +153,11 @@ fn subcommands_listing() -> String {
 
 fn collect_subcommands(cmd: &clap::Command, prefix: &str, rows: &mut Vec<(String, String)>) {
     for sub in cmd.get_subcommands() {
+        // Hidden subcommands (e.g. `lsp`) are excluded from `--help`; keep them
+        // out of this listing too.
+        if sub.is_hide_set() {
+            continue;
+        }
         let is_help = sub.get_name() == "help";
         // Keep only the top-level `help`; nested `help` entries are noise.
         if is_help && !prefix.is_empty() {
@@ -178,6 +196,15 @@ fn resolve_dict_path(path: Option<PathBuf>) -> Result<PathBuf, String> {
 /// signature, so `run_validate` is generic over which one it drives.
 type ValidateFn = fn(&Path, Option<&str>) -> ProblemSet;
 
+/// Colour diagnostics only when stderr (where they are printed) is a terminal,
+/// so piped or redirected output stays plain.
+fn stderr_style() -> RenderStyle {
+    RenderStyle {
+        color: std::io::stderr().is_terminal(),
+        ..RenderStyle::default()
+    }
+}
+
 /// Run a meta or data validation and turn its outcome into rendered output and
 /// an exit code.
 fn run_validate(args: ValidateArgs, validate: ValidateFn) -> ExitCode {
@@ -193,7 +220,7 @@ fn run_validate(args: ValidateArgs, validate: ValidateFn) -> ExitCode {
     if args.json {
         println!("{}", problems_to_json(&problems));
     } else {
-        for line in problems.render() {
+        for line in problems.render(stderr_style()) {
             eprintln!("{line}");
         }
         if !status.failed() {
@@ -304,7 +331,7 @@ mod tests {
     fn explicit_file_is_returned_as_is() {
         let dir = temp_dir("file");
         let file = dir.join("custom.yaml");
-        fs::write(&file, "tables: {}\n").unwrap();
+        fs::write(&file, "tables: []\n").unwrap();
         assert_eq!(resolve_dict_path(Some(file.clone())).unwrap(), file);
     }
 
@@ -312,7 +339,7 @@ mod tests {
     fn directory_resolves_to_data_dict_yaml() {
         let dir = temp_dir("dir");
         let dict = dir.join("data-dict.yaml");
-        fs::write(&dict, "tables: {}\n").unwrap();
+        fs::write(&dict, "tables: []\n").unwrap();
         assert_eq!(resolve_dict_path(Some(dir)).unwrap(), dict);
     }
 

@@ -18,16 +18,14 @@ use crate::problem::{Problem, ProblemSet, Severity};
 /// Lower an AST, collecting any lowering problems (currently only S04
 /// for unparseable join expressions).
 pub fn lower(root: &YamlWithSourceInfo, problems: &mut ProblemSet) -> DataDict {
-    let mut tables = indexmap::IndexMap::new();
+    let mut tables = Vec::new();
     if let Some(t_node) = root.get_hash_value("tables")
-        && let Some(entries) = t_node.as_hash()
+        && let Some(items) = t_node.as_array()
     {
-        for entry in entries {
-            // An empty/null key is kept (as "") so S11 can report it; the
-            // parser collapses an empty table name to a null key.
-            let name = entry.key.yaml.as_str().unwrap_or("");
-            let table = lower_table(name, &entry.key_span, &entry.value);
-            tables.insert(name.to_string(), table);
+        for item in items {
+            if let Some(table) = lower_table(item) {
+                tables.push(table);
+            }
         }
     }
 
@@ -46,9 +44,17 @@ pub fn lower(root: &YamlWithSourceInfo, problems: &mut ProblemSet) -> DataDict {
     }
 }
 
-fn lower_table(name: &str, name_span: &SourceInfo, value: &YamlWithSourceInfo) -> Table {
+fn lower_table(node: &YamlWithSourceInfo) -> Option<Table> {
+    let entries = node.as_hash()?;
+    let name_entry = entries
+        .iter()
+        .find(|e| e.key.yaml.as_str() == Some("name"))?;
+    // An empty/null name is kept (as "") so S11 can report it; the parser
+    // collapses an empty name to null.
+    let name = name_entry.value.yaml.as_str().unwrap_or("");
+
     let mut columns = Vec::new();
-    if let Some(c_node) = value.get_hash_value("columns")
+    if let Some(c_node) = node.get_hash_value("columns")
         && let Some(items) = c_node.as_array()
     {
         for col in items {
@@ -57,7 +63,7 @@ fn lower_table(name: &str, name_span: &SourceInfo, value: &YamlWithSourceInfo) -
             }
         }
     }
-    let source = value.get_hash_value("source").and_then(|n| {
+    let source = node.get_hash_value("source").and_then(|n| {
         let parquet = n.get_hash_value("parquet")?;
         let path = parquet.yaml.as_str()?;
         Some(Source {
@@ -66,20 +72,19 @@ fn lower_table(name: &str, name_span: &SourceInfo, value: &YamlWithSourceInfo) -
         })
     });
     let key_span = |key: &str| {
-        value.as_hash().and_then(|entries| {
-            entries
-                .iter()
-                .find(|e| e.key.yaml.as_str() == Some(key))
-                .map(|e| e.key_span.clone())
-        })
+        entries
+            .iter()
+            .find(|e| e.key.yaml.as_str() == Some(key))
+            .map(|e| e.key_span.clone())
     };
-    Table {
-        name: Spanned::new(name.to_string(), name_span.clone()),
+    Some(Table {
+        name: Spanned::new(name.to_string(), name_entry.value_span.clone()),
         columns,
         source,
+        label: key_span("label"),
         description: key_span("description"),
         details: key_span("details"),
-    }
+    })
 }
 
 fn lower_column(node: &YamlWithSourceInfo) -> Option<Column> {

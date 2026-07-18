@@ -51,7 +51,7 @@ fn animals_dict(dir: &Path, parquet: &str, columns: &str) -> PathBuf {
         dir,
         &formatdoc! {"
             tables:
-              animals:
+              - name: animals
                 source:
                   parquet: {parquet}
                 columns:
@@ -94,7 +94,10 @@ fn type_mismatch_reported() {
             if *code == "M01" && declared == "string" && actual == "number"
     ));
     #[cfg(unix)]
-    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &problems.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]
@@ -117,7 +120,10 @@ fn extra_column_in_data_is_warning() {
         [Problem { column: Some(column), code: Some(code), severity, kind: ProblemKind::ExtraInData { actual }, .. }]
             if column == "weight" && *code == "M03" && actual == "number" && *severity == Severity::Warning
     ));
-    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &problems.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]
@@ -180,7 +186,10 @@ fn missing_column_in_data_reported() {
         }]
     ));
     #[cfg(unix)]
-    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &problems.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]
@@ -194,7 +203,7 @@ fn validates_every_table() {
         &dir,
         indoc! {"
             tables:
-              animals:
+              - name: animals
                 source:
                   parquet: animals.parquet
                 columns:
@@ -204,7 +213,7 @@ fn validates_every_table() {
                   - name: weight
                     type: number(quantity)
                     range: [0, 100]
-              plants:
+              - name: plants
                 source:
                   parquet: plants.parquet
                 columns:
@@ -254,7 +263,10 @@ fn unreadable_source_reported() {
         problems.items
     );
     #[cfg(unix)]
-    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &problems.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]
@@ -268,14 +280,14 @@ fn unreadable_source_does_not_stop_other_tables() {
         &dir,
         indoc! {"
             tables:
-              animals:
+              - name: animals
                 source:
                   parquet: missing.parquet
                 columns:
                   - name: name
                     type: string
                     examples: [otter, seal]
-              plants:
+              - name: plants
                 source:
                   parquet: plants.parquet
                 columns:
@@ -301,7 +313,10 @@ fn unreadable_source_does_not_stop_other_tables() {
         problems.items
     );
     #[cfg(unix)]
-    assert_snapshot!(common::diagnostic(&yaml, &problems.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &problems.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]
@@ -331,7 +346,7 @@ fn missing_source_reported() {
         &dir,
         indoc! {"
             tables:
-              animals:
+              - name: animals
                 columns:
                   - name: name
                     type: string

@@ -79,7 +79,7 @@ fn build_column_with_properties(
         &dir,
         &formatdoc! {"
             tables:
-              t:
+              - name: t
                 source:
                   parquet: data.parquet
                 columns:
@@ -125,7 +125,7 @@ fn build_composite_key(first: &[f64], second: &[f64]) -> PathBuf {
         &dir,
         indoc! {"
             tables:
-              t:
+              - name: t
                 source:
                   parquet: data.parquet
                 columns:
@@ -203,7 +203,10 @@ fn nulls_in_required_column_reported() {
         result.items
     );
     #[cfg(unix)]
-    assert_snapshot!(common::diagnostic(&yaml, &result.render().join("\n")));
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &result.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
 }
 
 #[test]
@@ -356,7 +359,7 @@ fn build_string_groups(groups: &[&[&str]]) -> PathBuf {
         &dir,
         indoc! {"
             tables:
-              t:
+              - name: t
                 source:
                   parquet: data.parquet
                 columns:

@@ -6,16 +6,20 @@ expression: "serde_json::to_string_pretty(&value).unwrap()"
   "problems": [
     {
       "code": "S09",
-      "expected": "A document should point readers to the spec with `$learn_more: http://data-dict.tidyverse.org/`.",
+      "expected": "A document should point readers to the spec with `$learn_more`.",
       "kind": "spec",
       "location": {
-        "end_column": 8,
+        "end_column": 1,
         "end_line": 1,
         "start_column": 0,
         "start_line": 1
       },
       "message": "`$learn_more` is not set",
-      "severity": "warning"
+      "severity": "warning",
+      "suggestion": {
+        "replacement": "$learn_more: http://data-dict.tidyverse.org/\n",
+        "title": "point readers to the spec"
+      }
     },
     {
       "code": "S07",

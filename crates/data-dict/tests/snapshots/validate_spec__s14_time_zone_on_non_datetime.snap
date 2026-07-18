@@ -4,21 +4,19 @@ source: crates/data-dict/tests/validate_spec.rs
 $version: "0.1.0"
 $learn_more: http://data-dict.tidyverse.org/
 tables:
-  events:
+  - name: events
     columns:
       - name: event_day
         type: date
         time_zone: America/New_York
         range: [2020-01-01, 2024-12-31]
 ────────────────────────────────────────
-Error: [S14] A column with `time_zone` must have type `datetime`.
-   ╭─[ dict.yaml:8:20 ]
-   │
- 4 │   events:
-   │ 
- 6 │       - name: event_day
- 7 │         type: date
- 8 │         time_zone: America/New_York
-   │                    ────────┬───────  
-   │                            ╰───────── has `time_zone` but has type `date`
-───╯
+error[S14]: A column with `time_zone` must have type `datetime`.
+  --> dict.yaml:8:20
+   |
+LL |   - name: events
+LL |     columns:
+LL |       - name: event_day
+LL |         type: date
+LL |         time_zone: America/New_York
+   |                    ^^^^^^^^^^^^^^^^ has `time_zone` but has type `date`
