@@ -476,6 +476,7 @@ dependencies = [
  "quarto-source-map",
  "quarto-yaml",
  "quarto-yaml-validation",
+ "regex",
  "serde",
  "serde_json",
 ]

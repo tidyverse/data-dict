@@ -48,6 +48,9 @@ A validator reports two severities of problem: **errors** and **warnings**. The 
 | S16 | Misplaced single-table description | W | A dictionary with exactly one table carries `label`, `description`, or `details` on that table; for a single-table dictionary these belong at the top level. |
 | S17 | Malformed version | E | The top-level `version` does not give exactly one of `number`, `date`, or `hash`; its `number` is not three dot-separated numeric components (`MAJOR.MINOR.PATCH`) with an optional pre-release/build suffix; or its `date` is not a valid ISO 8601 date (`YYYY-MM-DD`). |
 | S18 | Missing `$version` | E | The document omits the required top-level `$version` key. |
+| S19 | Malformed assertion | E | An `assert` expression fails to parse (a syntax error in the constraint sublanguage). |
+| S20 | Unknown assertion column | E | An `assert` expression, or a `COLUMNS([...])` list, references a column not present on the table. |
+| S21 | Ill-typed assertion | E | An `assert` expression is syntactically valid but semantically wrong: an operator or function applied to the wrong operand type, a wrong function arity, a non-boolean top-level expression, more than one `COLUMNS(...)`, or a malformed `SIMILAR TO` / `COLUMNS('...')` regex. |
 
 : {tbl-colwidths="[7,23,5,65]"}
 

@@ -260,6 +260,17 @@ Keywords and function names are case-insensitive, as in SQL — `AND`, `and`, `L
 
 Assertions state what must be **true**, so conditional rules are written as implications, e.g. `NOT(q3) OR q4 IS NOT NULL` or `NOT(q3 AND q4 IS NULL)`.
 
+Operands are column names, literals, and function results. The literal forms are:
+
+* **Numbers** — an integer (`42`) or decimal (`3.14`); a leading `-` is unary minus.
+* **Strings** — single-quoted (`'ABC'`); double a quote to include one (`'O''Brien'`).
+* **Booleans** — `TRUE` or `FALSE`.
+* **Null** — `NULL`.
+
+There is no dedicated date/datetime literal: a date or datetime is written as a single-quoted ISO 8601 string (`'2024-01-31'`, `'2024-01-31T09:30:00Z'`) and compared against a `date`/`datetime` column, or produced by `NOW()` and `interval(...)`.
+
+An `assert` expression as a whole must be **boolean** — a bare non-boolean column (e.g. a number) is not a valid assertion on its own; compare or test it (`qty > 0`, `postcode IS NOT NULL`). Functions take fixed arities: the string functions `LENGTH`, `LOWER`, `UPPER`, `TRIM` take one argument; `STARTS_WITH`, `ENDS_WITH`, `MOD` take two; `ABS`, `FLOOR`, `CEIL` take one; `ROUND` takes one or two (the second is the number of decimal places); `NOW()` takes none; and `interval(<n>, <unit>)` takes an integer and a unit keyword.
+
 #### Selecting multiple columns
 
 To apply the same predicate to a group of columns without repeating it, an assertion may use a `COLUMNS(...)` expression — a simple subset of [DuckDB's `COLUMNS`](https://duckdb.org/docs/current/sql/expressions/star). The supported forms select columns by:

@@ -895,8 +895,9 @@ fn s15_bad_time_zone() {
 //
 // The schema fixes only the *shape* of constraints: a column entry is either a
 // structural bareword or an assertion map (`assert` + optional `description`),
-// and a table entry is an assertion map only. The `assert` expression grammar
-// is not a structural concern, so any string passes here.
+// and a table entry is an assertion map only. The `assert` expression itself is
+// then validated semantically — parsed (S19), its columns resolved (S20), and
+// type-checked (S21) — by `assert_expr` (see that module for the grammar).
 
 // A column may mix structural barewords with assertion maps in one list, and an
 // assertion may carry an optional `description`.
@@ -937,19 +938,146 @@ fn constraints_table_assertions() {
     "});
 }
 
-// The `assert` grammar is validated semantically, not structurally: a string
-// that is not a well-formed expression still passes the schema.
+// S19: an `assert` expression that fails to parse points at the failing token.
 #[test]
-fn constraints_assert_expression_not_structurally_parsed() {
-    assert_valid_dict(indoc! {"
+fn constraints_s19_syntax_error() {
+    let diagnostic = failing_dict(indoc! {"
         tables:
           - name: t
             columns:
               - name: a
                 type: string
                 examples: [x]
+                constraints:
+                  - assert: LENGTH(a) <=
+    "});
+    diagnostic.assert_contains(&["S19", "does not parse"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// S20: an assertion referencing a column not on the table.
+#[test]
+fn constraints_s20_unknown_column() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: a
+                type: number
+                examples: [1, 2]
             constraints:
-              - assert: this is not <<< valid sql
+              - assert: a > b
+    "});
+    diagnostic.assert_contains(&["S20", "`b`", "not on this table"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// S20: a `COLUMNS([...])` list naming a column that does not exist.
+#[test]
+fn constraints_s20_unknown_column_in_columns_list() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: a
+                type: number
+                examples: [1, 2]
+            constraints:
+              - assert: COLUMNS([a, missing]) IS NOT NULL
+    "});
+    diagnostic.assert_contains(&["S20", "`missing`"]);
+}
+
+// S21: a type mismatch — a numeric length compared as if the column were a
+// string, and a non-boolean assertion at the top level.
+#[test]
+fn constraints_s21_type_mismatch() {
+    let diagnostic = failing_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: qty
+                type: number
+                examples: [1, 2]
+                constraints:
+                  - assert: LENGTH(qty) <= 10
+    "});
+    diagnostic.assert_contains(&["S21", "LENGTH"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+// S21: an assertion whose whole expression is not boolean.
+#[test]
+fn constraints_s21_non_boolean() {
+    assert_invalid_dict(
+        indoc! {"
+            tables:
+              - name: t
+                columns:
+                  - name: qty
+                    type: number
+                    examples: [1, 2]
+                    constraints:
+                      - assert: qty
+        "},
+        &["S21", "boolean"],
+    );
+}
+
+// S21: at most one `COLUMNS(...)` may appear in an assertion.
+#[test]
+fn constraints_s21_two_columns() {
+    assert_invalid_dict(
+        indoc! {"
+            tables:
+              - name: t
+                columns:
+                  - name: a
+                    type: number
+                    examples: [1, 2]
+                  - name: b
+                    type: number
+                    examples: [1, 2]
+                constraints:
+                  - assert: COLUMNS(*) IS NOT NULL AND COLUMNS('a') > 0
+        "},
+        &["S21", "at most one"],
+    );
+}
+
+// S21: a malformed `SIMILAR TO` regular expression.
+#[test]
+fn constraints_s21_bad_regex() {
+    assert_invalid_dict(
+        indoc! {"
+            tables:
+              - name: t
+                columns:
+                  - name: a
+                    type: string
+                    examples: [x]
+                    constraints:
+                      - assert: a SIMILAR TO '('
+        "},
+        &["S21", "regular expression"],
+    );
+}
+
+// A date column may be compared against an ISO date string literal.
+#[test]
+fn constraints_date_literal_comparison_ok() {
+    assert_valid_dict(indoc! {"
+        tables:
+          - name: t
+            columns:
+              - name: d
+                type: date
+                range: [2000-01-01, 2030-01-01]
+                constraints:
+                  - assert: d >= '2000-01-01'
     "});
 }
 

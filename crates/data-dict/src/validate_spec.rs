@@ -20,8 +20,9 @@ use quarto_yaml::YamlWithSourceInfo;
 use quarto_yaml_validation::error::ValidationErrorKind;
 use quarto_yaml_validation::{Schema, SchemaRegistry, ValidationDiagnostic, ValidationError};
 
+use crate::assert_expr::{self, CheckEnv, ColumnKind};
 use crate::join_expr::{JoinExpr, QCol};
-use crate::model::{Cardinality, Column, DataDict, Scalar, Spanned, Table};
+use crate::model::{Assertion, Cardinality, Column, DataDict, Scalar, Spanned, Table};
 use crate::problem::{Problem, ProblemKind, ProblemSet, Suggestion, subspan};
 use crate::{SourceContext, lower};
 
@@ -213,12 +214,14 @@ fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
         if validate_s11_table_name(table, out) {
             validate_s10_unique_table_name(table, &mut seen_tables, out);
         }
+        validate_table_assertions(table, out);
         let mut seen: HashMap<String, SourceInfo> = HashMap::new();
         for col in &table.columns {
             validate_s01_foreign_key(dict, table, col, out);
             validate_s08_units(table, col, out);
             validate_s14_time_zone(table, col, out);
             validate_s15_time_zone_format(table, col, out);
+            validate_column_assertions(table, col, out);
             if validate_s11_column_name(table, col, out) {
                 validate_s10_unique_name(table, col, &mut seen, out);
             }
@@ -228,6 +231,79 @@ fn check_spec(dict: &DataDict, out: &mut ProblemSet) {
                 validate_s13_range_order(table, col, out);
             }
         }
+    }
+}
+
+// --- S20 / S21 (assertion semantics) ---------------------------------------
+
+/// A [`CheckEnv`] over one table: it resolves column kinds and parses the date
+/// literals an assertion may compare against a `date`/`datetime` column.
+struct TableEnv<'a> {
+    table: &'a Table,
+}
+
+impl CheckEnv for TableEnv<'_> {
+    fn column(&self, name: &str) -> Option<ColumnKind> {
+        let col = self.table.column(name)?;
+        Some(match col.col_type.as_ref().map(|t| t.value.as_str()) {
+            Some("string") => ColumnKind::String,
+            Some("number" | "number(id)" | "number(ordinal)" | "number(quantity)") => {
+                ColumnKind::Number
+            }
+            Some("boolean") => ColumnKind::Bool,
+            Some("date") => ColumnKind::Date,
+            Some("datetime") => ColumnKind::Datetime,
+            Some("enum") => ColumnKind::Enum,
+            _ => ColumnKind::Untyped,
+        })
+    }
+
+    fn is_date(&self, s: &str) -> bool {
+        parse_date(s).is_some()
+    }
+
+    fn is_datetime(&self, s: &str) -> bool {
+        // Accept either an offset-bearing or a zoneless ISO 8601 datetime; the
+        // column's `time_zone` decides which is canonical, but for a literal
+        // comparison either spelling is a legitimate datetime.
+        parse_datetime(s).is_some() || parse_naive_datetime(s).is_some()
+    }
+}
+
+fn validate_column_assertions(table: &Table, col: &Column, out: &mut ProblemSet) {
+    let env = TableEnv { table };
+    for assertion in &col.assertions {
+        run_assertion_check(&env, assertion, &[&table.name, &col.name], out);
+    }
+}
+
+fn validate_table_assertions(table: &Table, out: &mut ProblemSet) {
+    let env = TableEnv { table };
+    for assertion in &table.constraints {
+        run_assertion_check(&env, assertion, &[&table.name], out);
+    }
+}
+
+/// Run the S20/S21 checks for one parsed assertion, turning each finding into a
+/// located problem. `enclosing` are the outer nodes (table, and column for a
+/// column assertion) shown as context before the offending token.
+fn run_assertion_check(
+    env: &dyn CheckEnv,
+    assertion: &Assertion,
+    enclosing: &[&Spanned<String>],
+    out: &mut ProblemSet,
+) {
+    let Some(expr) = &assertion.expr else { return };
+    for finding in assert_expr::check(expr, env) {
+        let span = subspan(&assertion.text.span, finding.start, finding.end)
+            .unwrap_or_else(|| assertion.text.span.clone());
+        let mut spans: Vec<SourceInfo> = enclosing.iter().map(|s| s.span.clone()).collect();
+        spans.push(span);
+        let expected = match finding.code {
+            "S20" => "An assertion may only reference columns of its table.",
+            _ => "An assertion must be a well-typed boolean expression.",
+        };
+        out.push_spec_error(finding.code, expected, finding.message, spans);
     }
 }
 
