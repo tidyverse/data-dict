@@ -72,6 +72,7 @@ A validator reports two severities of problem: **errors** and **warnings**. The 
 | D01 | Nulls in a required column | E | A `required` or `primary_key` column contains nulls. |
 | D02 | Duplicate values | E | A `unique` column contains duplicate values, or the combination of all `primary_key` columns does not uniquely identify every row. Only [comparable types](#comparable-types) are checked. Null/missing values are never counted as duplicates; for a composite primary key, a row with a null in any key column is not compared. |
 | D03 | Uniqueness not verified | W | A `unique` column or `primary_key` uses a type whose values can't be reliably compared, so its uniqueness was not checked. |
+| D04 | Value outside enum | E | An `enum` column contains a (non-null) value that is not one of its declared `values`. |
 
 : {tbl-colwidths="[7,23,5,65]"}
 

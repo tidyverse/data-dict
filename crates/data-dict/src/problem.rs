@@ -180,6 +180,14 @@ pub enum ProblemKind {
         columns: Vec<String>,
         reason: String,
     },
+    /// `D04` — an `enum` column contains values outside its declared `values`.
+    /// `count` is the total; `rows` lists the first few offending row numbers
+    /// (1-based) and `values` the first few distinct offending values.
+    ValuesOutsideEnum {
+        count: usize,
+        rows: Vec<usize>,
+        values: Vec<String>,
+    },
 }
 
 impl ProblemKind {
@@ -196,6 +204,7 @@ impl ProblemKind {
             ProblemKind::NullsInRequired { .. } => "D01",
             ProblemKind::DuplicateValues { .. } => "D02",
             ProblemKind::UniquenessNotVerified { .. } => "D03",
+            ProblemKind::ValuesOutsideEnum { .. } => "D04",
             _ => return None,
         })
     }
@@ -212,7 +221,8 @@ impl ProblemKind {
             | ProblemKind::UnreadableSource => Level::Meta,
             ProblemKind::NullsInRequired { .. }
             | ProblemKind::DuplicateValues { .. }
-            | ProblemKind::UniquenessNotVerified { .. } => Level::Data,
+            | ProblemKind::UniquenessNotVerified { .. }
+            | ProblemKind::ValuesOutsideEnum { .. } => Level::Data,
             _ => return None,
         })
     }
@@ -711,6 +721,15 @@ mod tests {
             }
             .code(),
             Some("D02")
+        );
+        assert_eq!(
+            ProblemKind::ValuesOutsideEnum {
+                count: 1,
+                rows: vec![2],
+                values: vec!["x".into()],
+            }
+            .code(),
+            Some("D04")
         );
         assert_eq!(ProblemKind::Io.code(), None);
         assert_eq!(ProblemKind::Io.level(), None);

@@ -68,7 +68,9 @@ pub struct Column {
     pub name: Spanned<String>,
     pub constraints: Vec<Spanned<Constraint>>,
     pub col_type: Option<Spanned<String>>,
-    pub values: Option<SourceInfo>,
+    /// The allowed values of an `enum` column: the list items, or the keys of
+    /// the map form (whose labels are dropped — only the values are constrained).
+    pub values: Option<Representation>,
     pub range: Option<Representation>,
     pub examples: Option<Representation>,
     pub units: Option<Spanned<String>>,
@@ -83,7 +85,11 @@ pub struct Representation {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Scalar {
-    Number(f64),
+    /// An integer, kept distinct from `Float` so its exact value survives for
+    /// value-equality (D04); routing every number through `f64` would lose
+    /// precision past 2^53.
+    Int(i64),
+    Float(f64),
     String(String), // includes date/times
     Bool(bool),
     Null,
@@ -95,11 +101,48 @@ impl Scalar {
     /// English noun phrase naming the scalar's kind, for diagnostics.
     pub fn noun(&self) -> &'static str {
         match self {
-            Scalar::Number(_) => "a number",
+            Scalar::Int(_) | Scalar::Float(_) => "a number",
             Scalar::String(_) => "a string",
             Scalar::Bool(_) => "a boolean",
             Scalar::Null => "null",
             Scalar::Compound => "a list or map",
+        }
+    }
+
+    /// The numeric value as `f64` for ordering comparisons (S13 range order),
+    /// or `None` if not a number.
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            Scalar::Int(n) => Some(*n as f64),
+            Scalar::Float(n) => Some(*n),
+            _ => None,
+        }
+    }
+
+    /// The canonical string forms this value can take in data, for value-equality
+    /// comparison (D04). Empty for kinds that can't appear as a data value
+    /// (`null`, compound). Must agree with the data side's canonicalization in
+    /// `data-dict-parquet`.
+    ///
+    /// A float yields two forms — its own (`f64`, matching a `DOUBLE` column) and
+    /// its narrowing to `f32` (matching a `FLOAT` column) — because a value like
+    /// `3.14159265358979` prints differently at each width, and the data side
+    /// formats at the column's physical width.
+    pub fn value_keys(&self) -> Vec<String> {
+        match self {
+            Scalar::Int(n) => vec![n.to_string()],
+            Scalar::Float(n) => {
+                let wide = n.to_string();
+                let narrow = (*n as f32).to_string();
+                if narrow == wide {
+                    vec![wide]
+                } else {
+                    vec![wide, narrow]
+                }
+            }
+            Scalar::String(s) => vec![s.clone()],
+            Scalar::Bool(b) => vec![b.to_string()],
+            Scalar::Null | Scalar::Compound => vec![],
         }
     }
 }
@@ -119,6 +162,10 @@ impl Column {
     /// `primary_key` (which the spec defines as implying `required`).
     pub fn is_required_implied(&self) -> bool {
         self.has(Constraint::Required) || self.has(Constraint::PrimaryKey)
+    }
+
+    pub fn is_enum(&self) -> bool {
+        self.col_type.as_ref().is_some_and(|t| t.value == "enum")
     }
 }
 

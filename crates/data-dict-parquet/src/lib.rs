@@ -1,5 +1,6 @@
 //! Parquet reader for data-dict.yaml validation.
 
+mod dictionary;
 mod metadata;
 mod scan;
 mod uniqueness;

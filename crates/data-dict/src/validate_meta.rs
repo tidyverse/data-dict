@@ -58,6 +58,18 @@ pub(crate) fn validate_d01_required_not_null(
     }
 }
 
+/// Attempt D04 from footer metadata. Set membership can't be settled from the
+/// footer — min/max bound the extremes but say nothing about the values between
+/// them — so an `enum` column carrying a `values` set is always inconclusive and
+/// deferred to the scan; any other column passes here.
+pub(crate) fn validate_d04_enum_membership(col: &Column) -> CheckResult {
+    if col.is_enum() && col.values.is_some() {
+        CheckResult::Inconclusive
+    } else {
+        CheckResult::Pass
+    }
+}
+
 /// Attempt the individual-column form of D02 from footer statistics.
 pub(crate) fn validate_d02_unique_column(
     table: &Table,

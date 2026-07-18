@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use data_dict::{Problem, ProblemKind, ProblemSet, Status, validate_data, validate_meta};
 use indoc::{formatdoc, indoc};
-use parquet::data_type::{ByteArray, ByteArrayType, DoubleType, Int64Type};
+use parquet::data_type::{ByteArray, ByteArrayType, DoubleType, FloatType, Int32Type, Int64Type};
 use parquet::file::properties::{EnabledStatistics, WriterProperties};
 use parquet::file::writer::{SerializedColumnWriter, SerializedFileWriter};
 use parquet::schema::parser::parse_message_type;
@@ -269,6 +269,269 @@ fn nulls_in_optional_column_ok() {
     );
 
     assert_eq!(result.status(), Status::Ok);
+}
+
+/// Write the given strings as a required UTF-8 byte-array column.
+fn write_strings<'a>(values: &'a [&'a str]) -> impl FnOnce(&mut SerializedColumnWriter) + 'a {
+    move |col| {
+        let bytes = values
+            .iter()
+            .map(|s| ByteArray::from(*s))
+            .collect::<Vec<_>>();
+        col.typed::<ByteArrayType>()
+            .write_batch(&bytes, None, None)
+            .unwrap();
+    }
+}
+
+#[test]
+fn values_outside_enum_reported() {
+    let yaml = build_column(
+        "REQUIRED BYTE_ARRAY status (UTF8)",
+        write_strings(&["active", "banned", "active", "sleepy"]),
+        indoc! {"
+            - name: status
+              type: enum
+              values: [active, banned]
+        "},
+    );
+    let result = validate_data(&yaml, None);
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D04"),
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[4] && values == &["sleepy"]
+        ),
+        "got {:?}",
+        result.items
+    );
+    #[cfg(unix)]
+    assert_snapshot!(common::diagnostic(
+        &yaml,
+        &result.render(common::SNAPSHOT_STYLE).join("\n")
+    ));
+}
+
+#[test]
+fn enum_values_within_set_ok() {
+    let result = check_column(
+        "REQUIRED BYTE_ARRAY status (UTF8)",
+        write_strings(&["active", "banned", "active"]),
+        indoc! {"
+            - name: status
+              type: enum
+              values: [active, banned]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Ok, "got {:?}", result.items);
+}
+
+#[test]
+fn enum_map_form_values_are_the_keys() {
+    // The map form's keys are the allowed values; the labels are ignored.
+    let result = check_column(
+        "REQUIRED BYTE_ARRAY status (UTF8)",
+        write_strings(&["A", "Active"]),
+        indoc! {"
+            - name: status
+              type: enum
+              values:
+                A: Active
+                B: Banned
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[2] && values == &["Active"]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+#[test]
+fn nulls_in_optional_enum_are_not_outside_values() {
+    // A null is the concern of D01 (and only when required); it is never an
+    // "outside the set" value.
+    let result = check_column(
+        "OPTIONAL BYTE_ARRAY status (UTF8)",
+        |col| {
+            let bytes = [ByteArray::from("active"), ByteArray::from("banned")];
+            col.typed::<ByteArrayType>()
+                .write_batch(&bytes, Some(&[1, 0, 1]), None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: status
+              type: enum
+              values: [active, banned]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Ok, "got {:?}", result.items);
+}
+
+#[test]
+fn numeric_enum_values_are_checked() {
+    let result = check_column(
+        "REQUIRED INT32 grade",
+        |col| {
+            col.typed::<Int32Type>()
+                .write_batch(&[1, 2, 3], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: grade
+              type: enum
+              values: [1, 2]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[3] && values == &["3"]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+/// Integer enum values past f64's exact range (2^53) must compare exactly: the
+/// declared value and the identical data value must not be routed through f64,
+/// which would collapse them to different strings and flag conforming data.
+#[test]
+fn large_integer_enum_values_compare_exactly() {
+    // 2^53 + 1, not representable as f64.
+    let big = 9007199254740993_i64;
+    let other = 9007199254740995_i64;
+    let result = check_column(
+        "REQUIRED INT64 id",
+        move |col| {
+            col.typed::<Int64Type>()
+                .write_batch(&[big, other, big], None, None)
+                .unwrap();
+        },
+        &formatdoc! {"
+            - name: id
+              type: enum
+              values: [{big}, 42]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D04"),
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[2] && values == &[other.to_string()]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+/// A `FLOAT` column stores values at f32 width, so a declared value that prints
+/// differently as f32 than as f64 (`8.31446261815324` → `8.314463`) must still
+/// be recognized as in-set. Only the genuinely-absent value is reported.
+#[test]
+fn float_enum_values_compare_at_column_width() {
+    // The declared value, narrowed to the column's f32 width as the writer would.
+    let precise = 8.31446261815324_f64 as f32;
+    let result = check_column(
+        "REQUIRED FLOAT ratio",
+        move |col| {
+            col.typed::<FloatType>()
+                .write_batch(&[precise, 2.5, 9.5], None, None)
+                .unwrap();
+        },
+        indoc! {"
+            - name: ratio
+              type: enum
+              values: [8.31446261815324, 2.5]
+        "},
+    );
+
+    assert_eq!(result.status(), Status::Error);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D04"),
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[3] && values == &["9.5"]
+        ),
+        "got {:?}",
+        result.items
+    );
+}
+
+/// With dictionary encoding disabled, the D04 dictionary fast-path can't prove
+/// conformance and must fall back to the value scan — which still finds the
+/// violation and its exact row.
+#[test]
+fn enum_without_dictionary_encoding_falls_back_to_scan() {
+    let no_dict = || {
+        WriterProperties::builder()
+            .set_dictionary_enabled(false)
+            .build()
+    };
+
+    let clean = build_column_with_properties(
+        "REQUIRED BYTE_ARRAY status (UTF8)",
+        write_strings(&["active", "banned", "active"]),
+        indoc! {"
+            - name: status
+              type: enum
+              values: [active, banned]
+        "},
+        no_dict(),
+    );
+    assert_eq!(validate_data(&clean, None).status(), Status::Ok);
+
+    let bad = build_column_with_properties(
+        "REQUIRED BYTE_ARRAY status (UTF8)",
+        write_strings(&["active", "banned", "sleepy"]),
+        indoc! {"
+            - name: status
+              type: enum
+              values: [active, banned]
+        "},
+        no_dict(),
+    );
+    let result = validate_data(&bad, None);
+    assert!(
+        matches!(
+            result.items.as_slice(),
+            [Problem {
+                code: Some("D04"),
+                kind: ProblemKind::ValuesOutsideEnum { count: 1, rows, values },
+                ..
+            }] if rows == &[3] && values == &["sleepy"]
+        ),
+        "got {:?}",
+        result.items
+    );
 }
 
 #[test]

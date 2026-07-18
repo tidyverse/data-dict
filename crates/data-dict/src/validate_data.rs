@@ -3,7 +3,7 @@
 //! [`validate_data`] is the entry point; `value_issues` is the value-checking
 //! core it runs after the metadata checks ([`crate::validate_meta`]).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use data_dict_parquet::{ColumnMeta, ColumnNeeds, ColumnStats, UniquenessCheck, UniquenessStats};
@@ -180,7 +180,7 @@ trait ColumnCheck {
 
 /// Every value-level check, run against each present column. Add a check here
 /// and the plan/scan/check pipeline picks it up automatically.
-const VALUE_CHECKS: &[&dyn ColumnCheck] = &[&RequiredNotNull];
+const VALUE_CHECKS: &[&dyn ColumnCheck] = &[&RequiredNotNull, &EnumMembership];
 
 /// D01 — a `required` (or `primary_key`) column must contain no nulls.
 struct RequiredNotNull;
@@ -193,6 +193,7 @@ impl ColumnCheck for RequiredNotNull {
     fn needs(&self, col: &Column) -> ColumnNeeds {
         ColumnNeeds {
             nulls: col.is_required_implied(),
+            ..ColumnNeeds::default()
         }
     }
 
@@ -208,6 +209,75 @@ impl ColumnCheck for RequiredNotNull {
             stats.null_count,
             stats.null_rows.clone(),
         ))
+    }
+}
+
+/// D04 — an `enum` column's values must all be among its declared `values`.
+struct EnumMembership;
+
+impl ColumnCheck for EnumMembership {
+    fn check_meta(&self, _table: &Table, col: &Column, _meta: &ColumnMeta) -> CheckResult {
+        crate::validate_meta::validate_d04_enum_membership(col)
+    }
+
+    fn needs(&self, col: &Column) -> ColumnNeeds {
+        ColumnNeeds {
+            allowed: enum_allowed(col),
+            ..ColumnNeeds::default()
+        }
+    }
+
+    fn check_data(&self, table: &Table, col: &Column, stats: &ColumnStats) -> Option<Problem> {
+        // The set was only requested for enum columns, so any outside value is a
+        // violation.
+        if stats.outside_count == 0 {
+            return None;
+        }
+        Some(values_outside_enum(table, col, stats))
+    }
+}
+
+/// The canonical string forms of an `enum` column's allowed values, or `None`
+/// when the column declares no `values` (so it opts out of the check).
+fn enum_allowed(col: &Column) -> Option<HashSet<String>> {
+    let values = col.values.as_ref()?;
+    Some(
+        values
+            .items
+            .iter()
+            .flat_map(|item| item.value.value_keys())
+            .collect(),
+    )
+}
+
+fn values_outside_enum(table: &Table, col: &Column, stats: &ColumnStats) -> Problem {
+    let count = stats.outside_count;
+    let rows = crate::problem::format_rows(&stats.outside_rows, count);
+    let plural = if count == 1 { "" } else { "s" };
+    let sample = stats
+        .outside_values
+        .iter()
+        .map(|value| format!("`{value}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let values_span = col
+        .values
+        .as_ref()
+        .map_or_else(|| col.name.span.clone(), |values| values.span.clone());
+    Problem {
+        code: Some("D04"),
+        severity: Severity::Error,
+        message: format!("has {count} value{plural} outside the allowed set ({sample}; {rows})"),
+        column: None,
+        expected: Some("An enum column's values must all be among its declared `values`.".into()),
+        hint: None,
+        suggestion: None,
+        context: vec![table.name.span.clone(), col.name.span.clone(), values_span],
+        kind: ProblemKind::ValuesOutsideEnum {
+            count,
+            rows: stats.outside_rows.clone(),
+            values: stats.outside_values.clone(),
+        },
     }
 }
 

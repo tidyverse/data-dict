@@ -573,7 +573,7 @@ fn validate_s07_representation(table: &Table, col: &Column, out: &mut ProblemSet
                 "S07",
                 format!("A `{type_name}` column must use `range`, not `values`."),
                 found("values"),
-                at(values),
+                at(&values.span),
             );
         }
         if let Some(examples) = &col.examples {
@@ -586,7 +586,7 @@ fn validate_s07_representation(table: &Table, col: &Column, out: &mut ProblemSet
         }
     } else if type_name == "boolean" {
         for (span, key) in [
-            (col.values.as_ref(), "values"),
+            (col.values.as_ref().map(|v| &v.span), "values"),
             (col.range.as_ref().map(|r| &r.span), "range"),
             (col.examples.as_ref().map(|e| &e.span), "examples"),
         ] {
@@ -613,7 +613,7 @@ fn validate_s07_representation(table: &Table, col: &Column, out: &mut ProblemSet
                 "S07",
                 format!("A `{type_name}` column must not use `values`."),
                 found("values"),
-                at(values),
+                at(&values.span),
             );
         }
         if let Some(range) = &col.range {
@@ -863,13 +863,13 @@ fn validate_s12_value_types(table: &Table, col: &Column, out: &mut ProblemSet) -
 }
 
 fn is_infinite(value: &Scalar) -> bool {
-    matches!(value, Scalar::Number(f) if f.is_infinite())
+    matches!(value, Scalar::Float(f) if f.is_infinite())
 }
 
 fn value_matches_type(type_name: &str, value: &Scalar, tz_present: bool) -> bool {
     match type_name {
         "number" | "number(id)" | "number(ordinal)" | "number(quantity)" => {
-            matches!(value, Scalar::Number(_))
+            matches!(value, Scalar::Int(_) | Scalar::Float(_))
         }
         // The YAML parser discards quote style, so a quoted `'1'` arrives as a
         // number and a quoted `'null'` as null; we can't tell those from a real
@@ -957,8 +957,8 @@ fn validate_s13_range_order(table: &Table, col: &Column, out: &mut ProblemSet) {
 /// only when it sits on the wrong end (`+inf` as minimum, `-inf` as maximum).
 fn range_descending(type_name: &str, lo: &Scalar, hi: &Scalar, tz_present: bool) -> bool {
     if is_infinite(lo) || is_infinite(hi) {
-        let is_pos = |v: &Scalar| matches!(v, Scalar::Number(f) if *f == f64::INFINITY);
-        let is_neg = |v: &Scalar| matches!(v, Scalar::Number(f) if *f == f64::NEG_INFINITY);
+        let is_pos = |v: &Scalar| matches!(v, Scalar::Float(f) if *f == f64::INFINITY);
+        let is_neg = |v: &Scalar| matches!(v, Scalar::Float(f) if *f == f64::NEG_INFINITY);
         return (is_pos(lo) && !is_pos(hi)) || (is_neg(hi) && !is_neg(lo));
     }
     match (type_name, lo, hi) {
@@ -978,8 +978,10 @@ fn range_descending(type_name: &str, lo: &Scalar, hi: &Scalar, tz_present: bool)
                 _ => false,
             }
         }
-        (_, Scalar::Number(a), Scalar::Number(b)) => a > b,
-        _ => false,
+        (_, lo, hi) => match (lo.as_f64(), hi.as_f64()) {
+            (Some(a), Some(b)) => a > b,
+            _ => false,
+        },
     }
 }
 
