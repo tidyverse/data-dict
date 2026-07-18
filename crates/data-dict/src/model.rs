@@ -7,6 +7,7 @@
 
 use quarto_source_map::SourceInfo;
 
+use crate::assert_expr::AssertExpr;
 use crate::join_expr::JoinExpr;
 
 #[derive(Debug, Clone)]
@@ -66,10 +67,23 @@ impl DataDict {
     }
 }
 
+/// A table- or column-level `assert` constraint: the expression text with its
+/// span, the parsed form (`None` if it failed to parse — S19 is emitted then),
+/// and an optional description. Mirrors how [`Relationship`] holds both the
+/// `join` text and its parsed `JoinExpr`.
+#[derive(Debug, Clone)]
+pub struct Assertion {
+    pub text: Spanned<String>,
+    pub expr: Option<AssertExpr>,
+    pub description: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Table {
     pub name: Spanned<String>,
     pub columns: Vec<Column>,
+    /// Table-level assertions (span multiple columns).
+    pub constraints: Vec<Assertion>,
     /// Where the table's data lives, when it declares a `source`. Optional
     /// for spec validation; required for metadata validation (M04).
     pub source: Option<Source>,
@@ -98,6 +112,8 @@ impl Table {
 pub struct Column {
     pub name: Spanned<String>,
     pub constraints: Vec<Spanned<Constraint>>,
+    /// Column-level `assert` constraints (the map form of a `constraints` entry).
+    pub assertions: Vec<Assertion>,
     pub col_type: Option<Spanned<String>>,
     /// The allowed values of an `enum` column: the list items, or the keys of
     /// the map form (whose labels are dropped — only the values are constrained).
