@@ -16,12 +16,15 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 pub mod assert_expr;
+pub mod emit;
+mod eval;
 pub mod export;
 mod expr_lex;
 pub mod join_expr;
 pub mod lower;
 pub mod model;
 pub mod problem;
+pub mod translate;
 pub mod validate_data;
 pub mod validate_meta;
 pub mod validate_spec;
