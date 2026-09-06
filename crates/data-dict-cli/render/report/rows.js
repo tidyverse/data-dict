@@ -51,9 +51,11 @@ function Value({ value, format }) {
 }
 
 /* The cells a set of problems blames: row number → column → the problems
-   naming it. A problem names its cells through its values (and keys); one
-   that proves rows without values — a null in a required column — blames its
-   own columns. */
+   naming it. A problem names its cells through the values it read; one that
+   proves rows without values — a null in a required column — blames its own
+   columns. A problem's `keys` are not consulted: they identify the row it is
+   reporting, and a key column is only at fault when the check is about it, in
+   which case it is named the same way any other column is. */
 function cellFailures(problems) {
   const byCell = new Map();
   const mark = (row, column, problem) => {
@@ -64,11 +66,8 @@ function cellFailures(problems) {
   };
   for (const problem of problems) {
     (problem.rows || []).forEach((row, i) => {
-      const named = new Set([
-        ...Object.keys((problem.values && problem.values[i]) || {}),
-        ...Object.keys((problem.keys && problem.keys[i]) || {}),
-      ]);
-      const blamed = named.size ? [...named] : problem.columns || [];
+      const named = Object.keys((problem.values && problem.values[i]) || {});
+      const blamed = named.length ? named : problem.columns || [];
       blamed.forEach((column) => mark(row, column, problem));
     });
     if (problem.row != null) {
