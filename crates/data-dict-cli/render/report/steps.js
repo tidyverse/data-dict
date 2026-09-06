@@ -28,16 +28,18 @@ function StepCheck({ step }) {
   return html`<span class="step-check">${stepLabel(step)}${" "}<span class="code">(${step.code})</span></span>`;
 }
 
-/* The share of rows a step (or a whole table's steps) failed. Drawn only when
+/* What a bar weighs depends on what it is given: a step's own failures against
+   its rows, or a table's summed against every row its checks weighed. Those are
+   different units, so the tooltip names the one it is showing. Drawn only when
    there are rows to weigh, so the bar's presence is itself the claim that the
    step was evaluated — an unevaluated step, or a failing step over an empty
    table, gets none. */
-function StepMeter({ rows, failed }) {
+function StepMeter({ rows, failed, label = "failed rows" }) {
   if (!rows) return null;
   const share = failed / rows;
   return html`<div class="step-meter">
     <div class="step-track"
-      onMouseEnter=${(e) => showTip(barTip("failed", failed, rows), e)}
+      onMouseEnter=${(e) => showTip(barTip(label, failed, rows), e)}
       onMouseMove=${moveTip} onMouseLeave=${hideTip}>
       ${failed > 0 &&
         html`<div class=${`step-fill${share >= 1 ? " full" : ""}`}
@@ -188,7 +190,7 @@ function DatasetRow({ row }) {
       ? html`<a href="#rows/${encodeURIComponent(table)}" title="Failed rows"
           onClick=${(e) => e.stopPropagation()}>${fmtNum(failed)}</a>`
       : fmtNum(failed)}</td>
-    <td><${StepMeter} rows=${rows} failed=${failed} /></td>
+    <td><${StepMeter} rows=${rows} failed=${failed} label="failures" /></td>
   </tr>`;
 }
 
@@ -216,7 +218,7 @@ function DatasetsCard({ steps }) {
         <thead><tr>
           <${SortHead} label="Dataset" sortKey="dataset" sort=${sort} onSort=${setSort} />
           <${SortHead} label="Checks" sortKey="checks" sort=${sort} onSort=${setSort} numeric=${true} />
-          <${SortHead} label="Failed" sortKey="failed" sort=${sort} onSort=${setSort} numeric=${true} />
+          <${SortHead} label="Failures" sortKey="failed" sort=${sort} onSort=${setSort} numeric=${true} />
           <th></th>
         </tr></thead>
         <tbody>
@@ -264,7 +266,7 @@ function DatasetSection({ table, steps, sort, onSort, query, failuresOnly }) {
             <thead><tr>
               <${SortHead} label="Check" sortKey="check" sort=${sort} onSort=${onSort} />
               <${SortHead} label="Target" sortKey="target" sort=${sort} onSort=${onSort} />
-              <${SortHead} label="Failed" sortKey="failed" sort=${sort} onSort=${onSort} numeric=${true} />
+              <${SortHead} label="Failed rows" sortKey="failed" sort=${sort} onSort=${onSort} numeric=${true} />
               <th></th>
             </tr></thead>
             <tbody class="tgroup" onClick=${rowNav}>

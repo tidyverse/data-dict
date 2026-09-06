@@ -66,7 +66,7 @@
     color-mix(in oklab, var(--red) 80%, black),
     color-mix(in oklab, var(--red) 80%, white));
   --bad-soft: light-dark(
-    color-mix(in oklab, var(--red) 20%, white),
+    #f6e1d9,
     color-mix(in oklab, var(--red) 20%, var(--background)));
   /* every row that takes part in a relationship wears this, so it is the
      quietest step on the ladder */

@@ -33,9 +33,14 @@
    rather than shifting them. The first column takes what the others leave. */
 .rtable { table-layout: fixed; }
 .rtable .col-mid { width: 32%; }
-.rtable .col-num { width: 76px; }
+/* wide enough for the longest heading a numeric column carries, since a heading
+   that outgrows its column would spill over the meter beside it */
+.rtable .col-num { width: 124px; }
 .rtable .col-meter { width: 130px; }
 .rtable td, .rtable th { padding: 6px 10px; vertical-align: middle; }
+/* The shared table styles pad a heading more than this table pads its cells,
+   which would leave every heading short of the column edge its values sit on. */
+.rtable thead th { padding: 6px 10px; }
 .rtable td { overflow: hidden; text-overflow: ellipsis; }
 
 /* What a step checked: the columns, or the whole table. */
@@ -114,11 +119,15 @@
 
 /* Sortable column heads look like the plain heads they replace. */
 .sort-head {
+  display: inline-flex; align-items: baseline; gap: 2px;
   background: none; border: none; padding: 0;
   font: inherit; color: inherit; cursor: pointer;
 }
 .sort-head:hover { color: var(--ink); }
-.sort-ind { margin-left: 2px; }
+/* The caret holds its space whether or not it is showing, so sorting a column
+   doesn't shift its heading. Over numbers it takes that space on the left, so
+   the label itself keeps the right edge the digits are aligned to. */
+.rtable th.num .sort-head { flex-direction: row-reverse; }
 .sort-ind.off { visibility: hidden; }
 
 .checks-tools { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; }
@@ -270,7 +279,7 @@ code.tick {
 /* The wrap scrolls; at ~1.94em a row (text-sm, 3px padding, grid line) it
    shows ten rows under the sticky header. */
 .row-table { overflow: auto; max-height: 21.5em; margin: 12px 0 0; }
-.row-table table { border-collapse: collapse; font-size: var(--text-sm); }
+.row-table table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .row-table th, .row-table td {
   border: 1px solid var(--row-line);
   padding: 3px 10px;
@@ -304,6 +313,10 @@ code.tick {
 /* A cell a problem blames; the tooltip says why. */
 .row-table td.bad { background: var(--bad-soft); cursor: default; }
 .rownum { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink-faint); text-align: right; }
+/* The codes a row broke, beside its number rather than out among the values. */
+.row-table .row-checks { white-space: nowrap; width: 1%; }
+.row-table td.row-checks .code-chip { cursor: default; }
+.row-table td.row-checks .code-chip + .code-chip { margin-left: 6px; }
 /* A missing value is not the string "null", so it stands out in red. */
 .row-table .is-null { color: var(--bad); }
 .row-table .is-absent { color: var(--ink-faint); }

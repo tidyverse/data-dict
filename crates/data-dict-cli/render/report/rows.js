@@ -90,6 +90,35 @@ function cellTip(problems, column) {
   return box;
 }
 
+/* The checks a row broke, one entry per code. A row can say why it is here
+   without the reader hunting for the shaded cell, which on a wide table may be
+   scrolled out of sight. */
+function rowChecks(failures, row) {
+  const columns = failures && failures.get(row);
+  if (!columns) return [];
+  const byCode = new Map();
+  for (const problems of columns.values()) {
+    for (const problem of problems) {
+      if (!byCode.has(problem.code)) byCode.set(problem.code, new Set());
+      byCode.get(problem.code).add(problem);
+    }
+  }
+  return [...byCode.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([code, problems]) => ({ code, problems: [...problems] }));
+}
+
+/* What a code in the row's own column stands for. */
+function checkTip(problems) {
+  const box = el("div");
+  for (const problem of problems) {
+    const step = problem.step != null ? stepsById.get(problem.step) : null;
+    box.appendChild(tipHead(problem.code));
+    box.appendChild(el("p", null, step ? stepLabel(step) : checkName(problem.code)));
+  }
+  return box;
+}
+
 function RowTable({ rows, keys, values, failures }) {
   const keyCols = valueColumns(keys);
   const valCols = valueColumns(values);
@@ -103,10 +132,13 @@ function RowTable({ rows, keys, values, failures }) {
   };
   return html`<div class="row-table">
     <table>
-      <thead><tr><th class="rownum"></th>${columns.map((c, j) => html`<th key=${c} class=${j === keyCols.length && j > 0 ? "val-start" : null}>${c}</th>`)}</tr></thead>
+      <thead><tr><th class="rownum">Row</th><th class="row-checks">Failed</th>${columns.map((c, j) => html`<th key=${c} class=${j === keyCols.length && j > 0 ? "val-start" : null}>${c}</th>`)}</tr></thead>
       <tbody>
         ${rows.map((row, i) => html`<tr key=${row}>
           <td class="rownum">${fmtNum(row)}</td>
+          <td class="row-checks">${rowChecks(failures, row).map((c) => html`<span key=${c.code}
+            class="code-chip" onMouseEnter=${(e) => showTip(checkTip(c.problems), e)}
+            onMouseMove=${moveTip} onMouseLeave=${hideTip}>${c.code}</span>`)}</td>
           ${columns.map((c, j) => {
             const blamed = failures && failures.get(row) && failures.get(row).get(c);
             return html`<td key=${c}
