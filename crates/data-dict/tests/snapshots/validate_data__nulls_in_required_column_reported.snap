@@ -21,4 +21,4 @@ LL |   - name: t
 LL |       - name: weight
 LL |         type: number(quantity)
 LL |         constraints: [required]
-   |                       ^^^^^^^^ has 1 null value
+   |                       ^^^^^^^^ has 1 null value (row: 2)

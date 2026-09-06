@@ -214,7 +214,7 @@ fn nulls_in_required_column_reported() {
         matches!(
             result.items.as_slice(),
             [Problem { kind: ProblemKind::NullsInRequired { count, rows, .. }, .. }]
-                if *count == 1 && rows.is_empty()
+                if *count == 1 && rows == &[2]
         ),
         "got {:?}",
         result.items
