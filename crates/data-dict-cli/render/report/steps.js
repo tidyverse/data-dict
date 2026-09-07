@@ -102,12 +102,17 @@ function VerdictSquare({ outcome }) {
 function StepRow({ step }) {
   const failed = step.failed_row_count;
   const evaluated = step.outcome !== "unevaluated";
-  return html`<tr data-href=${step.outcome === "fail" ? `#step/${step.id}` : null}>
+  const href = step.outcome === "fail" ? `#step/${step.id}` : null;
+  return html`<tr data-href=${href}>
     <td>
       <span class="sqname"><${VerdictSquare} outcome=${step.outcome} /><${StepCheck} step=${step} /></span>
     </td>
     <td><${StepTarget} step=${step} /></td>
-    <td class="num">${evaluated && failed != null ? fmtNum(failed) : "—"}</td>
+    <td class="num">${!evaluated || failed == null
+      ? "—"
+      : href && failed > 0
+        ? html`<a href=${href} title="Failed rows">${fmtNum(failed)}</a>`
+        : fmtNum(failed)}</td>
     <td><${StepMeter} rows=${step.row_count} failed=${step.failed_row_count || 0} /></td>
   </tr>`;
 }
@@ -179,15 +184,15 @@ function DatasetRow({ row }) {
     const target = document.getElementById(datasetAnchor(table));
     if (target) target.scrollIntoView();
   };
-  /* The failed count links to the dataset's failed-rows page when there are
-     rows to show; the row's own click-through scrolls, so the link must not
-     let it fire. */
+  /* The row scrolls to the dataset's own section in the roster below; the count
+     links past it to the failed rows, so it must not let the scroll fire too. */
   const hasRows = (REPORT.failed_rows || []).some((e) => e.table === table);
+  const href = hasRows && failed > 0 ? `#rows/${encodeURIComponent(table)}` : null;
   return html`<tr onClick=${scroll}>
     <td><span class="sqname"><${VerdictSquare} outcome=${datasetSquare(counts)} /><span class="dataset-name">${table}</span></span></td>
     <td class="num">${steps.length ? `${fmtNum(counts.fail)}/${fmtNum(steps.length)}` : "—"}</td>
-    <td class="num">${!counted ? "—" : hasRows && failed > 0
-      ? html`<a href="#rows/${encodeURIComponent(table)}" title="Failed rows"
+    <td class="num">${!counted ? "—" : href
+      ? html`<a href=${href} title="Failed rows"
           onClick=${(e) => e.stopPropagation()}>${fmtNum(failed)}</a>`
       : fmtNum(failed)}</td>
     <td><${StepMeter} rows=${rows} failed=${failed} label="failures" /></td>

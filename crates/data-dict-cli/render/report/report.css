@@ -104,6 +104,8 @@
 /* ---- The datasets summary ------------------------------------------------
    One row per dataset, each row a link to the dataset's detail table. */
 
+/* Every row scrolls to its dataset's section, so every row offers the pointer
+   and the hover. */
 .datasets tbody tr { cursor: pointer; }
 .datasets tbody tr:hover td { background: var(--hover-row); }
 .dataset-name { font-family: var(--font-mono); font-weight: 700; color: var(--accent1); }
