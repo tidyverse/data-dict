@@ -120,6 +120,10 @@ function checkTip(problems) {
 }
 
 function RowTable({ rows, keys, values, failures }) {
+  /* The checks column earns its place only where the rows came from several of
+     them. A problem's own card lists rows that all broke the one check it is
+     about, so there the column would repeat a constant the card already states. */
+  const blame = !!failures;
   const keyCols = valueColumns(keys);
   const valCols = valueColumns(values);
   const columns = [...keyCols, ...valCols];
@@ -132,13 +136,13 @@ function RowTable({ rows, keys, values, failures }) {
   };
   return html`<div class="row-table">
     <table>
-      <thead><tr><th class="rownum">Row</th><th class="row-checks">Failed</th>${columns.map((c, j) => html`<th key=${c} class=${j === keyCols.length && j > 0 ? "val-start" : null}>${c}</th>`)}</tr></thead>
+      <thead><tr><th class="rownum">Row</th>${blame ? html`<th class="row-checks">Failed</th>` : null}${columns.map((c, j) => html`<th key=${c} class=${j === keyCols.length && j > 0 ? "val-start" : null}>${c}</th>`)}</tr></thead>
       <tbody>
         ${rows.map((row, i) => html`<tr key=${row}>
           <td class="rownum">${fmtNum(row)}</td>
-          <td class="row-checks">${rowChecks(failures, row).map((c) => html`<span key=${c.code}
+          ${blame ? html`<td class="row-checks">${rowChecks(failures, row).map((c) => html`<span key=${c.code}
             class="code-chip" onMouseEnter=${(e) => showTip(checkTip(c.problems), e)}
-            onMouseMove=${moveTip} onMouseLeave=${hideTip}>${c.code}</span>`)}</td>
+            onMouseMove=${moveTip} onMouseLeave=${hideTip}>${c.code}</span>`)}</td>` : null}
           ${columns.map((c, j) => {
             const blamed = failures && failures.get(row) && failures.get(row).get(c);
             return html`<td key=${c}
