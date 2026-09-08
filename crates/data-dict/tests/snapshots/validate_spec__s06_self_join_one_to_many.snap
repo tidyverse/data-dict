@@ -29,10 +29,10 @@ relationships:
       mother: otters
     cardinality: one-to-many
 ────────────────────────────────────────
-error[S06]: A `one-to-many` join must have a `primary_key` or `unique` column on its left ("one") side.
+error[S06]: A `one-to-many` join must have join columns that uniquely identify a row on its left ("one") side: a `unique` column or the full primary key.
   --> spec/s06-self-join-one-to-many.yaml:27:18
    |
 LL |   - join: pup.pup_number = mother.otter_no
 ...
 LL |     cardinality: one-to-many
-   |                  ^^^^^^^^^^^ the left-side join column on `pup` is not marked `primary_key` or `unique`
+   |                  ^^^^^^^^^^^ the left-side join columns on `pup` do not uniquely identify a row
