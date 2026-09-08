@@ -35,6 +35,7 @@ website:
       - href: spec.md
         text: Specification
       - text: Validation
+        href: validate.md
         contents:
           - href: expressions.md
             text: Expressions

@@ -11,7 +11,7 @@ No expression is ever ill-typed for mixing whole numbers with fractional ones. U
 * `/` **always** gives a float, so `1 / 2` is `0.5`. This is the one place the two representations would otherwise disagree about the answer, and it follows R, Python and DuckDB rather than SQL's integer division.
 * Of the aggregates, `SUM` of integers is an integer and `AVG` is always a float, as their own entries say; `COUNT`, `COUNT_DISTINCT` and `ROW_COUNT` are integers.
 
-Integers are 64-bit and exact. Arithmetic that overflows that range is not silently wrapped or rounded — it is reported when the data is validated, as [D09](validation.md#data-validation-checks). Floats are 64-bit IEEE 754 and carry all the usual caveats, so an equality test on a computed float (`price * qty = total`) is rarely what you want; compare a rounded value, or bound the difference.
+Integers are 64-bit and exact. Arithmetic that overflows that range is not silently wrapped or rounded — it is reported when the data is validated, as [D09](dev-validation.md#data-validation-checks). Floats are 64-bit IEEE 754 and carry all the usual caveats, so an equality test on a computed float (`price * qty = total`) is rarely what you want; compare a rounded value, or bound the difference.
 
 The distinction matters mostly to [translation](expression-execution.md#translating-expressions): R, Python and DuckDB divide the same way, but PostgreSQL and standard SQL divide two integers into an integer, so `1 / 2` is `0` there unless the translation casts first.
 
@@ -47,7 +47,7 @@ Two spellings that are otherwise interchangeable stop being so here. `NOT (x < y
 
 `=` is IEEE, so no NaN equals any NaN. But several places have to decide whether two values are *the same value* rather than whether they compare equal, and there the language uses one **identity order** instead: values run `-INF` < every finite number < `INF` < NaN, all NaNs count as one value, and `-0.0` and `+0.0` count as one value.
 
-The identity order governs `MIN`, `MAX` and `COUNT_DISTINCT` in an expression, and the `unique`/`primary_key` ([D02](validation.md#data-validation-checks)) and `foreign_key` ([D05](validation.md#data-validation-checks)) checks at [the data level](validation.md#comparable-types). So `COUNT_DISTINCT` of a column of nothing but NaNs is 1; `MIN` of a column containing a NaN is its smallest ordinary value, and `MAX` is the NaN.
+The identity order governs `MIN`, `MAX` and `COUNT_DISTINCT` in an expression, and the `unique`/`primary_key` ([D02](dev-validation.md#data-validation-checks)) and `foreign_key` ([D05](dev-validation.md#data-validation-checks)) checks at [the data level](dev-validation.md#comparable-types). So `COUNT_DISTINCT` of a column of nothing but NaNs is 1; `MIN` of a column containing a NaN is its smallest ordinary value, and `MAX` is the NaN.
 
 `SUM` and `AVG` are arithmetic rather than ordering, so they follow IEEE and propagate: one NaN anywhere in the column makes both a NaN, and an `INF` and a `-INF` in the same column sum to a NaN. `COUNT` counts a NaN, because a NaN is not null.
 

@@ -24,7 +24,7 @@ An expression is always written against the columns of one table: bare names are
 
 This page is the reference for the language. It covers [how an expression is evaluated](#evaluation), [truth and null](#truth-and-null), the [types](#types) values carry and the [shapes](#shapes) they come in, how [columns are referred to](#column-references), the [literals](#literals), [operators](#operators), and [functions](#functions) available, [`COLUMNS(...)`](#selecting-multiple-columns) for applying one predicate to many columns, the [type rules](#type-checking) a validator enforces, and the [grammar](#grammar).
 
-An expression can also be *written* in another language — R today — by tagging it with [`language`](spec.md#other-languages). That changes the spelling, not the language: such an expression is read into the one described here, and every rule on this page then applies to it unchanged. This page is the meaning; the tag only says how to get there.
+An expression can also be *written* in another language — R or Python — by tagging it with [`language`](validate.md#expression-languages). That changes the spelling, not the language: such an expression is read into the one described here, and every rule on this page then applies to it unchanged. This page is the meaning; the tag only says how to get there.
 
 ## Evaluation
 
@@ -475,7 +475,7 @@ The lambda form (`COLUMNS(c -> ...)`) and the star modifiers (`EXCLUDE`, `REPLAC
 
 ## Type checking
 
-Expressions are checked when the dictionary is validated, against the columns of the enclosing table alone — before any data is read. A malformed expression, an unknown column, an ill-typed expression, an empty column selection, and a nested aggregate are each reported separately; see [validation](validation.md) for the codes and severities.
+Expressions are checked when the dictionary is validated, against the columns of the enclosing table alone — before any data is read. A malformed expression, an unknown column, an ill-typed expression, an empty column selection, and a nested aggregate are each reported separately; see [validation](dev-validation.md) for the codes and severities.
 
 Five rules decide whether an expression is well formed, and a sixth — that [every operand whose type matters has one](#types) — applies throughout. The more the dictionary says about a column, the more of an expression can be checked.
 

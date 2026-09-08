@@ -12,7 +12,7 @@ dd {
 }
 
 // Soften the corners of inline code and code blocks.
-code:not(.sourceCode), div.sourceCode {
+code:not(.sourceCode), div.sourceCode, pre {
   border-radius: 6px;
 }
 
@@ -31,6 +31,12 @@ p code:not(.sourceCode),
 li code:not(.sourceCode)
 {
   padding: 0.2em;
+}
+
+pre {
+  background-color: $code-bg;
+  color: $code-color;
+  padding: 0.5em;
 }
 
 .sidebar-menu-container > ul > li.sidebar-item {margin: 1em 0}

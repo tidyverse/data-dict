@@ -4,7 +4,7 @@
 
 ## Two levels
 
-Export has two levels, mirroring [validation](validation.md):
+Export has two levels, mirroring [validation](dev-validation.md):
 
 * **`export-spec`** renders the dictionary itself: every table, column, relationship, and glossary entry, fully resolved. It reads only the `data-dict.yaml` file, never the data. Internally this runs the same `validate-spec` pass and serializes the resulting model, so `export-spec` fails with the same `S##` diagnostics as `validate-spec` if the file is invalid.
 

@@ -5,7 +5,7 @@ title: "Installing the CLI"
 The `data-dict` command line tool validates a `data-dict.yaml` file against the
 [specification](spec.md), against a dataset's metadata, and against the data
 itself; it can also draft, render, export, and translate dictionaries. See
-[validation](validation.md) for what each level checks.
+[validation](validate.md) for what each level checks.
 
 Every release ships prebuilt binaries, so you don't need a Rust toolchain to
 install it.
