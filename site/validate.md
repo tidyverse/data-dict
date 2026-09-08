@@ -84,7 +84,7 @@ Note that I say SQL-like, R-like, and Python-like deliberately: there is no SQL/
 
 There are also some subtle differences in how data-dict evaluates expressions compared to the original languages. These are generally minor differences in floating point behavior and unlikely to affect many data analytic results, but are reported as deviations in the output. For example, R's `round` rounds halves to even, but data-dict rounds them away from zero. 
 
-You can override the default by specifying a `language`:
+You can change the default for the whole dictionary with a top-level `language` key, or override it on an individual expression with its own `language`:
 
 ```yaml
 columns:

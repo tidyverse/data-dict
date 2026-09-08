@@ -1,0 +1,21 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+language: r
+description: Each row is a survey response.
+tables:
+  - name: survey
+    columns:
+      - name: postcode
+        type: string
+        examples: ["NZ-1010"]
+    constraints:
+      - assert: postcode IS NOT NULL
+────────────────────────────────────────
+error[S19]: 
+  --> dict.yaml:12:26
+   |
+LL |       - assert: postcode IS NOT NULL
+   |                          ^ `assert` expression does not parse as R: unexpected trailing input
