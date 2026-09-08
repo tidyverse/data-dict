@@ -148,13 +148,18 @@
    One shell for everything the report has to say at length: a problem, a
    step's summary, a table of failed rows. */
 
-.problem-card, .failed-rows-card, .step-summary {
+.problem-card, .step-summary {
   border: 1px solid var(--rule);
   border-radius: 10px;
   background: var(--paper);
   padding: 16px 18px;
   margin: 0 0 16px;
 }
+
+/* The failed rows are a block rather than a card: the table rules its own cells,
+   so a frame around it reads as a second border, and a table of a couple of
+   columns would leave most of one empty. */
+.failed-rows-card { margin: 0 0 16px; }
 
 /* The step page's title block: the h1 names the target beside its verdict
    square; the line below says what was checked. */
@@ -284,19 +289,42 @@ code.tick {
 
 /* The wrap scrolls; at ~1.94em a row (text-sm, 3px padding, grid line) it
    shows ten rows under the sticky header. */
-.row-table { overflow: auto; max-height: 21.5em; margin: 12px 0 0; }
-.row-table table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.row-table {
+  overflow: auto;
+  max-height: 21.5em;
+  margin: 12px 0 0;
+  /* The scrollport hugs the table, so rounding it rounds the grid — and clips
+     all four corners even mid-scroll, which a radius on the corner cells could
+     not do. A cell radius is undefined under `border-collapse: collapse`. */
+  width: max-content;
+  max-width: 100%;
+  border-radius: 6px;
+}
+/* The table takes the width its columns need; the wrap scrolls when that is
+   more than there is room for. */
+.row-table table { border-collapse: collapse; font-size: var(--text-sm); }
 .row-table th, .row-table td {
   border: 1px solid var(--row-line);
   padding: 3px 10px;
   text-align: left;
 }
-/* A wide table scrolls sideways; a long value clips rather than wraps. */
+/* A table of a few columns has no width to spare its content, so its cells take
+   more of it. Counted rather than measured: the scrollport is sized by the table,
+   so it can't be asked how wide it came out. A wide table keeps the tighter
+   padding, which is what lets more of it fit before scrolling. */
+.row-table table:not(:has(thead th:nth-child(4))) :is(th, td) {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+/* A wide table scrolls sideways; a long value clips rather than wraps. The data
+   sits on its own surface, a step above the page the block no longer frames it
+   against — `.bad` outranks this, so a blamed cell keeps its tint. */
 .row-table td {
   white-space: nowrap;
   max-width: 24em;
   overflow: hidden;
   text-overflow: ellipsis;
+  background: light-dark(#ffffff, var(--paper));
 }
 .row-table th {
   position: sticky;
