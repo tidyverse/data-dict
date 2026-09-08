@@ -24,7 +24,7 @@ use crate::{Level, ReadTables};
 /// issue. Issues count every offender but only list this many. The report
 /// browses the whole sample; a terminal diagnostic lists only the first few
 /// (see [`crate::problem::LIST_LIMIT`]).
-const SAMPLE_LIMIT: usize = 50;
+const SAMPLE_LIMIT: usize = 30;
 
 /// A `display: restricted` column's values never appear in diagnostics.
 fn is_restricted(col: &Column) -> bool {
