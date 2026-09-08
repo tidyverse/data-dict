@@ -1,4 +1,4 @@
-//! `data-dict` — the language writing itself back out.
+//! `SQL(data-dict)` — the language writing itself back out.
 //!
 //! The one target that is not a foreign language, and so the one that never
 //! diverges: every construct has itself as its spelling. It exists because an
@@ -26,7 +26,7 @@ pub struct Canonical;
 
 impl Target for Canonical {
     fn name(&self) -> &'static str {
-        "data-dict"
+        "SQL(data-dict)"
     }
 
     fn prec(&self, e: &TypedExpr) -> u8 {

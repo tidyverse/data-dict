@@ -76,7 +76,7 @@ Assertions are evaluated row-by-row, using SQL's three-valued logic, so an expre
 
 Expressions can be written in one of three languages:
 
-* **`data-dict`** (the default): a SQL-like language.
+* **`sql`** (the default): a SQL-like language.
 * **`r`**: an R-like language with support for base and tidyverse function names.
 * **`python`**: a Python-like language supporting [Polars](https://pola.rs) expression style.
 
@@ -101,7 +101,7 @@ The following sections describe the supported operations, but our hope is that y
 
 ### Arithmetic, comparison, and logic
 
-Arithmetic (`+`, `-`, `*`, `/`) is spelled the same in all three languages. Equality is `=` in data-dict but `==` in R and Python; `!=` works everywhere, and data-dict also accepts `<>`. `AND`, `OR`, and `NOT` become `&`, `|`, and `!` in R, and `&`, `|`, and `~` in Python — where `&` and `|` bind tighter than comparisons, so each comparison needs parentheses.
+Arithmetic (`+`, `-`, `*`, `/`) is spelled the same in all three languages. Equality is `=` in SQL but `==` in R and Python; `!=` works everywhere, and SQL also accepts `<>`. `AND`, `OR`, and `NOT` become `&`, `|`, and `!` in R, and `&`, `|`, and `~` in Python — where `&` and `|` bind tighter than comparisons, so each comparison needs parentheses.
 
 ```yaml
 constraints:
@@ -209,7 +209,7 @@ However it's written, the predicate is evaluated once per selected column and th
 
 Every function has a variant in each of the three languages. 
 
-| data-dict | R | Python |
+| SQL | R | Python |
 |-----------|---|--------|
 | `LENGTH(s)` | `nchar(s)`, `str_length(s)` | `.str.len_chars()` |
 | `LOWER(s)` | `tolower(s)`, `str_to_lower(s)` | `.str.to_lowercase()` |

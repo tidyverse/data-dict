@@ -142,7 +142,7 @@ pub enum Language {
 impl Language {
     pub fn as_str(self) -> &'static str {
         match self {
-            Language::DataDict => "data-dict",
+            Language::DataDict => "sql",
             Language::R => "r",
             Language::Python => "python",
         }
@@ -159,7 +159,7 @@ impl Language {
 
     pub fn from_name(name: &str) -> Option<Language> {
         match name {
-            "data-dict" => Some(Language::DataDict),
+            "sql" => Some(Language::DataDict),
             "r" => Some(Language::R),
             "python" => Some(Language::Python),
             _ => None,

@@ -833,8 +833,8 @@ fn translate(args: &[&str]) -> std::process::Output {
         .expect("failed to run data-dict")
 }
 
-/// `--from` reads the expression, and `--target data-dict` prints the language's
-/// own spelling of it — the round trip the spec describes.
+/// `--from` reads the expression, and `--target SQL(data-dict)` prints the
+/// language's own spelling of it — the round trip the spec describes.
 #[test]
 fn translate_from_r_to_the_language() {
     let output = translate(&[
@@ -843,7 +843,7 @@ fn translate_from_r_to_the_language() {
         "--expr",
         "nchar(postcode) <= 10",
         "--target",
-        "data-dict",
+        "SQL(data-dict)",
         "--pretty",
     ]);
     assert!(output.status.success());
@@ -867,7 +867,7 @@ fn translate_from_an_unknown_language() {
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr).expect("stderr is not valid UTF-8");
     assert!(stderr.contains("unknown expression language"), "{stderr}");
-    assert!(stderr.contains("data-dict, r"), "{stderr}");
+    assert!(stderr.contains("sql, r"), "{stderr}");
 }
 
 /// R that says something the language can't names the construct and says the

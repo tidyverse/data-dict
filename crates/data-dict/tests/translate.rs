@@ -62,7 +62,7 @@ fn an_r_expression_reports_its_language_and_canonical_form() {
     let options = Options {
         expr: Some("nchar(postcode) <= 10".to_string()),
         from: Some("r".to_string()),
-        targets: vec!["data-dict".to_string()],
+        targets: vec!["SQL(data-dict)".to_string()],
         ..Options::default()
     };
     let translations = translate(&path, &options).expect("translates");
@@ -94,7 +94,7 @@ fn the_language_is_not_among_the_default_targets() {
         .iter()
         .map(|t| t.target)
         .collect();
-    assert!(!targets.contains(&"data-dict"), "{targets:?}");
+    assert!(!targets.contains(&"SQL(data-dict)"), "{targets:?}");
     // And a record that needed no reading carries neither language nor
     // canonical form: the expression is already in the language.
     assert!(translations[0].language.is_none());
@@ -130,7 +130,7 @@ fn reading_from_another_language_adds_the_language_to_the_defaults() {
         .iter()
         .map(|t| t.target)
         .collect();
-    assert!(targets.contains(&"data-dict"), "{targets:?}");
+    assert!(targets.contains(&"SQL(data-dict)"), "{targets:?}");
 }
 
 #[test]
@@ -159,7 +159,7 @@ fn an_unknown_source_language_lists_the_readable_ones() {
         rendered.contains("unknown expression language"),
         "{rendered}"
     );
-    assert!(rendered.contains("data-dict, r"), "{rendered}");
+    assert!(rendered.contains("sql, r"), "{rendered}");
 }
 
 /// R that is well-formed but says something the language can't says which
