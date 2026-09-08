@@ -137,10 +137,15 @@ function FailedRowsPage({ table }) {
   const entry = (REPORT.failed_rows || []).find((e) => e.table === table);
   if (!entry) return html`<p class="rsection-note">No failed rows.</p>`;
   const failures = cellFailures(REPORT.problems.filter((p) => p.table === table));
+  /* The dataset's own count is the distinct rows across every check's capped
+     sample, so it is a floor rather than a total: `sampled` keeps the caption
+     from claiming one. */
+  const checked = REPORT.steps.find((s) => s.table === table && s.row_count != null);
   return html`<section class="rsection">
     <h2 class="rsection-title">${table}</h2>
     <${FailedRowsCard} rows=${entry.rows} keys=${entry.keys} values=${entry.values}
-      count=${entry.count} redacted=${entry.redacted} severity="error" failures=${failures} />
+      count=${entry.count} checked=${checked ? checked.row_count : null} sampled=${true}
+      redacted=${entry.redacted} severity="error" failures=${failures} />
   </section>`;
 }
 

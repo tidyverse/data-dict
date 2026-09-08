@@ -179,11 +179,24 @@ function RowsNote({ problem }) {
 /* A table of failed rows as its own card: the heading, the withheld badge and
    note, and the grid itself. A problem's card, an overflow's single row, and a
    dataset's failed-rows page are the same thing wearing different evidence. */
-function FailedRowsCard({ title = "Failed rows", rows, keys, values, count, redacted, severity, failures, note }) {
+/* How many rows are on show, against how many failed and how many there are.
+   `count` is a true total only where it came from one check; a dataset's is the
+   distinct rows among each check's capped sample, which understates, so that
+   caller marks it `sampled` and the caption claims no total. */
+function rowCaption({ shown, count, checked, sampled }) {
+  const of = sampled
+    ? `first ${fmtNum(shown)} shown`
+    : count > shown
+      ? `${fmtNum(shown)} of ${fmtNum(count)} shown`
+      : `all ${fmtNum(shown)} shown`;
+  return `(${checked == null ? of : `${of} · ${fmtNum(checked)} rows total`})`;
+}
+
+function FailedRowsCard({ title = "Failed rows", rows, keys, values, count, checked, sampled, redacted, severity, failures, note }) {
   return html`<article class="failed-rows-card is-${severity}">
     <div class="head">
-      <h3>${title}${count > rows.length &&
-        html` <span class="cap">(first ${fmtNum(rows.length)} out of ${fmtNum(count)})</span>`}</h3>
+      <h3>${title}${" "}<span class="cap">${
+        rowCaption({ shown: rows.length, count, checked, sampled })}</span></h3>
       ${redacted && html`<span class="key restricted">values withheld</span>`}
     </div>
     <${RowTable} rows=${rows} keys=${keys} values=${values} failures=${failures} />
@@ -208,7 +221,8 @@ function OffendingRows({ problem }) {
   if (!rows.length) return null;
   /* No blame map here: highlighting is the dataset page's, where every column
      is shown; a problem's own card already names what it is about. */
+  const step = problem.step != null ? stepsById.get(problem.step) : null;
   return html`<${FailedRowsCard} rows=${rows} keys=${problem.keys}
-    values=${problem.values} count=${problem.count}
+    values=${problem.values} count=${problem.count} checked=${step ? step.row_count : null}
     redacted=${"redacted" in problem && problem.redacted} severity=${problem.severity} />`;
 }

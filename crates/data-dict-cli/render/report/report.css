@@ -287,11 +287,10 @@ code.tick {
   margin: 8px 0 0;
 }
 
-/* The wrap scrolls; at ~1.94em a row (text-sm, 3px padding, grid line) it
-   shows ten rows under the sticky header. */
+/* Every row the report carries is on show; the page scrolls, not the block. The
+   wrap still scrolls sideways for a table wider than there is room for. */
 .row-table {
   overflow: auto;
-  max-height: 21.5em;
   margin: 12px 0 0;
   /* The scrollport hugs the table, so rounding it rounds the grid — and clips
      all four corners even mid-scroll, which a radius on the corner cells could
