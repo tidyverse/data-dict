@@ -27,8 +27,6 @@ website:
 
   sidebar:
     style: docked
-    # Keep all top-level entries (e.g. the "Guide" section) expanded; never
-    # collapse them. collapse-level must exceed the sidebar's nesting depth.
     contents:
       - href: index.md
         text: Overview
