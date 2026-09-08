@@ -173,25 +173,31 @@ pub fn translate(path: &Path, options: &Options) -> Result<Vec<Translation>, Pro
         },
     };
 
-    let targets = match options
+    let explicit = match options
         .targets
         .iter()
         .map(|name| resolve(name))
         .collect::<Result<Vec<_>, _>>()
     {
-        Ok(targets) if !targets.is_empty() => targets,
-        // Reading from another language makes the data-dict spelling the
-        // interesting one, so it joins the default set exactly then.
-        Ok(_) if from.name != parse::default_language().name => all_targets(),
-        Ok(_) => registry(),
+        Ok(targets) if !targets.is_empty() => Some(targets),
+        Ok(_) => None,
         Err(message) => {
             problems.push(Problem::preflight(ProblemKind::Spec, message));
             return Err(problems);
         }
     };
+    // Reading from another language makes the data-dict spelling the
+    // interesting one, so it joins the default set exactly then.
+    let default_targets = |foreign: bool| {
+        if foreign { all_targets() } else { registry() }
+    };
 
     match &options.expr {
         Some(source) => {
+            let targets = match explicit {
+                Some(targets) => targets,
+                None => default_targets(from.name != parse::default_language().name),
+            };
             let table = match scope(&dict, options.table.as_deref()) {
                 Ok(table) => table,
                 Err(message) => {
@@ -207,12 +213,31 @@ pub fn translate(path: &Path, options: &Options) -> Result<Vec<Translation>, Pro
                 }
             }
         }
-        None => Ok(translate_assertions(
-            &dict,
-            options.table.as_deref(),
-            &targets,
-        )),
+        None => {
+            let targets = match explicit {
+                Some(targets) => targets,
+                None => default_targets(dict_has_foreign_assertions(&dict)),
+            };
+            Ok(translate_assertions(
+                &dict,
+                options.table.as_deref(),
+                &targets,
+            ))
+        }
     }
+}
+
+/// Whether any assertion was written in a language other than the data-dict
+/// one — its own `language`, or the dictionary's top-level default.
+fn dict_has_foreign_assertions(dict: &DataDict) -> bool {
+    dict.tables
+        .iter()
+        .flat_map(|t| {
+            t.constraints
+                .iter()
+                .chain(t.columns.iter().flat_map(|c| c.assertions.iter()))
+        })
+        .any(|a| a.language(dict.language()) != crate::model::Language::DataDict)
 }
 
 /// The table an ad-hoc expression resolves its columns against: the only one
@@ -309,14 +334,18 @@ fn translate_assertions(
             let Some(ir) = assert_expr::lower(expr, &env) else {
                 continue;
             };
-            out.push(render(
-                &assertion.text.value,
-                expr,
-                table,
-                &defs,
-                &ir,
-                targets,
-            ));
+            let mut translation = render(&assertion.text.value, expr, table, &defs, &ir, targets);
+            // As for an ad-hoc expression: only a foreign language has a
+            // reading to report. The assertion's own `language` wins; omitted,
+            // the dictionary's top-level `language` is where it was read from.
+            let from = assertion.language(dict.language());
+            if from != crate::model::Language::DataDict {
+                translation.language = Some(from.as_str());
+                translation.canonical = emit::emit(&Canonical, &ir).ok().map(|e| e.code);
+                translation.fidelity = (!assertion.notes.is_empty()).then_some("divergent");
+                translation.notes = assertion.notes.clone();
+            }
+            out.push(translation);
         }
     }
     out
