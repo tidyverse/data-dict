@@ -1,10 +1,14 @@
 # `data-dict.yaml`
 
-`data-dict.yaml` is a lightweight YAML specification for data dictionaries, paired with a command line application for validation. It
-describes a collection of related tables — their columns, types, constraints,
+`data-dict.yaml` is two things: a lightweight YAML **specification** for data
+dictionaries, and a **validator** that enforces it. The specification describes
+a collection of related tables — their columns, types, constraints,
 relationships, and the domain vocabulary you need to understand them — in a
-single file that humans and AI agents can co-author and keep in sync with your
-data.
+single file that humans and AI agents can co-author. The validator turns that
+description into a data contract, checking that your data actually matches what
+the dictionary claims, and renders the dictionary as a beautiful,
+self-contained website. Both are polyglot by design, built for teams that work
+across R, Python, and SQL.
 
 **Full documentation, including the detailed specification, lives at
 [data-dict.tidyverse.org](https://data-dict.tidyverse.org).**
