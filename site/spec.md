@@ -1,4 +1,4 @@
-# data-dict.yaml
+# Specification
 
 This document describes version **0.1.0** of the `data-dict.yaml` specification.
 

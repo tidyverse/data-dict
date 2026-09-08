@@ -6,7 +6,7 @@ project:
     - examples/rendered/*.html
 
 website:
-  title: "data-dict.yaml"
+  title: data-dict
   site-url: https://data-dict.tidyverse.org
   repo-url: https://github.com/tidyverse/data-dict
   description: >
@@ -16,40 +16,54 @@ website:
     constraints, relationships — as well as a glossay for domain vocabulary.
   llms-txt: true
   favicon: favicon.svg
+
   navbar:
-    left:
+    background: primary
+    search: true
+    tools:
+      - icon: github
+        href: https://github.com/tidyverse/data-dict
+        aria-label: GitHub
+
+  sidebar:
+    style: docked
+    # Keep all top-level entries (e.g. the "Guide" section) expanded; never
+    # collapse them. collapse-level must exceed the sidebar's nesting depth.
+    contents:
       - href: index.md
         text: Overview
       - href: install.md
         text: Install
       - href: spec.md
         text: Specification
-      - href: expressions.md
-        text: Expressions
+      - text: Validation
+        href: validation.md
+        contents:
+          - href: expressions.md
+            text: Expressions
+          - href: report.md
+            text: Report
       - text: Developer details
-        menu:
-          - href: validation.md
-            text: Validation
+        contents:
           - href: expression-execution.md
             text: Executing expressions
           - href: floating-point.md
             text: Floating point
           - href: export.md
             text: Export
-          - href: report.md
-            text: Report
       - href: examples/index.qmd
         text: Examples
-    right:
-      - icon: github
-        href: https://github.com/tidyverse/data-dict
-        aria-label: GitHub
 
 format:
   html:
-    theme: cosmo
+    theme: 
+      light: [cosmo, theme.scss, theme-light.scss]
+      dark: [cosmo, theme.scss, theme-dark.scss]
     toc: true
     toc-depth: 4
     include-in-header:
-      text: |
-        <script defer data-domain="data-dict.tidyverse.org" src="https://plausible.io/js/plausible.js"></script>
+      - text: <script defer data-domain="data-dict.tidyverse.org" src="https://plausible.io/js/plausible.js"></script>
+      - text: |
+          <script src="https://cdn.jsdelivr.net/gh/posit-dev/supported-by-posit/js/badge.min.js"
+                  data-dark-bg="#404041"></script>
+      - file: _dark-default.html
