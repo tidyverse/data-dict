@@ -158,6 +158,10 @@
 
 /* The step page's title block: the h1 names the target beside its verdict
    square; the line below says what was checked. */
+/* The way back centres on the title's own line. Left inline, the link is placed
+   by baseline — its box bottom on the text's baseline — which rides above the
+   line's centre. */
+.step-title h1 { display: flex; align-items: center; }
 .step-title .target { font-family: var(--font-mono); font-size: 0.8em; }
 .step-title .sub { margin: 3px 0 0; color: var(--ink-soft); font-size: var(--text-lg); }
 
