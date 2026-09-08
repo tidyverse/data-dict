@@ -35,7 +35,6 @@ website:
       - href: spec.md
         text: Specification
       - text: Validation
-        href: validation.md
         contents:
           - href: expressions.md
             text: Expressions
@@ -43,6 +42,8 @@ website:
             text: Report
       - text: Developer details
         contents:
+          - text: Validation
+            href: dev-validation.md
           - href: expression-execution.md
             text: Executing expressions
           - href: floating-point.md
