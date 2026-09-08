@@ -71,13 +71,13 @@ A target is named `family(dialect)`. A bare family name means that family's defa
 |--------|--------------------------------|-----------------|
 | `R` | `base`, `tidyverse`, `data.table` | `R(base)` |
 | `Python` | `polars`, `pandas` | `Python(polars)` |
-| `SQL` | `ANSI`, `duckdb`, `postgres` | `SQL(ANSI)` |
+| `SQL` | `data-dict`, `ANSI`, `duckdb`, `postgres` | `SQL(ANSI)` |
 
 : {tbl-colwidths="[15,45,40]"}
 
-Seven of the eight targets are defined by something outside this specification: `R(tidyverse)` means what dplyr and stringr do, `Python(polars)` what polars does, `SQL(duckdb)` what DuckDB does. Those are versioned, testable things, and the translation for each is fixed by agreement with the reference implementation rather than by wording here.
+Seven of the nine targets are defined by something outside this specification: `R(tidyverse)` means what dplyr and stringr do, `Python(polars)` what polars does, `SQL(duckdb)` what DuckDB does. Those are versioned, testable things, and the translation for each is fixed by agreement with the reference implementation rather than by wording here.
 
-`SQL(ANSI)` is the exception, and [has a grammar of its own](#ansi) — there is no "ANSI engine" to define it.
+The exceptions are `SQL(data-dict)`, which is the language itself as [Expressions](expressions.md) defines it, and `SQL(ANSI)`, which [has a grammar of its own](#ansi) — there is no "ANSI engine" to define it.
 
 ### Sources
 
@@ -87,7 +87,7 @@ A source is named by family alone, where a target is named `family(dialect)`. Th
 
 | Family | Written | Reads |
 |--------|---------|-------|
-| data-dict | `data-dict` | the language itself |
+| SQL | `sql` | the `SQL(data-dict)` spelling — the language itself |
 | R | `r` | every spelling the three `R(...)` targets emit |
 | Python | `python` | the polars expression style `Python(polars)` emits |
 
@@ -95,7 +95,7 @@ A source is named by family alone, where a target is named `family(dialect)`. Th
 
 Each surface is exactly what that family's targets emit, and no more. That is a deliberate bound: it makes the surface a finite, testable list rather than "R", and it makes the round trip a property that can be checked — every expression this specification can emit as R must read back as itself.
 
-`data-dict` is a target as well as a source. It has no dialects, so it is written bare. It is left out of the targets emitted by default, since an expression already written in the language has nothing to gain from being printed back — but reading from another language is exactly the case where the data-dict spelling is the interesting one, so `--from` puts it back in. `--target data-dict` asks for it outright.
+`SQL(data-dict)` is a target as well as a source. It is left out of the targets emitted by default, since an expression already written in the language has nothing to gain from being printed back — but reading from another language is exactly the case where the data-dict spelling is the interesting one, so `--from` puts it back in. `--target SQL(data-dict)` asks for it outright.
 
 #### What a round trip normalises
 

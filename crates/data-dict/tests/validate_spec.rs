@@ -3057,7 +3057,7 @@ fn the_language_key_may_name_the_default_explicitly() {
         )
     };
     assert_clean_dict(&body(""));
-    assert_clean_dict(&body("\n        language: data-dict"));
+    assert_clean_dict(&body("\n        language: sql"));
 }
 
 /// One reader takes all three R dialects, so nothing has to say which is meant.

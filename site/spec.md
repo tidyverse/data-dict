@@ -339,7 +339,7 @@ Each entry is a map with:
 
 * `name` (required): the definition's name. Must be non-empty and unique within the table. Definitions and columns share a namespace: a definition's name must not match any column name in the same table.
 * `expr` (required): an expression in the [expression language](expressions.md), or [written in another language](validate.md#expression-languages) and read into it. Unlike an assertion, it need not be boolean.
-* `language`: the language `expr` is written in; see [Expression languages](validate.md#expression-languages). Omitted, it is data-dict's own.
+* `language`: the language `expr` is written in; see [Expression languages](validate.md#expression-languages). Omitted, it is `sql`.
 * `label`, `description`, `details`: human-readable documentation for the definition; see [Name, label, description & details](#name-label-description--details).
 * `todo`: a note of work that remains before the definition is complete; see [Todo](#todo).
 
