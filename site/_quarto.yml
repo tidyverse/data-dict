@@ -34,6 +34,8 @@ website:
         text: Install
       - href: quickstart.md
         text: Quickstart
+      - href: who-why-when.md
+        text: Who, why and when
       - href: spec.md
         text: Specification
       - href: design.md
