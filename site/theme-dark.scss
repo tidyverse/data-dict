@@ -46,8 +46,3 @@ h5 code:not(.sourceCode),
 h6 code:not(.sourceCode) {
   background-color: $code-bg;
 }
-
-// Status band on the homepage: deeper than the page background.
-.status-band {
-  background-color: $code-block-bg;
-}

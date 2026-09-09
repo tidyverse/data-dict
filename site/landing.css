@@ -12,15 +12,41 @@
   margin-bottom: 1rem;
 }
 
-/* Hero: centred tagline, lede, and call-to-action buttons. */
+/* Hero: version pill, display-size tagline, lede, and call-to-action
+   buttons. */
 .hero {
   text-align: center;
-  padding: 0 1rem 2rem;
+  margin: 2rem 0;
+}
+
+.hero .pill {
+  display: inline-block;
+  font-size: 0.85rem;
+  padding: 0.25em 0.9em;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 999px;
+  color: var(--bs-secondary-color);
+  text-decoration: none;
+  margin-bottom: 1.25rem;
+}
+
+.hero .pill:hover {
+  color: var(--bs-primary);
+  border-color: var(--bs-primary);
+}
+
+.hero h1 {
+  font-size: clamp(2.4rem, 5vw, 3.4rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  max-width: 22ch;
+  margin: 0 auto 1.25rem;
 }
 
 .hero p:first-of-type {
   font-size: 1.25rem;
-  max-width: 40rem;
+  max-width: 38rem;
   margin-left: auto;
   margin-right: auto;
 }
@@ -28,6 +54,12 @@
 .hero .btn {
   margin: 0.5rem 0.25rem 0;
   border-radius: 6px;
+  padding: 0.6rem 1.4rem;
+}
+
+/* Explainer paragraph bridging the hero and the feature grid. */
+.pitch {
+  margin: 2rem 0;
 }
 
 /* Feature grid: six bordered tiles, three across on wide screens. */
@@ -110,20 +142,6 @@
 
 .example-card p:last-child {
   margin-bottom: 0;
-}
-
-/* Status band: version and project links in a quiet strip. The background
-   colour is theme-specific (theme-light.scss / theme-dark.scss). */
-.status-band {
-  border-radius: 6px;
-  padding: 0.75rem 1rem;
-  margin: 2rem 0;
-  text-align: center;
-  opacity: 0.85;
-}
-
-.status-band p {
-  margin: 0;
 }
 
 /* Airy sections and centered h2s without the theme's default underline. */
