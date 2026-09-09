@@ -12,7 +12,7 @@
 - [x] 8. Feature grid: six tiles, longer prose below
 - [x] 9. Built for the agent era: retitle, simulated agent conversation, two workflows (plus new who-why-when page taking the why/when sections)
 - [x] 10. Example cards: description, table count, YAML + rendered links
-- [ ] 11. Status and trust strip: version from `Cargo.toml` at render time, early-preview badge, GitHub star link
+- [x] 11. Status and trust strip: version from `Cargo.toml` at render time, early-preview badge, GitHub star link
 - [ ] 12. Polish pass: render, dark mode, mobile, `llms-txt`, proofread
 - [ ] 13. Rewrite quickstart around https://github.com/hadley/frog-jumping as the data example (replacing the otters sketch)
 

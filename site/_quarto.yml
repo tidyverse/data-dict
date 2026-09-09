@@ -30,16 +30,18 @@ website:
     contents:
       - href: index.md
         text: Overview
-      - href: install.md
-        text: Install
-      - href: quickstart.md
-        text: Quickstart
-      - href: who-why-when.md
-        text: Who, why and when
+      - text: Getting started
+        contents:
+          - href: install.md
+            text: Install
+          - href: quickstart.md
+            text: Quickstart
+          - href: who-why-when.md
+            text: Who, why and when
+          - href: design.md
+            text: Design
       - href: spec.md
         text: Specification
-      - href: design.md
-        text: Design
       - text: Validation
         href: validate.md
         contents:
