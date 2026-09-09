@@ -28,8 +28,6 @@ website:
   sidebar:
     style: docked
     contents:
-      - href: index.md
-        text: Overview
       - text: Getting started
         contents:
           - href: install.md
@@ -75,3 +73,4 @@ format:
           <script src="https://cdn.jsdelivr.net/gh/posit-dev/supported-by-posit/js/badge.min.js"
                   data-dark-bg="#404041"></script>
       - file: _dark-default.html
+      - file: sidebar-collapse.js
