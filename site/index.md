@@ -13,6 +13,35 @@ A lightweight YAML spec for documenting related tables, and a CLI that validates
 
 :::
 
+::: {.feature-grid}
+
+::: {.feature}
+**Validated, not just documented.** Check names, types, ranges and uniqueness against real data.
+:::
+
+::: {.feature}
+**Single binary.** No language run-times, no cloud; runs locally and in CI.
+:::
+
+::: {.feature}
+**Polyglot.** Language-neutral; works for R, Python and SQL teams.
+:::
+
+::: {.feature}
+**Diffable YAML.** Plain text you can version and review.
+:::
+
+::: {.feature}
+**Beautiful websites.** Browse tables, columns, relationships and glossary without reading YAML.
+:::
+
+::: {.feature}
+**Agent-ready.** Gives LLMs the context that currently lives in your head.
+:::
+
+:::
+
+
 data-dict is two things: a **specification** for data dictionaries (`data-dict.yaml`), and a **validator** (the `data-dict` CLI) that enforces it. The specification describes a collection of related tables: their contents, constraints, connections, and the specialised vocabulary you need to understand them. The validator turns that description into a data contract, checking that your data actually matches what the dictionary claims. Together they form a living document, accessible to both humans and agents, that tracks your understanding of a dataset as it evolves.
 
 The specification is designed to be lightweight. It doesn't attempt to precisely describe every possible type of metadata in a machine-readable way. Instead it focuses on precisely recording the most important components, leaving the remainder to plain text fields that require a human or agent to interpret. This means that data-dict doesn't itself do **data cleaning**, but it is a useful complement to tools that do.

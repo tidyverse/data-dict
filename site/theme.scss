@@ -69,6 +69,32 @@ pre {
   }
 }
 
+// Homepage feature grid: six bordered tiles, three across on wide screens.
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+
+  .feature {
+    border: 1px solid $border-color;
+    border-radius: 6px;
+    padding: 1rem;
+
+    p {
+      margin: 0;
+    }
+  }
+
+  @media (max-width: 992px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 576px) {
+    grid-template-columns: 1fr;
+  }
+}
+
 // Tabset tabs pick up a colour that's unreadable in the dark theme, so tie
 // them to the theme's link/body colours; round the corners to match code
 // blocks.
