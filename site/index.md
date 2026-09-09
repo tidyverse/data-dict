@@ -17,6 +17,49 @@ data-dict is two things: a **specification** for data dictionaries (`data-dict.y
 
 The specification is designed to be lightweight. It doesn't attempt to precisely describe every possible type of metadata in a machine-readable way. Instead it focuses on precisely recording the most important components, leaving the remainder to plain text fields that require a human or agent to interpret. This means that data-dict doesn't itself do **data cleaning**, but it is a useful complement to tools that do.
 
+## Install it now
+
+
+Install the CLI:
+
+::: {.panel-tabset}
+
+## Shell
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/tidyverse/data-dict/releases/latest/download/data-dict-cli-installer.sh | sh
+```
+
+## uv
+
+```sh
+uv tool install data-dict-yaml
+```
+
+## pipx
+
+```sh
+pipx install data-dict-yaml
+```
+
+## R
+
+```r
+pak::pak("tidyverse/data-dict/r")
+datadict::dd_install()
+```
+
+:::
+
+Or try it without installing anything:
+
+```sh
+uvx --from data-dict-yaml data-dict validate-spec data-dict.yaml
+```
+
+See [installing the CLI](install.md) for Windows, binary downloads, and building from source.
+
+
 ## What a dictionary looks like
 
 A dictionary is a single YAML file, which the CLI renders as a browsable website (abridged from the [otters dictionary](examples/otters.qmd)):

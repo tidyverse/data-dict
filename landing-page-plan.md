@@ -6,7 +6,7 @@
 - [x] 2. Fix naming and navigation drift: project name is `data-dict` everywhere
 - [x] 3. Quickstart page (sketch): AI-prompt-driven otters example; Hadley writes the prose (will revisit with a different data example)
 - [x] 4. Screenshot automation: light + dark otters captures, theme-aware via `.light-content`/`.dark-content`
-- [ ] 5. Hero: tagline, positioning sentence, two buttons, SCSS
+- [x] 5. Hero: tagline, positioning sentence, two buttons, SCSS
 - [ ] 6. Install tabs: Shell / uv / pipx / R above the fold, `uvx` zero-install line
 - [x] 7. Show the artefact: YAML excerpt + screenshot + three-command quickstart teaser
 - [ ] 8. Feature grid: six tiles, longer prose below
