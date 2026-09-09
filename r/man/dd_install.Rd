@@ -4,7 +4,7 @@
 \alias{dd_install}
 \title{Download the \code{data-dict} binary}
 \usage{
-dd_install(version = "latest", force = FALSE, quiet = FALSE)
+dd_install(version = "latest", force = FALSE, quiet = FALSE, dest = NULL)
 }
 \arguments{
 \item{version}{Release to install, e.g. \code{"0.0.1"} (a leading \code{v} is also
@@ -13,6 +13,12 @@ accepted). Defaults to the latest release.}
 \item{force}{Whether to download again when a binary is already installed.}
 
 \item{quiet}{Whether to suppress the download progress bar and messages.}
+
+\item{dest}{The destination path for the downloaded binary. Defaults to
+machines canonical data directory, see \code{\link[tools:R_user_dir]{tools::R_user_dir()}}.
+Warning: if you change the default then datadict will \strong{not} be
+able to find it automatically, so we strongly suggest leaving it as
+the default.}
 }
 \value{
 The path to the installed binary, invisibly.

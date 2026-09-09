@@ -33,12 +33,22 @@ target_triple <- function(sysname, arch) {
 #'   accepted). Defaults to the latest release.
 #' @param force Whether to download again when a binary is already installed.
 #' @param quiet Whether to suppress the download progress bar and messages.
+#' @param dest The destination path for the downloaded binary. Defaults to
+#'   machines canonical data directory, see [tools::R_user_dir()].
+#'   Warning: if you change the default then datadict will **not** be
+#'   able to find it automatically, so we strongly suggest leaving it as
+#'   the default.
 #' @return The path to the installed binary, invisibly.
 #' @export
 #' @examplesIf FALSE
 #' dd_install()
-dd_install <- function(version = "latest", force = FALSE, quiet = FALSE) {
-  dest <- file.path(dd_dir(), bin_name())
+dd_install <- function(
+  version = "latest",
+  force = FALSE,
+  quiet = FALSE,
+  dest = NULL
+) {
+  dest <- dest %||% file.path(dd_dir(), bin_name())
   if (file.exists(dest) && !force) {
     if (!quiet) {
       message("data-dict is already installed at ", dest,
