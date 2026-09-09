@@ -6,13 +6,55 @@ data-dict is two things: a **specification** for data dictionaries (`data-dict.y
 
 The specification is designed to be lightweight. It doesn't attempt to precisely describe every possible type of metadata in a machine-readable way. Instead it focuses on precisely recording the most important components, leaving the remainder to plain text fields that require a human or agent to interpret. This means that data-dict doesn't itself do **data cleaning**, but it is a useful complement to tools that do.
 
-You can read the details of the spec in [the specification](spec.md), or dive in by looking at a few [examples](examples/index.qmd):
+## What a dictionary looks like
 
-* [dabstep](examples/dabstep.qmd)
-* [elevators](examples/elevators.qmd)
-* [foodbank](examples/foodbank.qmd)
-* [loan-application](examples/loan-application.qmd)
-* [otters](examples/otters.qmd)
+A dictionary is a single YAML file (abridged from the [otters dictionary](examples/otters.qmd)):
+
+::: {.grid}
+
+::: {.g-col-6}
+```{.yaml filename="data-dict.yaml"}
+name: alaska-otters
+tables:
+  - name: otters
+    source: { parquet: otters.parquet }
+    description: One row per otter.
+    columns:
+      - name: otter_no
+        type: string
+        constraints: [primary_key]
+      - name: sex
+        type: enum
+        values: { M: Male, F: Female, U: Unknown }
+  - name: measurements
+    source: { parquet: measurements.parquet }
+    columns:
+      - name: otter_no
+        type: string
+        constraints: [required, foreign_key]
+```
+:::
+
+::: {.g-col-6}
+::: {.light-content}
+[![](images/otters-light.png)](examples/rendered/otters.html)
+:::
+::: {.dark-content}
+[![](images/otters-dark.png)](examples/rendered/otters.html)
+:::
+:::
+
+:::
+
+…which the CLI renders as a [browsable website](examples/rendered/otters.html). Three commands take you from data to dictionary:
+
+```sh
+data-dict draft otters.parquet
+data-dict validate-data data-dict.yaml
+data-dict render-spec data-dict.yaml
+```
+
+See the [quickstart](quickstart.md) for the full walkthrough, including how an AI agent can draft the dictionary for you. Or jump directly to the details of [the specification](spec.md) or look at more [examples](examples/index.qmd).
 
 ## Why use data-dict?
 

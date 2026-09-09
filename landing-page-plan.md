@@ -3,12 +3,12 @@
 ## Steps
 
 - [x] 1. Reconsider homepage content: move Inspirations + semantic-model discussion to `design.md`
-- [ ] 2. Fix naming and navigation drift: project name is `data-dict` everywhere
-- [ ] 3. Quickstart page (sketch): AI-prompt-driven otters example; Hadley writes the prose
-- [ ] 4. Screenshot automation: light + dark otters captures, theme-aware via `.light-content`/`.dark-content`
+- [x] 2. Fix naming and navigation drift: project name is `data-dict` everywhere
+- [x] 3. Quickstart page (sketch): AI-prompt-driven otters example; Hadley writes the prose (will revisit with a different data example)
+- [x] 4. Screenshot automation: light + dark otters captures, theme-aware via `.light-content`/`.dark-content`
 - [ ] 5. Hero: tagline, positioning sentence, two buttons, SCSS
 - [ ] 6. Install tabs: Shell / uv / pipx / R above the fold, `uvx` zero-install line
-- [ ] 7. Show the artefact: YAML excerpt + screenshot + three-command quickstart teaser
+- [x] 7. Show the artefact: YAML excerpt + screenshot + three-command quickstart teaser
 - [ ] 8. Feature grid: six tiles, longer prose below
 - [ ] 9. Built for the agent era: retitle, simulated agent conversation, two workflows
 - [ ] 10. Example cards: description, table count, YAML + rendered links
