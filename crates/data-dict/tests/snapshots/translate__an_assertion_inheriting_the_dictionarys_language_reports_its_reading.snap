@@ -1,0 +1,62 @@
+---
+source: crates/data-dict/tests/translate.rs
+expression: "translate_json(indoc!\n{r#\"\n        language: r\n        description: Each row is a survey response.\n        tables:\n          - name: survey\n            columns:\n              - name: postcode\n                type: string\n                examples: [\"NZ-1010\"]\n            constraints:\n              - assert: nchar(postcode) <= 10\n    \"#})"
+---
+[
+  {
+    "expr": "nchar(postcode) <= 10",
+    "language": "r",
+    "canonical": "LENGTH(postcode) <= 10",
+    "fidelity": "divergent",
+    "notes": [
+      "R reads a NaN as missing, so comparing against one gives NA where data-dict answers false; a row holding one passes here and is reported there."
+    ],
+    "table": "survey",
+    "type": "boolean",
+    "columns": [
+      "postcode"
+    ],
+    "translations": [
+      {
+        "target": "SQL(duckdb)",
+        "code": "length(\"postcode\") <= 10",
+        "notes": [
+          "DuckDB compares a NaN as equal to itself and greater than every number, where data-dict answers false; a row holding one passes here and is reported there."
+        ]
+      },
+      {
+        "target": "R(tidyverse)",
+        "code": "str_length(postcode) <= 10L",
+        "notes": [
+          "R reads a NaN as missing, so comparing against one gives NA where data-dict answers false; a row holding one passes here and is reported there."
+        ]
+      },
+      {
+        "target": "R(base)",
+        "code": "nchar(postcode) <= 10L",
+        "notes": [
+          "R reads a NaN as missing, so comparing against one gives NA where data-dict answers false; a row holding one passes here and is reported there."
+        ]
+      },
+      {
+        "target": "R(data.table)",
+        "code": "nchar(postcode) <= 10L",
+        "notes": [
+          "R reads a NaN as missing, so comparing against one gives NA where data-dict answers false; a row holding one passes here and is reported there."
+        ]
+      },
+      {
+        "target": "Python(polars)",
+        "code": "pl.col(\"postcode\").str.len_chars() <= pl.lit(10)",
+        "notes": [
+          "polars compares a NaN as an ordinary value and makes it equal to itself, where data-dict answers false for every comparison a NaN reaches; a row holding one passes here and is reported there."
+        ]
+      },
+      {
+        "target": "SQL(data-dict)",
+        "code": "LENGTH(postcode) <= 10",
+        "notes": []
+      }
+    ]
+  }
+]

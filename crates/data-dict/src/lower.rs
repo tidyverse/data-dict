@@ -19,12 +19,15 @@ use crate::problem::{Problem, ProblemSet, Severity, subspan};
 /// Lower an AST, collecting any lowering problems (currently only S04
 /// for unparseable join expressions).
 pub fn lower(root: &YamlWithSourceInfo, problems: &mut ProblemSet) -> DataDict {
+    let language = root.as_hash().and_then(lower_language);
+    let default_language = language.as_ref().map_or(Language::DataDict, |l| l.value);
+
     let mut tables = Vec::new();
     if let Some(t_node) = root.get_hash_value("tables")
         && let Some(items) = t_node.as_array()
     {
         for item in items {
-            if let Some(table) = lower_table(item, problems) {
+            if let Some(table) = lower_table(item, default_language, problems) {
                 tables.push(table);
             }
         }
@@ -80,6 +83,7 @@ pub fn lower(root: &YamlWithSourceInfo, problems: &mut ProblemSet) -> DataDict {
         relationships,
         glossary,
         todo,
+        language,
     }
 }
 
@@ -112,7 +116,11 @@ fn lower_todo(value: &YamlWithSourceInfo, value_span: SourceInfo) -> Option<Span
         .map(|s| Spanned::new(s.to_string(), value_span))
 }
 
-fn lower_table(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Option<Table> {
+fn lower_table(
+    node: &YamlWithSourceInfo,
+    default_language: Language,
+    problems: &mut ProblemSet,
+) -> Option<Table> {
     let entries = node.as_hash()?;
     let name_entry = entries
         .iter()
@@ -126,7 +134,7 @@ fn lower_table(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Option<T
         && let Some(items) = c_node.as_array()
     {
         for col in items {
-            if let Some(c) = lower_column(col, problems) {
+            if let Some(c) = lower_column(col, default_language, problems) {
                 columns.push(c);
             }
         }
@@ -136,7 +144,7 @@ fn lower_table(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Option<T
         && let Some(items) = c_node.as_array()
     {
         for item in items {
-            if let Some(a) = lower_assertion(item, problems) {
+            if let Some(a) = lower_assertion(item, default_language, problems) {
                 constraints.push(a);
             }
         }
@@ -146,7 +154,7 @@ fn lower_table(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Option<T
         && let Some(items) = d_node.as_array()
     {
         for item in items {
-            if let Some(d) = lower_definition(item, problems) {
+            if let Some(d) = lower_definition(item, default_language, problems) {
                 definitions.push(d);
             }
         }
@@ -194,7 +202,11 @@ fn lower_table(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Option<T
     })
 }
 
-fn lower_column(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Option<Column> {
+fn lower_column(
+    node: &YamlWithSourceInfo,
+    default_language: Language,
+    problems: &mut ProblemSet,
+) -> Option<Column> {
     let entries = node.as_hash()?;
     let mut name: Option<Spanned<String>> = None;
     let mut label: Option<String> = None;
@@ -274,7 +286,7 @@ fn lower_column(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Option<
                             if let Some(parsed) = Constraint::parse(s) {
                                 constraints.push(Spanned::new(parsed, c.source_info.clone()));
                             }
-                        } else if let Some(a) = lower_assertion(c, problems) {
+                        } else if let Some(a) = lower_assertion(c, default_language, problems) {
                             // A map with an `assert` key is an assertion.
                             assertions.push(a);
                         }
@@ -285,7 +297,7 @@ fn lower_column(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Option<
                 if let Some(items) = entry.value.as_array() {
                     let mut fs = Vec::new();
                     for f in items {
-                        if let Some(col) = lower_column(f, problems) {
+                        if let Some(col) = lower_column(f, default_language, problems) {
                             fs.push(col);
                         }
                     }
@@ -322,7 +334,11 @@ fn lower_column(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Option<
 /// `assert` string) and leaves `expr` as `None`, mirroring the S04 handling of a
 /// bad `join`. Returns `None` only for a node without a string `assert` value,
 /// which the schema rejects upstream.
-fn lower_assertion(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Option<Assertion> {
+fn lower_assertion(
+    node: &YamlWithSourceInfo,
+    default_language: Language,
+    problems: &mut ProblemSet,
+) -> Option<Assertion> {
     let entries = node.as_hash()?;
     let assert_entry = entries
         .iter()
@@ -337,7 +353,14 @@ fn lower_assertion(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Opti
     let span = assert_entry.value_span.clone();
     let language = lower_language(entries);
 
-    let (expr, notes) = read(text, language.as_ref(), "`assert`", &span, problems);
+    let (expr, notes) = read(
+        text,
+        language.as_ref(),
+        default_language,
+        "`assert`",
+        &span,
+        problems,
+    );
 
     Some(Assertion {
         text: Spanned::new(text.to_string(), span),
@@ -369,11 +392,12 @@ fn lower_language(entries: &[YamlHashEntry]) -> Option<Spanned<Language>> {
 fn read(
     text: &str,
     language: Option<&Spanned<Language>>,
+    default_language: Language,
     what: &str,
     span: &SourceInfo,
     problems: &mut ProblemSet,
 ) -> (Option<AssertExpr>, Vec<&'static str>) {
-    let language = language.map_or(Language::DataDict, |l| l.value);
+    let language = language.map_or(default_language, |l| l.value);
     let parsed = match language {
         Language::DataDict => AssertExpr::parse(text).map(|expr| (expr, Vec::new())),
         Language::R => crate::parse::r::read(text).map(|p| (p.expr, p.notes)),
@@ -423,7 +447,11 @@ fn read(
 /// token within the `expr` string) and leaves `expr` as `None`, mirroring
 /// [`lower_assertion`]. Returns `None` for a node without a string `expr`
 /// value, which the schema rejects upstream.
-fn lower_definition(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Option<Definition> {
+fn lower_definition(
+    node: &YamlWithSourceInfo,
+    default_language: Language,
+    problems: &mut ProblemSet,
+) -> Option<Definition> {
     let entries = node.as_hash()?;
     let name_entry = entries
         .iter()
@@ -446,7 +474,14 @@ fn lower_definition(node: &YamlWithSourceInfo, problems: &mut ProblemSet) -> Opt
     };
 
     let language = lower_language(entries);
-    let (expr, notes) = read(text, language.as_ref(), "definition", &span, problems);
+    let (expr, notes) = read(
+        text,
+        language.as_ref(),
+        default_language,
+        "definition",
+        &span,
+        problems,
+    );
 
     let todo = entries
         .iter()

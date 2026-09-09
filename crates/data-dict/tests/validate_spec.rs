@@ -3235,3 +3235,85 @@ fn an_unknown_language_is_rejected_structurally() {
     #[cfg(unix)]
     assert_snapshot!(diagnostic);
 }
+
+/// A top-level `language` sets the default for every expression that omits its
+/// own: these R expressions name no language and read as R (with the usual S36
+/// divergence notes an R reading carries).
+#[test]
+fn a_top_level_language_sets_the_default() {
+    assert_valid_dict(indoc! {r#"
+        language: r
+        description: Each row is a survey response.
+        tables:
+          - name: survey
+            columns:
+              - name: postcode
+                type: string
+                examples: ["NZ-1010"]
+                constraints:
+                  - assert: nchar(postcode) <= 10
+            constraints:
+              - assert: nchar(postcode) >= 4
+            definitions:
+              - name: postcode_length
+                expr: nchar(postcode)
+    "#});
+}
+
+/// An expression's own `language` still wins over the dictionary's default.
+#[test]
+fn an_expressions_own_language_overrides_the_default() {
+    assert_clean_dict(indoc! {r#"
+        language: r
+        description: Each row is a survey response.
+        tables:
+          - name: survey
+            columns:
+              - name: postcode
+                type: string
+                examples: ["NZ-1010"]
+            constraints:
+              - assert: postcode IS NOT NULL
+                language: sql
+    "#});
+}
+
+/// An un-languaged expression is read in the dictionary's language, so SQL
+/// under `language: r` fails to parse as R, and the message says which
+/// language it failed as.
+#[test]
+fn an_unlanguaged_expression_reads_in_the_dictionarys_language() {
+    let diagnostic = failing_dict(indoc! {r#"
+        language: r
+        description: Each row is a survey response.
+        tables:
+          - name: survey
+            columns:
+              - name: postcode
+                type: string
+                examples: ["NZ-1010"]
+            constraints:
+              - assert: postcode IS NOT NULL
+    "#});
+    diagnostic.assert_contains(&["S19", "r"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
+/// The top-level `language` is the same closed set as the per-expression key,
+/// held by the schema.
+#[test]
+fn an_unknown_top_level_language_is_rejected_structurally() {
+    let diagnostic = failing_dict(indoc! {r#"
+        language: perl
+        description: Each row is a survey response.
+        tables:
+          - name: survey
+            columns:
+              - name: postcode
+                type: string
+    "#});
+    diagnostic.assert_contains(&["Q-1-12", "language"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
