@@ -4,7 +4,7 @@ title: "Design"
 
 ## Inspirations
 
-`data-dict.yaml` draws inspiration from three lineages of work: data dictionaries, semantic models and data contracts.
+data-dict draws inspiration from three lineages of work: data dictionaries, semantic models and data contracts.
 
 ## Data dictionaries
 
@@ -23,7 +23,7 @@ Semantic models come from the data warehousing and business intelligence communi
 * [Hex's semantic modelling](https://learn.hex.tech/docs/connect-to-data/semantic-models/semantic-authoring/modeling-specification)
 * [Snowflake's semantic views](https://docs.snowflake.com/en/user-guide/views-semantic/overview)
 
-It's worth noting that while semantic models influenced the design of `data-dict.yaml`, it is not a **[semantic model](semantic-models.md)**. It doesn't model dimensions or metrics, because that distinction reflects intended use, not the data itself.
+It's worth noting that while semantic models influenced the design of data-dict, it is not a **[semantic model](semantic-models.md)**. It doesn't model dimensions or metrics, because that distinction reflects intended use, not the data itself.
 
 Additionally, while terminology is still evolving, the "semantic" in semantic models is typically interpreted narrowly, focussing on structural semantics — what's needed for queries to return consistent values — rather than what the data actually _means_.
 
