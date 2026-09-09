@@ -41,6 +41,34 @@ pre {
 
 .sidebar-menu-container > ul > li.sidebar-item {margin: 1em 0}
 
+// Quarto hoists the homepage tagline into the title block, just before the
+// .hero div; centre it there so it reads as part of the hero.
+#title-block-header:has(+ .hero) {
+  text-align: center;
+
+  .title {
+    margin-bottom: 1rem;
+  }
+}
+
+// Homepage hero: centred tagline, lede, and call-to-action buttons.
+.hero {
+  text-align: center;
+  padding: 0 1rem 2rem;
+
+  p:first-of-type {
+    font-size: 1.25rem;
+    max-width: 40rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .btn {
+    margin: 0.5rem 0.25rem 0;
+    border-radius: 6px;
+  }
+}
+
 // Tabset tabs pick up a colour that's unreadable in the dark theme, so tie
 // them to the theme's link/body colours; round the corners to match code
 // blocks.

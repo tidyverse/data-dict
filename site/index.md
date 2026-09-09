@@ -1,6 +1,17 @@
 ---
-title: "data-dict"
+title: ""
+pagetitle: "data-dict: a data dictionary your data can't disagree with"
 ---
+
+::: {.hero}
+
+<h1>A data dictionary your data can't disagree with.</h1>
+
+A lightweight YAML spec for documenting related tables, and a CLI that validates your data against it. Built for humans and agents.
+
+[Get started](quickstart.md){.btn .btn-primary .btn-lg} [See an example](examples/rendered/otters.html){.btn .btn-outline-primary .btn-lg target="_blank"}
+
+:::
 
 data-dict is two things: a **specification** for data dictionaries (`data-dict.yaml`), and a **validator** (the `data-dict` CLI) that enforces it. The specification describes a collection of related tables: their contents, constraints, connections, and the specialised vocabulary you need to understand them. The validator turns that description into a data contract, checking that your data actually matches what the dictionary claims. Together they form a living document, accessible to both humans and agents, that tracks your understanding of a dataset as it evolves.
 
