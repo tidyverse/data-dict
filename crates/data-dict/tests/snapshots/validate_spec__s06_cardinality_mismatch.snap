@@ -32,9 +32,9 @@ relationships:
   - join: transaction.account_id = account.account_id
     cardinality: many-to-one
 ────────────────────────────────────────
-error[S06]: A `many-to-one` join must have a `primary_key` or `unique` column on its right ("one") side.
+error[S06]: A `many-to-one` join must have join columns that uniquely identify a row on its right ("one") side: a `unique` column or the full primary key.
   --> spec/s06-cardinality-mismatch.yaml:30:18
    |
 LL |   - join: transaction.account_id = account.account_id
 LL |     cardinality: many-to-one
-   |                  ^^^^^^^^^^^ the right-side join column on `account` is not marked `primary_key` or `unique`
+   |                  ^^^^^^^^^^^ the right-side join columns on `account` do not uniquely identify a row
