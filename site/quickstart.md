@@ -7,7 +7,7 @@ In this quickstart you'll create a data dictionary for a real dataset — frog j
 ## Setup
 
 1. [Install the `data-dict` CLI](install.md).
-2. Download the data: [frogs.parquet](https://github.com/hadley/frog-jumping/blob/main/frogs.parquet) and the existing documentation `data-collection.md` from the same repo. Put both in a fresh directory.
+2. Clone the data repo: `git clone https://github.com/hadley/frog-jumping`. It contains the data (`frogs.parquet`) and existing documentation (`data-collection.md`).
 
 ## Ask an agent to draft the dictionary
 
