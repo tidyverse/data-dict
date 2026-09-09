@@ -18,8 +18,11 @@ dd_path <- function(check = TRUE) {
   from_env <- Sys.getenv("DATA_DICT", "")
   if (nzchar(from_env)) {
     if (!file.exists(from_env)) {
-      stop("DATA_DICT points at a file that does not exist: ", from_env,
-           call. = FALSE)
+      stop(
+        "DATA_DICT points at a file that does not exist: ",
+        from_env,
+        call. = FALSE
+      )
     }
     return(from_env)
   }
@@ -35,8 +38,11 @@ dd_path <- function(check = TRUE) {
   }
 
   if (check) {
-    stop("No data-dict binary found. ",
-         "Run datadict::dd_install() to download one.", call. = FALSE)
+    stop(
+      "No data-dict binary found. ",
+      "Run datadict::dd_install() to download one.",
+      call. = FALSE
+    )
   }
   ""
 }
@@ -67,8 +73,10 @@ dd_run <- function(args, echo = FALSE, ...) {
   result <- run_binary(args, echo = echo, ...)
   if (result$status != 0) {
     stop(
-      run_failure(paste0("data-dict failed with status ", result$status, ":"),
-                  result),
+      run_failure(
+        paste0("data-dict failed with status ", result$status, ":"),
+        result
+      ),
       call. = FALSE
     )
   }

@@ -12,11 +12,16 @@ test_that("a platform without a released binary is an error", {
 })
 
 test_that("this platform is one we build for", {
-  expect_true(dd_target() %in% c(
-    "aarch64-apple-darwin", "x86_64-apple-darwin",
-    "aarch64-unknown-linux-musl", "x86_64-unknown-linux-musl",
-    "x86_64-pc-windows-msvc"
-  ))
+  expect_true(
+    dd_target() %in%
+      c(
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "aarch64-unknown-linux-musl",
+        "x86_64-unknown-linux-musl",
+        "x86_64-pc-windows-msvc"
+      )
+  )
 })
 
 test_that("a corrupted download is rejected", {
