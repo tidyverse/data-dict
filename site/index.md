@@ -153,6 +153,62 @@ There have been many previous attempts to encode data dictionaries in structured
 
 * The schema can be simpler because LLMs change what it means for something to be machine-readable. You only need to explicitly encode the most important structures, leaving more unusual quirks to free-form text.
 
+## Examples
+
+Real data dictionaries for real datasets:
+
+::: {.example-grid}
+
+::: {.example-card}
+**otters** · 5 tables
+
+Morphometric measurements of Alaskan sea otters, 1947–2019.
+
+[YAML](examples/otters.qmd) · [Rendered site](examples/rendered/otters.html)
+:::
+
+::: {.example-card}
+**contoso** · 8 tables
+
+Synthetic retail sales for the fictional Contoso company, arranged as a star schema.
+
+[YAML](examples/contoso.qmd) · [Rendered site](examples/rendered/contoso.html)
+:::
+
+::: {.example-card}
+**dabstep** · 7 tables
+
+Synthetic payment transactions from a payment processor.
+
+[YAML](examples/dabstep.qmd) · [Rendered site](examples/rendered/dabstep.html)
+:::
+
+::: {.example-card}
+**elevators** · 1 table
+
+Registered elevator devices in New York City, from a 2015 FOIL request.
+
+[YAML](examples/elevators.qmd) · [Rendered site](examples/rendered/elevators.html)
+:::
+
+::: {.example-card}
+**foodbank** · 6 tables
+
+Foundation foods from the USDA FoodData Central (December 2025).
+
+[YAML](examples/foodbank.qmd) · [Rendered site](examples/rendered/foodbank.html)
+:::
+
+::: {.example-card}
+**loan-application** · 8 tables
+
+Bank loan applications and the accounts behind them.
+
+[YAML](examples/loan-application.qmd) · [Rendered site](examples/rendered/loan-application.html)
+:::
+
+:::
+
 ## Get started
 
 Ready to try it? [Install the CLI](install.md) in seconds, browse the [examples](examples/index.qmd) to see what a dictionary looks like, or read the [specification](spec.md) for the full details. Curious about the thinking behind the design? See [design](design.md).

@@ -95,6 +95,25 @@ pre {
   }
 }
 
+// Homepage example cards: same grid and tile look as the feature grid.
+.example-grid {
+  @extend .feature-grid;
+}
+
+.example-card {
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  padding: 1rem;
+
+  p {
+    margin: 0 0 0.5rem;
+  }
+
+  p:last-child {
+    margin-bottom: 0;
+  }
+}
+
 // Tabset tabs pick up a colour that's unreadable in the dark theme, so tie
 // them to the theme's link/body colours; round the corners to match code
 // blocks.
