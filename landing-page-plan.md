@@ -10,8 +10,8 @@
 - [ ] 6. Install tabs: Shell / uv / pipx / R above the fold, `uvx` zero-install line
 - [x] 7. Show the artefact: YAML excerpt + screenshot + three-command quickstart teaser
 - [x] 8. Feature grid: six tiles, longer prose below
-- [ ] 9. Built for the agent era: retitle, simulated agent conversation, two workflows
-- [ ] 10. Example cards: description, table count, YAML + rendered links
+- [x] 9. Built for the agent era: retitle, simulated agent conversation, two workflows (plus new who-why-when page taking the why/when sections)
+- [x] 10. Example cards: description, table count, YAML + rendered links
 - [ ] 11. Status and trust strip: version from `Cargo.toml` at render time, early-preview badge, GitHub star link
 - [ ] 12. Polish pass: render, dark mode, mobile, `llms-txt`, proofread
 - [ ] 13. Rewrite quickstart around https://github.com/hadley/frog-jumping as the data example (replacing the otters sketch)

@@ -1,6 +1,8 @@
 ---
 title: ""
 pagetitle: "data-dict: a data dictionary your data can't disagree with"
+shortcodes:
+  - version.lua
 ---
 
 ::: {.hero}
@@ -39,6 +41,11 @@ A lightweight YAML spec for documenting related tables, and a CLI that validates
 **Agent-ready.** Gives LLMs the context that currently lives in your head.
 :::
 
+:::
+
+
+::: {.status-band}
+**Status:** early preview — v{{< cli-version >}}, under active development · [Star on GitHub](https://github.com/tidyverse/data-dict) · [Discuss in the issues](https://github.com/tidyverse/data-dict/issues)
 :::
 
 

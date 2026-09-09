@@ -17,3 +17,11 @@ $link-color: $primary;
 // background instead.
 $code-bg: rgba(64, 64, 65, 0.07);
 $code-color: inherit;
+
+/*-- scss:rules --*/
+
+// Status band on the homepage: pale grey, lighter than the text but visible
+// against the white page.
+.status-band {
+  background-color: $code-bg;
+}
