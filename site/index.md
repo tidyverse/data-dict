@@ -57,20 +57,6 @@ There have been many previous attempts to encode data dictionaries in structured
 * Retrospectively, when you've already spent considerable time with a dataset. Creating a `data-dict.yaml` gets the knowledge out of your head and makes it accessible to your human and AI collaborators. You can get started quickly by asking an LLM to extract what it knows based on the code you've written so far.
 * When working with regularly updated data produced by someone else. Maybe you get updates from collaborators via email, or your data engineering team has a habit of not announcing changes to variable definitions. `data-dict.yaml`'s ability to validate data against the spec ensures you're never surprised when the data changes.
 
-## Inspirations
+## Get started
 
-Here are a few of the resources that guided the design of `data-dict.yaml`:
-
-* [Data management in large-scale education research](https://datamgmtinedresearch.com/document#document-dataset)
-* [Frictionless data](https://datapackage.org/standard/table-schema)
-* [Hex's semantic modelling](https://learn.hex.tech/docs/connect-to-data/semantic-models/semantic-authoring/modeling-specification)
-* [Snowflake's semantic views](https://docs.snowflake.com/en/user-guide/views-semantic/overview)
-* [Soda's contract language](https://docs.soda.io/reference/contract-language-reference)
-* [dbt tests](https://docs.getdbt.com/docs/build/data-tests?version=1.12)
-* [Data Package Standard](https://datapackage.org)
-* [Brain Imaging Data Structure](https://bids.neuroimaging.io)
-* [Data Documentation Initiative](https://ddialliance.org)
-
-It's worth noting that while semantic models influenced the design of `data-dict.yaml`, it is not a **[semantic model](semantic-models.md)**. It doesn't model dimensions or metrics, because that distinction reflects intended use, not the data itself. `data-dict.yaml` is primarily designed to support data scientists, not data analysts.
-
-Additionally, while terminology is still evolving, the "semantic" in semantic models is typically interpreted narrowly, focussing on structural semantics — what's needed for queries to return consistent values — rather than what the data actually _means_.
+Ready to try it? [Install the CLI](install.md) in seconds, browse the [examples](examples/index.qmd) to see what a dictionary looks like, or read the [specification](spec.md) for the full details. Curious about the thinking behind the design? See [design](design.md).

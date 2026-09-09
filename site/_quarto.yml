@@ -34,6 +34,8 @@ website:
         text: Install
       - href: spec.md
         text: Specification
+      - href: design.md
+        text: Design
       - text: Validation
         href: validate.md
         contents:
