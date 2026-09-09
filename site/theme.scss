@@ -40,3 +40,22 @@ pre {
 }
 
 .sidebar-menu-container > ul > li.sidebar-item {margin: 1em 0}
+
+// Tabset tabs pick up a colour that's unreadable in the dark theme, so tie
+// them to the theme's link/body colours; round the corners to match code
+// blocks.
+.panel-tabset {
+  .nav-tabs .nav-link {
+    color: $link-color;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+
+    &.active {
+      color: $body-color;
+    }
+  }
+
+  > .tab-content {
+    border-radius: 0 6px 6px 6px;
+  }
+}

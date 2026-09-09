@@ -8,12 +8,13 @@ The specification is designed to be lightweight. It doesn't attempt to precisely
 
 ## What a dictionary looks like
 
-A dictionary is a single YAML file (abridged from the [otters dictionary](examples/otters.qmd)):
+A dictionary is a single YAML file, which the CLI renders as a browsable website (abridged from the [otters dictionary](examples/otters.qmd)):
 
-::: {.grid}
+::: {.panel-tabset}
 
-::: {.g-col-6}
-```{.yaml filename="data-dict.yaml"}
+## data-dict.yaml
+
+```yaml
 name: alaska-otters
 tables:
   - name: otters
@@ -33,20 +34,19 @@ tables:
         type: string
         constraints: [required, foreign_key]
 ```
-:::
 
-::: {.g-col-6}
+## Rendered site
+
 ::: {.light-content}
 [![](images/otters-light.png)](examples/rendered/otters.html)
 :::
 ::: {.dark-content}
 [![](images/otters-dark.png)](examples/rendered/otters.html)
 :::
-:::
 
 :::
 
-…which the CLI renders as a [browsable website](examples/rendered/otters.html). Three commands take you from data to dictionary:
+Three commands take you from data to dictionary:
 
 ```sh
 data-dict draft otters.parquet
