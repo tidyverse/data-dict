@@ -32,6 +32,8 @@ website:
         text: Overview
       - href: install.md
         text: Install
+      - href: quickstart.md
+        text: Quickstart
       - href: spec.md
         text: Specification
       - href: design.md
