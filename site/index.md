@@ -33,7 +33,7 @@ data-dict is two things: a **specification** for data dictionaries (`data-dict.y
 ::: {.feature-grid}
 
 ::: {.feature}
-[**Validated, not just documented.** Check names, types, ranges and uniqueness against real data.](validate.md)
+[**Validated, not just documented.** Check names, types, and custom constraints; enforce referential integrity.](validate.md)
 :::
 
 ::: {.feature}

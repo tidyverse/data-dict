@@ -44,11 +44,6 @@ website:
         text: Specification
       - text: Validation
         href: validate.md
-        contents:
-          - href: expressions.md
-            text: Expressions
-          - href: report.md
-            text: Report
       - text: Developer details
         contents:
           - text: Validation
@@ -57,8 +52,12 @@ website:
             text: Executing expressions
           - href: floating-point.md
             text: Floating point
+          - href: expressions.md
+            text: Expression language
           - href: export.md
-            text: Export
+            text: Spec/data export
+          - href: report.md
+            text: Validation export
       - href: examples/index.qmd
         text: Examples
 
