@@ -27,6 +27,8 @@ website:
 
   sidebar:
     style: docked
+    # Consider if the .docs-panel on in index.md needs updating whenever
+    # you change this
     contents:
       - text: Getting started
         contents:

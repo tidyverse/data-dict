@@ -18,7 +18,8 @@ shortcodes:
 
 <h1>A data dictionary your data can't disagree with.</h1>
 
-A lightweight YAML spec for documenting related tables, and a CLI that validates your data against it. Built for humans and agents.
+A lightweight YAML spec for documenting related tables, and a CLI that validates your data against it. \
+Built for humans and agents.
 
 [Get started](quickstart.md){.btn .btn-primary .btn-lg} [See an example](examples/rendered/otters.html){.btn .btn-outline-primary .btn-lg target="_blank"}
 
@@ -56,6 +57,8 @@ data-dict is two things: a **specification** for data dictionaries (`data-dict.y
 :::
 
 :::
+
+Ready to try it? [Install the CLI](install.md) in seconds, browse the [examples](examples/index.qmd) to see what a dictionary looks like, or read the [specification](spec.md) for the full details. Curious about the thinking behind the design? See the [design page](design.md).
 
 
 ## What a dictionary looks like
@@ -212,8 +215,38 @@ Bank loan applications and the accounts behind them.
 
 :::
 
-## Get started
+::: {.docs-panel}
 
-Ready to try it? [Install the CLI](install.md) in seconds, browse the [examples](examples/index.qmd) to see what a dictionary looks like, or read the [specification](spec.md) for the full details. Curious about the thinking behind the design? See the [design page](design.md).
+## Learn more
+
+::: {.docs-grid}
+
+::: {.docs-col}
+**Getting started**
+
+* [Install](install.md)
+* [Quickstart](quickstart.md)
+* [Who, why and when](who-why-when.md)
+* [Design](design.md)
+:::
+
+::: {.docs-col}
+**Reference**
+
+* [Specification](spec.md)
+* [Validation](validate.md)
+
+:::
+
+::: {.docs-col}
+**More**
+
+* [Examples](examples/index.qmd)
+* [Developer details](dev-validation.md)
+* [GitHub](https://github.com/tidyverse/data-dict)
+:::
+
+:::
+:::
 
 :::
