@@ -28,16 +28,18 @@ function StepCheck({ step }) {
   return html`<span class="step-check">${stepLabel(step)}${" "}<span class="code">(${step.code})</span></span>`;
 }
 
-/* The share of rows a step (or a whole table's steps) failed. Drawn only when
+/* What a bar weighs depends on what it is given: a step's own failures against
+   its rows, or a table's summed against every row its checks weighed. Those are
+   different units, so the tooltip names the one it is showing. Drawn only when
    there are rows to weigh, so the bar's presence is itself the claim that the
    step was evaluated — an unevaluated step, or a failing step over an empty
    table, gets none. */
-function StepMeter({ rows, failed }) {
+function StepMeter({ rows, failed, label = "failed rows" }) {
   if (!rows) return null;
   const share = failed / rows;
   return html`<div class="step-meter">
     <div class="step-track"
-      onMouseEnter=${(e) => showTip(barTip("failed", failed, rows), e)}
+      onMouseEnter=${(e) => showTip(barTip(label, failed, rows), e)}
       onMouseMove=${moveTip} onMouseLeave=${hideTip}>
       ${failed > 0 &&
         html`<div class=${`step-fill${share >= 1 ? " full" : ""}`}
@@ -100,12 +102,17 @@ function VerdictSquare({ outcome }) {
 function StepRow({ step }) {
   const failed = step.failed_row_count;
   const evaluated = step.outcome !== "unevaluated";
-  return html`<tr data-href=${step.outcome === "fail" ? `#step/${step.id}` : null}>
+  const href = step.outcome === "fail" ? `#step/${step.id}` : null;
+  return html`<tr data-href=${href}>
     <td>
       <span class="sqname"><${VerdictSquare} outcome=${step.outcome} /><${StepCheck} step=${step} /></span>
     </td>
     <td><${StepTarget} step=${step} /></td>
-    <td class="num">${evaluated && failed != null ? fmtNum(failed) : "—"}</td>
+    <td class="num">${!evaluated || failed == null
+      ? "—"
+      : href && failed > 0
+        ? html`<a href=${href} title="Failed rows">${fmtNum(failed)}</a>`
+        : fmtNum(failed)}</td>
     <td><${StepMeter} rows=${step.row_count} failed=${step.failed_row_count || 0} /></td>
   </tr>`;
 }
@@ -177,18 +184,18 @@ function DatasetRow({ row }) {
     const target = document.getElementById(datasetAnchor(table));
     if (target) target.scrollIntoView();
   };
-  /* The failed count links to the dataset's failed-rows page when there are
-     rows to show; the row's own click-through scrolls, so the link must not
-     let it fire. */
+  /* The row scrolls to the dataset's own section in the roster below; the count
+     links past it to the failed rows, so it must not let the scroll fire too. */
   const hasRows = (REPORT.failed_rows || []).some((e) => e.table === table);
+  const href = hasRows && failed > 0 ? `#rows/${encodeURIComponent(table)}` : null;
   return html`<tr onClick=${scroll}>
     <td><span class="sqname"><${VerdictSquare} outcome=${datasetSquare(counts)} /><span class="dataset-name">${table}</span></span></td>
     <td class="num">${steps.length ? `${fmtNum(counts.fail)}/${fmtNum(steps.length)}` : "—"}</td>
-    <td class="num">${!counted ? "—" : hasRows && failed > 0
-      ? html`<a href="#rows/${encodeURIComponent(table)}" title="Failed rows"
+    <td class="num">${!counted ? "—" : href
+      ? html`<a href=${href} title="Failed rows"
           onClick=${(e) => e.stopPropagation()}>${fmtNum(failed)}</a>`
       : fmtNum(failed)}</td>
-    <td><${StepMeter} rows=${rows} failed=${failed} /></td>
+    <td><${StepMeter} rows=${rows} failed=${failed} label="failures" /></td>
   </tr>`;
 }
 
@@ -216,7 +223,7 @@ function DatasetsCard({ steps }) {
         <thead><tr>
           <${SortHead} label="Dataset" sortKey="dataset" sort=${sort} onSort=${setSort} />
           <${SortHead} label="Checks" sortKey="checks" sort=${sort} onSort=${setSort} numeric=${true} />
-          <${SortHead} label="Failed" sortKey="failed" sort=${sort} onSort=${setSort} numeric=${true} />
+          <${SortHead} label="Failures" sortKey="failed" sort=${sort} onSort=${setSort} numeric=${true} />
           <th></th>
         </tr></thead>
         <tbody>
@@ -264,7 +271,7 @@ function DatasetSection({ table, steps, sort, onSort, query, failuresOnly }) {
             <thead><tr>
               <${SortHead} label="Check" sortKey="check" sort=${sort} onSort=${onSort} />
               <${SortHead} label="Target" sortKey="target" sort=${sort} onSort=${onSort} />
-              <${SortHead} label="Failed" sortKey="failed" sort=${sort} onSort=${onSort} numeric=${true} />
+              <${SortHead} label="Failed rows" sortKey="failed" sort=${sort} onSort=${onSort} numeric=${true} />
               <th></th>
             </tr></thead>
             <tbody class="tgroup" onClick=${rowNav}>

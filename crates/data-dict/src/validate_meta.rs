@@ -96,20 +96,19 @@ fn check_columns(
     validate_m03_extra_columns(table, declared, actual, path, out);
 }
 
-/// Attempt D01 from Parquet footer metadata. Although this reads only metadata,
-/// the rule remains a D## check because it validates the column's values.
-pub(crate) fn validate_d01_required_not_null(
-    table: &Table,
-    col: &Column,
-    meta: &ColumnMeta,
-) -> CheckResult {
+/// Clear D01 from Parquet footer metadata where it can be cleared. A footer null
+/// count of zero settles the check without reading the column; any other answer
+/// defers to the data pass, which counts the nulls itself and names the rows
+/// holding them — a count alone can't say which rows are at fault. Although this
+/// reads only metadata, the rule remains a D## check because it validates the
+/// column's values.
+pub(crate) fn validate_d01_required_not_null(col: &Column, meta: &ColumnMeta) -> CheckResult {
     if !col.is_required_implied() {
         return CheckResult::Pass;
     }
     match meta.null_count {
         Some(0) => CheckResult::Pass,
-        Some(count) => CheckResult::Fail(Box::new(nulls_in_required_meta(table, col, count))),
-        None => CheckResult::Inconclusive,
+        _ => CheckResult::Inconclusive,
     }
 }
 
@@ -152,45 +151,6 @@ pub(crate) fn validate_d02_unique_column(
         )))
     } else {
         CheckResult::Inconclusive
-    }
-}
-
-fn nulls_in_required_meta(table: &Table, col: &Column, count: usize) -> Problem {
-    let plural = if count == 1 { "" } else { "s" };
-    let constraint_span = col
-        .constraints
-        .iter()
-        .find(|constraint| {
-            matches!(
-                constraint.value,
-                Constraint::Required | Constraint::PrimaryKey
-            )
-        })
-        .map_or_else(
-            || col.name.span.clone(),
-            |constraint| constraint.span.clone(),
-        );
-    Problem {
-        code: Some("D01"),
-        step: None,
-        severity: Severity::Error,
-        message: format!("has {count} null value{plural}"),
-        table: Some(table.name.value.clone()),
-        columns: vec![col.name.value.clone()],
-        expected: Some("A required column must not contain nulls.".into()),
-        hint: None,
-        suggestion: None,
-        context: vec![
-            table.name.span.clone(),
-            col.name.span.clone(),
-            constraint_span,
-        ],
-        kind: ProblemKind::NullsInRequired {
-            count,
-            rows: Vec::new(),
-            keys: Vec::new(),
-            redacted: false,
-        },
     }
 }
 

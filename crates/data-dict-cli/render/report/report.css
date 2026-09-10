@@ -33,9 +33,14 @@
    rather than shifting them. The first column takes what the others leave. */
 .rtable { table-layout: fixed; }
 .rtable .col-mid { width: 32%; }
-.rtable .col-num { width: 76px; }
+/* wide enough for the longest heading a numeric column carries, since a heading
+   that outgrows its column would spill over the meter beside it */
+.rtable .col-num { width: 124px; }
 .rtable .col-meter { width: 130px; }
 .rtable td, .rtable th { padding: 6px 10px; vertical-align: middle; }
+/* The shared table styles pad a heading more than this table pads its cells,
+   which would leave every heading short of the column edge its values sit on. */
+.rtable thead th { padding: 6px 10px; }
 .rtable td { overflow: hidden; text-overflow: ellipsis; }
 
 /* What a step checked: the columns, or the whole table. */
@@ -99,6 +104,8 @@
 /* ---- The datasets summary ------------------------------------------------
    One row per dataset, each row a link to the dataset's detail table. */
 
+/* Every row scrolls to its dataset's section, so every row offers the pointer
+   and the hover. */
 .datasets tbody tr { cursor: pointer; }
 .datasets tbody tr:hover td { background: var(--hover-row); }
 .dataset-name { font-family: var(--font-mono); font-weight: 700; color: var(--accent1); }
@@ -114,11 +121,15 @@
 
 /* Sortable column heads look like the plain heads they replace. */
 .sort-head {
+  display: inline-flex; align-items: baseline; gap: 2px;
   background: none; border: none; padding: 0;
   font: inherit; color: inherit; cursor: pointer;
 }
 .sort-head:hover { color: var(--ink); }
-.sort-ind { margin-left: 2px; }
+/* The caret holds its space whether or not it is showing, so sorting a column
+   doesn't shift its heading. Over numbers it takes that space on the left, so
+   the label itself keeps the right edge the digits are aligned to. */
+.rtable th.num .sort-head { flex-direction: row-reverse; }
 .sort-ind.off { visibility: hidden; }
 
 .checks-tools { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; }
@@ -137,7 +148,7 @@
    One shell for everything the report has to say at length: a problem, a
    step's summary, a table of failed rows. */
 
-.problem-card, .failed-rows-card, .step-summary {
+.problem-card, .step-summary {
   border: 1px solid var(--rule);
   border-radius: 10px;
   background: var(--paper);
@@ -145,8 +156,17 @@
   margin: 0 0 16px;
 }
 
+/* The failed rows are a block rather than a card: the table rules its own cells,
+   so a frame around it reads as a second border, and a table of a couple of
+   columns would leave most of one empty. */
+.failed-rows-card { margin: 0 0 16px; }
+
 /* The step page's title block: the h1 names the target beside its verdict
    square; the line below says what was checked. */
+/* The way back centres on the title's own line. Left inline, the link is placed
+   by baseline — its box bottom on the text's baseline — which rides above the
+   line's centre. */
+.step-title h1 { display: flex; align-items: center; }
 .step-title .target { font-family: var(--font-mono); font-size: 0.8em; }
 .step-title .sub { margin: 3px 0 0; color: var(--ink-soft); font-size: var(--text-lg); }
 
@@ -269,19 +289,42 @@ code.tick {
 
 /* The wrap scrolls; at ~1.94em a row (text-sm, 3px padding, grid line) it
    shows ten rows under the sticky header. */
-.row-table { overflow: auto; max-height: 21.5em; margin: 12px 0 0; }
+.row-table {
+  overflow: auto;
+  max-height: 21.5em;
+  margin: 12px 0 0;
+  /* The scrollport hugs the table, so rounding it rounds the grid — and clips
+     all four corners even mid-scroll, which a radius on the corner cells could
+     not do. A cell radius is undefined under `border-collapse: collapse`. */
+  width: max-content;
+  max-width: 100%;
+  border-radius: 6px;
+}
+/* The table takes the width its columns need; the wrap scrolls when that is
+   more than there is room for. */
 .row-table table { border-collapse: collapse; font-size: var(--text-sm); }
 .row-table th, .row-table td {
   border: 1px solid var(--row-line);
   padding: 3px 10px;
   text-align: left;
 }
-/* A wide table scrolls sideways; a long value clips rather than wraps. */
+/* A table of a few columns has no width to spare its content, so its cells take
+   more of it. Counted rather than measured: the scrollport is sized by the table,
+   so it can't be asked how wide it came out. A wide table keeps the tighter
+   padding, which is what lets more of it fit before scrolling. */
+.row-table table:not(:has(thead th:nth-child(4))) :is(th, td) {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+/* A wide table scrolls sideways; a long value clips rather than wraps. The data
+   sits on its own surface, a step above the page the block no longer frames it
+   against — `.bad` outranks this, so a blamed cell keeps its tint. */
 .row-table td {
   white-space: nowrap;
   max-width: 24em;
   overflow: hidden;
   text-overflow: ellipsis;
+  background: light-dark(#ffffff, var(--paper));
 }
 .row-table th {
   position: sticky;
@@ -304,6 +347,10 @@ code.tick {
 /* A cell a problem blames; the tooltip says why. */
 .row-table td.bad { background: var(--bad-soft); cursor: default; }
 .rownum { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink-faint); text-align: right; }
+/* The codes a row broke, beside its number rather than out among the values. */
+.row-table .row-checks { white-space: nowrap; width: 1%; }
+.row-table td.row-checks .code-chip { cursor: default; }
+.row-table td.row-checks .code-chip + .code-chip { margin-left: 6px; }
 /* A missing value is not the string "null", so it stands out in red. */
 .row-table .is-null { color: var(--bad); }
 .row-table .is-absent { color: var(--ink-faint); }

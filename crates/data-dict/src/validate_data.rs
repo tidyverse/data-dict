@@ -769,8 +769,8 @@ const VALUE_CHECKS: &[&dyn ColumnCheck] = &[&RequiredNotNull, &EnumMembership];
 struct RequiredNotNull;
 
 impl ColumnCheck for RequiredNotNull {
-    fn check_meta(&self, table: &Table, col: &Column, meta: &ColumnMeta) -> CheckResult {
-        crate::validate_meta::validate_d01_required_not_null(table, col, meta)
+    fn check_meta(&self, _table: &Table, col: &Column, meta: &ColumnMeta) -> CheckResult {
+        crate::validate_meta::validate_d01_required_not_null(col, meta)
     }
 
     fn step(&self, table: &Table, col: &Column, path: &[String]) -> Option<StepKey> {

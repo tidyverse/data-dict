@@ -51,9 +51,11 @@ function Value({ value, format }) {
 }
 
 /* The cells a set of problems blames: row number → column → the problems
-   naming it. A problem names its cells through its values (and keys); one
-   that proves rows without values — a null in a required column — blames its
-   own columns. */
+   naming it. A problem names its cells through the values it read; one that
+   proves rows without values — a null in a required column — blames its own
+   columns. A problem's `keys` are not consulted: they identify the row it is
+   reporting, and a key column is only at fault when the check is about it, in
+   which case it is named the same way any other column is. */
 function cellFailures(problems) {
   const byCell = new Map();
   const mark = (row, column, problem) => {
@@ -64,11 +66,8 @@ function cellFailures(problems) {
   };
   for (const problem of problems) {
     (problem.rows || []).forEach((row, i) => {
-      const named = new Set([
-        ...Object.keys((problem.values && problem.values[i]) || {}),
-        ...Object.keys((problem.keys && problem.keys[i]) || {}),
-      ]);
-      const blamed = named.size ? [...named] : problem.columns || [];
+      const named = Object.keys((problem.values && problem.values[i]) || {});
+      const blamed = named.length ? named : problem.columns || [];
       blamed.forEach((column) => mark(row, column, problem));
     });
     if (problem.row != null) {
@@ -91,7 +90,40 @@ function cellTip(problems, column) {
   return box;
 }
 
+/* The checks a row broke, one entry per code. A row can say why it is here
+   without the reader hunting for the shaded cell, which on a wide table may be
+   scrolled out of sight. */
+function rowChecks(failures, row) {
+  const columns = failures && failures.get(row);
+  if (!columns) return [];
+  const byCode = new Map();
+  for (const problems of columns.values()) {
+    for (const problem of problems) {
+      if (!byCode.has(problem.code)) byCode.set(problem.code, new Set());
+      byCode.get(problem.code).add(problem);
+    }
+  }
+  return [...byCode.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([code, problems]) => ({ code, problems: [...problems] }));
+}
+
+/* What a code in the row's own column stands for. */
+function checkTip(problems) {
+  const box = el("div");
+  for (const problem of problems) {
+    const step = problem.step != null ? stepsById.get(problem.step) : null;
+    box.appendChild(tipHead(problem.code));
+    box.appendChild(el("p", null, step ? stepLabel(step) : checkName(problem.code)));
+  }
+  return box;
+}
+
 function RowTable({ rows, keys, values, failures }) {
+  /* The checks column earns its place only where the rows came from several of
+     them. A problem's own card lists rows that all broke the one check it is
+     about, so there the column would repeat a constant the card already states. */
+  const blame = !!failures;
   const keyCols = valueColumns(keys);
   const valCols = valueColumns(values);
   const columns = [...keyCols, ...valCols];
@@ -104,10 +136,13 @@ function RowTable({ rows, keys, values, failures }) {
   };
   return html`<div class="row-table">
     <table>
-      <thead><tr><th class="rownum"></th>${columns.map((c, j) => html`<th key=${c} class=${j === keyCols.length && j > 0 ? "val-start" : null}>${c}</th>`)}</tr></thead>
+      <thead><tr><th class="rownum">Row</th>${blame ? html`<th class="row-checks">Failed</th>` : null}${columns.map((c, j) => html`<th key=${c} class=${j === keyCols.length && j > 0 ? "val-start" : null}>${c}</th>`)}</tr></thead>
       <tbody>
         ${rows.map((row, i) => html`<tr key=${row}>
           <td class="rownum">${fmtNum(row)}</td>
+          ${blame ? html`<td class="row-checks">${rowChecks(failures, row).map((c) => html`<span key=${c.code}
+            class="code-chip" onMouseEnter=${(e) => showTip(checkTip(c.problems), e)}
+            onMouseMove=${moveTip} onMouseLeave=${hideTip}>${c.code}</span>`)}</td>` : null}
           ${columns.map((c, j) => {
             const blamed = failures && failures.get(row) && failures.get(row).get(c);
             return html`<td key=${c}
