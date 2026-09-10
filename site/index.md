@@ -1,76 +1,252 @@
 ---
-title: "data-dict.yaml"
+title: ""
+pagetitle: "data-dict: a data dictionary your data can't disagree with"
+toc: false
+sidebar: false
+format:
+  html:
+    css: landing.css
+shortcodes:
+  - version.lua
 ---
 
-`data-dict.yaml` is two things: a **specification** for data dictionaries, and a **validator** that enforces it. The specification describes a collection of related tables: their contents, constraints, connections, and the specialised vocabulary you need to understand them. The validator turns that description into a data contract, checking that your data actually matches what the dictionary claims. Together they form a living document, accessible to both humans and agents, that tracks your understanding of a dataset as it evolves.
+::: {.landing}
 
-`data-dict.yaml` is designed to be lightweight. It doesn't attempt to precisely describe every possible type of metadata in a machine-readable way. Instead it focuses on precisely recording the most important components, leaving the remainder to plain text fields that require a human or agent to interpret. This means that `data-dict.yaml` doesn't itself do **data cleaning**, but it is a useful complement to tools that do.
+::: {.hero}
 
-You can read the details of the spec in [the specification](spec.md), or dive in by looking at a few [examples](examples/index.qmd):
+[Early preview — v{{< cli-version >}}](https://github.com/tidyverse/data-dict/releases){.pill}
 
-* [dabstep](examples/dabstep.qmd)
-* [elevators](examples/elevators.qmd)
-* [foodbank](examples/foodbank.qmd)
-* [loan-application](examples/loan-application.qmd)
-* [otters](examples/otters.qmd)
+<h1>A data dictionary your data can't disagree with.</h1>
 
-## Why use `data-dict.yaml`?
+A lightweight YAML spec for documenting related tables, and a CLI that validates your data against it. \
+Built for humans and agents.
 
-A data dictionary is one place to record everything you know about your data, making it accessible to everyone who works with it. `data-dict.yaml` helps you do this with two coupled components, a specification and a command-line interface (CLI).
+[Get started](quickstart.md){.btn .btn-primary .btn-lg} [See an example](examples/rendered/otters.html){.btn .btn-outline-primary .btn-lg target="_blank"}
 
-The specification is:
+:::
 
-* Open and supported by Posit, a public benefit corporation with a mission to create free and open-source software for data science, scientific research, and technical communication. We don't yet have a formal governance model, but in the meantime, you're very welcome to propose changes and additions in the [issues](https://github.com/tidyverse/data-dict/issues).
+::: {.pitch}
+data-dict is two things: a **specification** for data dictionaries (`data-dict.yaml`), and a **validator** (the `data-dict` CLI) that enforces it. The specification describes a collection of related tables: their contents, constraints, connections, and the specialised vocabulary you need to understand them. The validator turns that description into a data contract, checking that your data actually matches what the dictionary claims. This makes the dictionary a living document, accessible to both humans and agents, that tracks your shared understanding of a dataset as it evolves.
+:::
 
-* Built by data people, for data people. We understand the challenges data folks face, and we've designed the spec to address them directly. This means including pieces that other dictionaries omit: support for metadata like data version and column units, descriptions of the relationships between datasets, and a glossary for domain- and team-specific terminology.
 
-* A plain text YAML 1.2 document. Compared to other formats like Excel and PDF, YAML is easily diffable so that you can see how it changes over time. Compared to formats like JSON or XML, it's easily editable by humans, not just machines.
+::: {.feature-grid}
 
-* Polyglot by design. `data-dict.yaml` is built for teams that work across R, Python, and SQL: the specification is language-neutral, and the CLI is a single binary that fits into any pipeline, regardless of which language produced or consumes the data.
+::: {.feature}
+[**Validated, not just documented.** Check names, types, ranges and uniqueness against real data.](validate.md)
+:::
 
-* Assumes that data lives in parquet and database tables. Parquet is an open format designed to store data compactly while maximising performance on modern hardware. This keeps the scope of the specification tight (no need to describe the many wrinkles of CSV) and encourages best practices for data storage.
+::: {.feature}
+[**Single binary.** No language run-times, no cloud; runs locally and in CI.](install.md)
+:::
 
-The CLI, `data-dict`, is the other half of the story. It enforces the standard and provides a growing set of useful tools.
+::: {.feature}
+[**Polyglot.** Language-neutral; works for R, Python and SQL teams.](expressions.md)
+:::
 
-* It is open source and free, and does not require any hosted services.
+::: {.feature}
+[**Diffable YAML.** Plain text you can version and review.](spec.md)
+:::
 
-* It's self-contained, so that all you need to [install](install.md) is a single binary. This makes it straightforward to create, check, and maintain a data dictionary on both your local machine and in CI.
+::: {.feature}
+[**Beautiful websites.** Browse tables, columns, relationships and glossary without reading YAML.](examples/index.qmd)
+:::
 
-* It validates the data contract, ensuring the data and dictionary stay consistent. Validation is actively expanding, and currently covers variable names, types, ranges, and constraints such as uniqueness.
+::: {.feature}
+[**Agent-ready.** Gives LLMs the context that currently lives in your head.](quickstart.md)
+:::
 
-* It renders your dictionary as a beautiful, self-contained website, so anyone on your team can browse tables, columns, relationships, and the glossary without reading raw YAML. See the [otters dictionary](examples/rendered/otters.html) for a live example.
+:::
 
-## Why now? (_cough_ AI _cough_)
+Ready to try it? [Install the CLI](install.md) in seconds, browse the [examples](examples/index.qmd) to see what a dictionary looks like, or read the [specification](spec.md) for the full details. Curious about the thinking behind the design? See the [design page](design.md).
 
-There have been many previous attempts to encode data dictionaries in structured text. What makes `data-dict.yaml` different, and why revisit this problem now? The answer is AI. We believe AI fundamentally changes both the costs and benefits of a data dictionary:
 
-* The costs of creating a data dictionary are lower than ever, because AI agents can automate much of the boilerplate, including porting documentation from existing unstructured formats (`.doc`, `.html`, `.pdf`). An agent can also surface questions about aspects of the data that are unspecified or ambiguous.
-* The benefits are higher, because AI agents need the context that currently exists only in your head. Providing it via a data dictionary helps your AI tools work more accurately.
+## What a dictionary looks like
+
+A dictionary is a single YAML file that the CLI renders as a browsable website. Here's an excerpt, abridged from the [otters dictionary](examples/otters.qmd):
+
+::: {.panel-tabset}
+
+## data-dict.yaml
+
+```yaml
+name: alaska-otters
+tables:
+  - name: otters
+    source: { parquet: otters.parquet }
+    description: One row per otter.
+    columns:
+      - name: otter_no
+        type: string
+        constraints: [primary_key]
+      - name: sex
+        type: enum
+        values: { M: Male, F: Female, U: Unknown }
+  - name: measurements
+    source: { parquet: measurements.parquet }
+    columns:
+      - name: otter_no
+        type: string
+        constraints: [required, foreign_key]
+```
+
+## Rendered site
+
+::: {.light-content}
+[![](images/otters-light.png)](examples/rendered/otters.html)
+:::
+::: {.dark-content}
+[![](images/otters-dark.png)](examples/rendered/otters.html)
+:::
+
+:::
+
+Three commands take you from data to dictionary:
+
+```sh
+data-dict draft otters.parquet
+data-dict validate-data data-dict.yaml
+data-dict render-spec data-dict.yaml
+```
+
+See the [quickstart](quickstart.md) for the full walkthrough, including how an AI agent can draft the dictionary for you. Or jump directly to the details of [the specification](spec.md) or look at more [examples](examples/index.qmd).
+
+## Built for the agent era
+
+There have been many previous attempts to encode data dictionaries in structured text. What makes data-dict different, and why revisit this problem now? AI fundamentally changes both the costs and benefits of a data dictionary:
+
+* The costs of creating a data dictionary are lower, because AI agents can automate much of the boilerplate, including porting documentation from existing unstructured formats (`.doc`, `.html`, `.pdf`). `data-dict` bundles a creation skill to make this as easy as possible.
+
+* The benefits are higher, because AI agents need the context that currently exists only in your head. Providing it via a data dictionary helps your AI tools work more accurately. `data-dict` bundles a reading skill that helps your agent make the most of it.
+
 * The schema can be simpler because LLMs change what it means for something to be machine-readable. You only need to explicitly encode the most important structures, leaving more unusual quirks to free-form text.
 
-## When should you use `data-dict.yaml`?
 
-`data-dict.yaml` is designed to support a wide range of scenarios. You might use it:
+## Install it now
 
-* Before you have any data, as a way to be concrete about your goals and expectations. In the future, we plan to support [data simulation](https://github.com/tidyverse/data-dict/issues/20) so that you can generate a dummy dataset compatible with your data dictionary.
-* When you first encounter a new dataset, as a way of recording what you learn as you learn it. This can be particularly useful with public datasets, where an LLM may know more about the data than you do.
-* Retrospectively, when you've already spent considerable time with a dataset. Creating a `data-dict.yaml` gets the knowledge out of your head and makes it accessible to your human and AI collaborators. You can get started quickly by asking an LLM to extract what it knows based on the code you've written so far.
-* When working with regularly updated data produced by someone else. Maybe you get updates from collaborators via email, or your data engineering team has a habit of not announcing changes to variable definitions. `data-dict.yaml`'s ability to validate data against the spec ensures you're never surprised when the data changes.
+::: {.panel-tabset}
 
-## Inspirations
+## Shell
 
-Here are a few of the resources that guided the design of `data-dict.yaml`:
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/tidyverse/data-dict/releases/latest/download/data-dict-cli-installer.sh | sh
+```
 
-* [Data management in large-scale education research](https://datamgmtinedresearch.com/document#document-dataset)
-* [Frictionless data](https://datapackage.org/standard/table-schema)
-* [Hex's semantic modelling](https://learn.hex.tech/docs/connect-to-data/semantic-models/semantic-authoring/modeling-specification)
-* [Snowflake's semantic views](https://docs.snowflake.com/en/user-guide/views-semantic/overview)
-* [Soda's contract language](https://docs.soda.io/reference/contract-language-reference)
-* [dbt tests](https://docs.getdbt.com/docs/build/data-tests?version=1.12)
-* [Data Package Standard](https://datapackage.org)
-* [Brain Imaging Data Structure](https://bids.neuroimaging.io)
-* [Data Documentation Initiative](https://ddialliance.org)
+## uv
 
-It's worth noting that while semantic models influenced the design of `data-dict.yaml`, it is not a **[semantic model](semantic-models.md)**. It doesn't model dimensions or metrics, because that distinction reflects intended use, not the data itself. `data-dict.yaml` is primarily designed to support data scientists, not data analysts.
+```sh
+uv tool install data-dict-yaml
+```
 
-Additionally, while terminology is still evolving, the "semantic" in semantic models is typically interpreted narrowly, focussing on structural semantics — what's needed for queries to return consistent values — rather than what the data actually _means_.
+## pipx
+
+```sh
+pipx install data-dict-yaml
+```
+
+## R
+
+```r
+pak::pak("tidyverse/data-dict/r")
+datadict::dd_install()
+```
+
+:::
+
+Or try it without installing anything:
+
+```sh
+uvx --from data-dict-yaml data-dict validate-spec data-dict.yaml
+```
+
+See the [installation page](install.md) for Windows, binary downloads, and building from source.
+
+## Examples
+
+::: {.example-grid}
+
+::: {.example-card}
+**otters** · 5 tables
+
+Morphometric measurements of Alaskan sea otters, 1947–2019.
+
+[YAML](examples/otters.qmd) · [Rendered site](examples/rendered/otters.html)
+:::
+
+::: {.example-card}
+**contoso** · 8 tables
+
+Synthetic retail sales for the fictional Contoso company, arranged as a star schema.
+
+[YAML](examples/contoso.qmd) · [Rendered site](examples/rendered/contoso.html)
+:::
+
+::: {.example-card}
+**dabstep** · 7 tables
+
+Synthetic transactions from a payment processor.
+
+[YAML](examples/dabstep.qmd) · [Rendered site](examples/rendered/dabstep.html)
+:::
+
+::: {.example-card}
+**elevators** · 1 table
+
+Registered elevator devices in New York City, from a 2015 FOIL request.
+
+[YAML](examples/elevators.qmd) · [Rendered site](examples/rendered/elevators.html)
+:::
+
+::: {.example-card}
+**foodbank** · 6 tables
+
+Foundation Foods from the USDA FoodData Central (December 2025).
+
+[YAML](examples/foodbank.qmd) · [Rendered site](examples/rendered/foodbank.html)
+:::
+
+::: {.example-card}
+**loan-application** · 8 tables
+
+Bank loan applications and the accounts behind them.
+
+[YAML](examples/loan-application.qmd) · [Rendered site](examples/rendered/loan-application.html)
+:::
+
+:::
+
+::: {.docs-panel}
+
+## Learn more
+
+::: {.docs-grid}
+
+::: {.docs-col}
+**Getting started**
+
+* [Install](install.md)
+* [Quickstart](quickstart.md)
+* [Who, why and when](who-why-when.md)
+* [Design](design.md)
+:::
+
+::: {.docs-col}
+**Reference**
+
+* [Specification](spec.md)
+* [Validation](validate.md)
+
+:::
+
+::: {.docs-col}
+**More**
+
+* [Examples](examples/index.qmd)
+* [Developer details](dev-validation.md)
+* [GitHub](https://github.com/tidyverse/data-dict)
+:::
+
+:::
+:::
+
+:::

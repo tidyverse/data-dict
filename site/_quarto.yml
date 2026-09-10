@@ -10,10 +10,10 @@ website:
   site-url: https://data-dict.tidyverse.org
   repo-url: https://github.com/tidyverse/data-dict
   description: >
-    `data-dict.yaml` is a lightweight YAML specification for data dictionaries, 
+    data-dict is a lightweight YAML specification for data dictionaries, 
     paired with a command line application for validation. The specification
     describes collections of related tables — their columns, types, 
-    constraints, relationships — as well as a glossay for domain vocabulary.
+    constraints, relationships — as well as a glossary for domain vocabulary.
   llms-txt: true
   favicon: favicon.svg
 
@@ -27,11 +27,19 @@ website:
 
   sidebar:
     style: docked
+    # Consider if the .docs-panel on in index.md needs updating whenever
+    # you change this
     contents:
-      - href: index.md
-        text: Overview
-      - href: install.md
-        text: Install
+      - text: Getting started
+        contents:
+          - href: install.md
+            text: Install
+          - href: quickstart.md
+            text: Quickstart
+          - href: who-why-when.md
+            text: Who, why and when
+          - href: design.md
+            text: Design
       - href: spec.md
         text: Specification
       - text: Validation
@@ -67,3 +75,4 @@ format:
           <script src="https://cdn.jsdelivr.net/gh/posit-dev/supported-by-posit/js/badge.min.js"
                   data-dark-bg="#404041"></script>
       - file: _dark-default.html
+      - file: sidebar-collapse.js
