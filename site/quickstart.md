@@ -2,7 +2,9 @@
 title: "Quickstart"
 ---
 
-In this quickstart you'll create a data dictionary for a real dataset — frog jumping records from the Calaveras County Jumping Frog Jubilee — by asking an AI agent to do the heavy lifting, then checking and rendering the result yourself. It takes about ten minutes.
+In this quickstart you'll create a data dictionary for a simple, but real dataset---frog jumping records from the Calaveras County Jumping Frog Jubilee---by asking an AI agent to do the heavy lifting, then checking and rendering the result yourself. It takes about ten minutes.
+
+This illustrates a realistic (if somewhat pessimistic) scientific scenario: you get a dataset with some docs and some code and you need to figure out best you can what it all means.
 
 ## Setup
 
