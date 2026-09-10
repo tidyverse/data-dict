@@ -6,50 +6,72 @@ project:
     - examples/rendered/*.html
 
 website:
-  title: "data-dict.yaml"
+  title: data-dict
   site-url: https://data-dict.tidyverse.org
   repo-url: https://github.com/tidyverse/data-dict
   description: >
-    `data-dict.yaml` is a lightweight YAML specification for data dictionaries, 
+    data-dict is a lightweight YAML specification for data dictionaries, 
     paired with a command line application for validation. The specification
     describes collections of related tables — their columns, types, 
-    constraints, relationships — as well as a glossay for domain vocabulary.
+    constraints, relationships — as well as a glossary for domain vocabulary.
   llms-txt: true
   favicon: favicon.svg
+
   navbar:
-    left:
-      - href: index.md
-        text: Overview
-      - href: install.md
-        text: Install
-      - href: spec.md
-        text: Specification
-      - href: expressions.md
-        text: Expressions
-      - text: Developer details
-        menu:
-          - href: validation.md
-            text: Validation
-          - href: expression-execution.md
-            text: Executing expressions
-          - href: floating-point.md
-            text: Floating point
-          - href: export.md
-            text: Export
-          - href: report.md
-            text: Report
-      - href: examples/index.qmd
-        text: Examples
-    right:
+    background: primary
+    search: true
+    tools:
       - icon: github
         href: https://github.com/tidyverse/data-dict
         aria-label: GitHub
 
+  sidebar:
+    style: docked
+    # Consider if the .docs-panel on in index.md needs updating whenever
+    # you change this
+    contents:
+      - text: Getting started
+        contents:
+          - href: install.md
+            text: Install
+          - href: quickstart.md
+            text: Quickstart
+          - href: who-why-when.md
+            text: Who, why and when
+          - href: design.md
+            text: Design
+      - href: spec.md
+        text: Specification
+      - text: Validation
+        href: validate.md
+      - text: Developer details
+        contents:
+          - text: Validation
+            href: dev-validation.md
+          - href: expression-execution.md
+            text: Executing expressions
+          - href: floating-point.md
+            text: Floating point
+          - href: expressions.md
+            text: Expression language
+          - href: export.md
+            text: Spec/data export
+          - href: report.md
+            text: Validation export
+      - href: examples/index.qmd
+        text: Examples
+
 format:
   html:
-    theme: cosmo
+    theme: 
+      light: [cosmo, theme.scss, theme-light.scss]
+      dark: [cosmo, theme.scss, theme-dark.scss]
     toc: true
     toc-depth: 4
     include-in-header:
-      text: |
-        <script defer data-domain="data-dict.tidyverse.org" src="https://plausible.io/js/plausible.js"></script>
+      - text: <script defer data-domain="data-dict.tidyverse.org" src="https://plausible.io/js/plausible.js"></script>
+      - text: |
+          <script src="https://cdn.jsdelivr.net/gh/posit-dev/supported-by-posit/js/badge.min.js"
+                  data-dark-bg="#404041"></script>
+      - file: _dark-default.html
+      - file: sidebar-collapse.js

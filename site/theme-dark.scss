@@ -1,0 +1,48 @@
+/*-- scss:defaults --*/
+
+// Dark colour scheme on top of cosmo, so both modes share one base theme.
+// Built from the Posit brand colours: blue #447099, orange #ee6331,
+// gray #404041, off-white #f2f2f2.
+
+$body-bg: #2b2b2c;
+$body-color: #f2f2f2;
+
+// Posit Blue is too dark to read on the dark background; lighten it for
+// text-like uses (links, emphasis).
+$primary: #7aa8cc;
+$secondary: #ee6331;
+$link-color: $primary;
+
+$border-color: rgba(242, 242, 242, 0.2);
+
+// Inline code keeps the surrounding text colour, set off by a pale
+// background instead; code blocks get a solid background deeper than the
+// page.
+$code-bg: rgba(242, 242, 242, 0.08);
+$code-color: inherit;
+$code-block-bg: #353638;
+
+// Navbar / footer chrome
+$navbar-bg: #404041;
+$navbar-fg: $body-color;
+$footer-bg: #404041;
+$footer-fg: $body-color;
+
+/*-- scss:rules --*/
+
+// Quarto's dark theme only rewrites the light default `code` background for
+// code within `p`/`li`/`td`, so code in a definition list, a heading, or a
+// table header cell keeps the near-white background under the dark theme's
+// light code text — rendering it unreadable. Give that code the same dark
+// translucent background used for inline code elsewhere.
+dt code:not(.sourceCode),
+dd code:not(.sourceCode),
+th code:not(.sourceCode),
+h1 code:not(.sourceCode),
+h2 code:not(.sourceCode),
+h3 code:not(.sourceCode),
+h4 code:not(.sourceCode),
+h5 code:not(.sourceCode),
+h6 code:not(.sourceCode) {
+  background-color: $code-bg;
+}

@@ -457,12 +457,12 @@ pub(crate) fn table_assertions(table: &Table) -> Vec<(&crate::model::Assertion, 
         .collect()
 }
 
-/// The check catalogue, as `site/validation.md` documents it.
-const VALIDATION_MD: &str = include_str!("../../../site/validation.md");
+/// The check catalogue, as `site/dev-validation.md` documents it.
+const VALIDATION_MD: &str = include_str!("../../../site/dev-validation.md");
 
 /// What one check is called and how loudly it speaks, so a consumer can name a
 /// code it only ever sees as `D04`. `description` is the full rule as
-/// validation.md's description column states it, markdown included.
+/// dev-validation.md's description column states it, markdown included.
 #[derive(Debug, PartialEq, Eq, serde::Serialize)]
 pub struct Check {
     pub name: &'static str,
@@ -470,7 +470,7 @@ pub struct Check {
     pub description: &'static str,
 }
 
-/// Every check in `site/validation.md`, by code. Read out of that document's
+/// Every check in `site/dev-validation.md`, by code. Read out of that document's
 /// tables rather than kept beside them, so a renamed check can't drift from the
 /// spec that named it.
 pub fn checks() -> BTreeMap<&'static str, Check> {
@@ -755,7 +755,7 @@ mod tests {
             let code = kind.code().expect("a documented kind has a code");
             assert!(
                 checks.contains_key(code),
-                "{code} has no entry in validation.md"
+                "{code} has no entry in dev-validation.md"
             );
         }
     }

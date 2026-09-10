@@ -24,10 +24,10 @@ use crate::validate_spec::{DefEnv, resolve_definitions};
 
 /// The targets emitted when none is asked for, in a stable order.
 ///
-/// `data-dict` is deliberately absent: it is the language the expression is
-/// already written in, so emitting it by default would repeat the source back
-/// in every translation and in every [export](crate::export) record. Ask for it
-/// by name — see [`all_targets`].
+/// `SQL(data-dict)` is deliberately absent: it is the language the expression
+/// is already written in, so emitting it by default would repeat the source
+/// back in every translation and in every [export](crate::export) record. Ask
+/// for it by name — see [`all_targets`].
 pub(crate) fn registry() -> Vec<Box<dyn Target>> {
     vec![
         Box::new(DuckDb),
@@ -402,16 +402,15 @@ mod tests {
     #[test]
     fn the_language_is_a_target_but_not_a_default_one() {
         // Asking for it by name works...
-        assert!(resolve("data-dict").is_ok());
-        assert!(resolve("DATA-DICT").is_ok(), "matching ignores case");
+        assert!(resolve("sql(data-dict)").is_ok());
+        assert!(resolve("SQL(DATA-DICT)").is_ok(), "matching ignores case");
         // ...but it is left out of the set emitted when none is named, so a
         // translation never just repeats the expression it was given.
-        assert!(!registry().iter().any(|t| t.name() == "data-dict"));
-        // It has no dialects, so no family default points at it.
-        assert!(
-            !FAMILY_DEFAULTS
-                .iter()
-                .any(|(family, _)| *family == "data-dict")
+        assert!(!registry().iter().any(|t| t.name() == "SQL(data-dict)"));
+        // Its family's default is ANSI, so a bare `sql` doesn't mean it.
+        assert_eq!(
+            FAMILY_DEFAULTS.iter().find(|(family, _)| *family == "sql"),
+            Some(&("sql", "SQL(ANSI)"))
         );
     }
 }

@@ -20,10 +20,12 @@
 #' @examplesIf FALSE
 #' # a directory holding a data-dict.yaml and the parquet files it points at
 #' dd_validate_data("inst/data")
-dd_validate_data <- function(dict = ".",
-                             table = NULL,
-                             html = tempfile(fileext = ".html"),
-                             browse = interactive()) {
+dd_validate_data <- function(
+  dict = ".",
+  table = NULL,
+  html = tempfile(fileext = ".html"),
+  browse = interactive()
+) {
   args <- c("render-report", dict)
   if (!is.null(table)) {
     args <- c(args, "--table", table)

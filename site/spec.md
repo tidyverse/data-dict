@@ -1,4 +1,4 @@
-# data-dict.yaml
+# Specification
 
 This document describes version **0.1.0** of the `data-dict.yaml` specification.
 
@@ -7,7 +7,7 @@ A data dictionary has three kinds of top-level keys: `$`-prefixed metadata keys 
 The metadata keys are:
 
 * `$version` (required): the version of the `data-dict.yaml` spec the document conforms to. Currently `0.1.0`. While the spec is pre-1.0, breaking changes are expected, but once the spec stabilises at 1.0, breaking changes will always increment at least the minor version.
-* `$learn_more` (optional, but recommended): a URL where readers can learn about the `data-dict.yaml` format, so that people and tools meeting the file for the first time can find out what it is. Use <https://data-dict.tidyverse.org/>. Omitting it is valid, but a validator will emit a warning rather than an error (see [Validation](validation.md)).
+* `$learn_more` (optional, but recommended): a URL where readers can learn about the `data-dict.yaml` format, so that people and tools meeting the file for the first time can find out what it is. Use <https://data-dict.tidyverse.org/>. Omitting it is valid, but a validator will emit a warning rather than an error (see [Validation](validate.md)).
 
 The descriptive keys — `name`, `label`, `description`, and `details` — identify and document the dataset as a whole. All four are optional here, and work the same way at every level of the dictionary; see [Name, label, description & details](#name-label-description--details) for their full meaning. For the dataset, `name` is a terse identifier (e.g. `foodbank`) and `label` its human-readable title.
 
@@ -30,10 +30,10 @@ The content keys all hold the actual information about the data:
 
 * `name` (required): the table's name. Used to match the table to the underlying data and to refer to it from `relationships`. Must be non-empty and unique within the dictionary.
 * `label`, `description`, `details`: human-readable documentation for the table; see [Name, label, description & details](#name-label-description--details). A good table description answers at least two questions — **what's the grain?** (what does a row represent, e.g. "each row is a food item") and **what's the population?** (what's been included or filtered out, e.g. "only completed orders from 2020 onwards").
-* `source`: ways to access the data. Optional at the spec level, so you can draft a dictionary before its data exists, but required to validate against data (see [Validation](validation.md)).
+* `source`: ways to access the data. Optional at the spec level, so you can draft a dictionary before its data exists, but required to validate against data (see [Validation](validate.md)).
 * `origin`: a link to the code or pipeline that produced this table's data; see [Origin](#origin).
 * `columns` (required): an ordered list of column metadata.
-* `constraints`: a list of table-level assertions (see [Table constraints](#table-constraints)).
+* `constraints`: a list of table-level assertions (see [Table constraints](#assertions)).
 * `definitions`: a list of named expressions — metrics and filters — defined on this table (see [Definitions](#definitions)).
 * `todo`: work that remains on this table (see [Todo](#todo)).
 
@@ -259,7 +259,7 @@ Most typed columns carry at least one of the following three properties to repre
 A numeric or temporal column may give both `range` and `examples`, since the two say different things: the extremes the column reaches, and what a typical value looks like. One is usually enough — reach for the pair only when the extremes alone would mislead, as in a column whose maximum is a rare outlier. Which one the type *requires* is unchanged; the other is optional.
 
 * `values`: the allowed values for an `enum` column. Can be a list (`[M, F, U]`) when values are self-explanatory, or a map (`{M: Male, F: Female, U: Unknown}`) when values need labels. The values themselves must be **strings**, and there must be at least one of them; in the map form the labels must be strings too. (`boolean` columns implicitly have `values: [true, false]`, no need to explicitly include it.)
-* `range`: a two-element list `[min, max]` giving the inclusive minimum and maximum *observed* in the column. Like `examples`, it describes the data rather than constraining it: nothing is validated against it, and a value outside it is not an error. To constrain a column, write an [`assert`](expressions.md). Required for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`. Optional on the other numeric types, `number` and `number(id)`, where it may accompany their `examples`. Both elements must match the column's type, and the minimum must not exceed the maximum.
+* `range`: a two-element list `[min, max]` giving the inclusive minimum and maximum *observed* in the column. Like `examples`, it describes the data rather than constraining it: nothing is validated against it, and a value outside it is not an error. To constrain a column, write an [`assert`](validate.md). Required for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`. Optional on the other numeric types, `number` and `number(id)`, where it may accompany their `examples`. Both elements must match the column's type, and the minimum must not exceed the maximum.
 
     Either bound may be left open with negative infinity (`-.inf`) for the minimum or positive infinity (`.inf`) for the maximum. An open bound says the true extent is unknown or constantly moving, as in a daily export whose date column always runs up to the present. If you leave a bound open, make sure to describe the range in prose in the column's `description`. `.inf` here means the bound is *open*, not that the column was observed to contain an infinity — a column really can hold one, but a range is descriptive, so the two readings are not worth distinguishing. `.nan` is not a bound at all, and is rejected in `examples` too (S12).
 * `examples`: a list of ~5 representative values from the column. Required for all other types: `string`, `number`, and `number(id)`. Optional on the ordered numeric and temporal types, where it may accompany their `range`. Each example must match the column's type, so a `string` column's examples need quoting whenever they read as numbers (`['02134', '94110']`). A handful of concrete examples helps LLMs understand the column far better than a description alone. For instance, knowing that an id column holds `[1, 2, 3, 4, 5]` versus `[10000, 1235452, 234234]` tells a very different story. A good baseline is to select 5 evenly spaced values along the sorted unique values, and then add any particularly surprising values as you encounter them. Example values are evocative rather than exhaustive; long values will be truncated and restricted values will have plausible, but fake data.
@@ -288,7 +288,6 @@ Time zones are only meaningful for date-times, so `time_zone` is an error on any
 ```
 NB: when `time_zone` is present, write the column's `range` as plain, zoneless date-times; they're interpreted in the declared zone.
 
-
 #### Column constraints
 
 The `constraints` property is a list of constraints. Each entry is either a **structural constraint** (a bareword naming a structural or relational fact about the column) or an **assertion** (a map carrying an expression that must hold for the data).
@@ -296,34 +295,33 @@ The `constraints` property is a list of constraints. Each entry is either a **st
 The structural constraints are:
 
 * `primary_key`: the set of columns with the `primary_key` constraint uniquely identifies each row. Implies `required` and `unique`.
-* `foreign_key`: the column references a primary key in another table (or in the current table, if a self-join). The specific relationship is defined in [`relationships`](#relationships). Validating the data checks that every value appears in the referenced primary key (see D05/D06 in [validation](validation.md)).
+* `foreign_key`: the column references a primary key in another table (or in the current table, if a self-join). The specific relationship is defined in [`relationships`](#relationships). Validating the data checks that every value appears in the referenced primary key (see D05/D06 in [validation](dev-validation.md)).
 * `required`: the column does not contain null/missing values. On a `list` element this only implies non-null, not non-empty.
 * `unique`: the column's values are distinct (no duplicates). Null/missing values are exempt — a `unique` column may contain multiple nulls, and nulls are never treated as duplicates.
 
-`unique`, `primary_key`, `foreign_key` are not valid on `list` or `struct` columns, and constraints belong to columns; fields within a `struct` can't carry them (see [Struct fields](#struct-fields)).
+Note that `values` (see [Types](#types)) implies a constraint (every value in the column must be one of the values), but `range` does not. 
 
-An assertion is a map with an `assert` key holding a boolean expression that must be true for every row, plus an optional `description` and an optional [`language`](#other-languages):
+`unique`, `primary_key`, `foreign_key` are not valid on `list` or `struct` columns, and constraints belong to columns; fields within a `struct` can't carry them (see [Struct fields](#struct-fields)). How validation checks each constraint against the data is described in [Validation](validate.md#what-data-validation-checks).
 
-```yaml
-columns:
-  - name: postcode
-    type: string
-    constraints:
-      - required
-      - assert: LENGTH(postcode) <= 10
-```
+### Assertions
 
-Bare names in the expression refer to columns and definitions in the same table. A field of a `struct` column is referenced with a dot (`address.zip`). See [Assertions](#assertions) below for a summary, and [Expressions](expressions.md) for the full language.
-
-Note that `values` and `range` (see [Types](#types)) already express membership and bounds constraints — `values` restricts an `enum` to its listed set, and `range` bounds an ordered column — so you don't need an assertion to repeat them.
-
-### Table constraints
-
-A table's `constraints` property is a list of assertions, using exactly the same form as a [column assertion](#column-constraints): a map with an `assert` key and an optional `description` and [`language`](#other-languages). The only difference is scope — a table constraint isn't tied to a single column, so it's the natural home for rules that span columns:
+Both tables and columns can also carry generic assertions, allowing you to express a wide range of additional constraints on the data.
 
 ```yaml
 tables:
   - name: survey
+    columns:
+    - name: postcode
+      type: string
+      constraints:
+        - required
+        - assert: LENGTH(postcode) <= 10
+        - assert: nchar(postcode) >= 5
+          language: r
+          description: Postcodes must  be at least five characters.
+        - assert: pl.col("postcode").str.starts_with("SW")
+          language: python
+          description: All postcodes must be in the SW area.
     constraints:
       - assert: end_date >= start_date
         description: A contract can't end before it starts.
@@ -331,68 +329,7 @@ tables:
         description: If q3 is true, q4 and q5 must be answered.
 ```
 
-Table constraints can only carry assertions; the structural barewords (`primary_key`, `unique`, …) live on columns.
-
-### Assertions
-
-An `assert` expression is a single-table boolean expression in data-dict's small SQL-like [expression language](expressions.md) — or [written in another language](#other-languages) and read into it. Most are row-level: evaluated against every row, with the constraint holding unless the expression is *false* for some row. Bare names refer to columns or definitions in the table.
-
-Expressions use SQL's three-valued logic, so an expression is `true`, `false`, or `null` (unknown) for a given row — a comparison involving a null operand is `null`, not `false` (`LENGTH(postcode) <= 10` is `null` when `postcode` is null). Following SQL's `CHECK` semantics, a row **passes** when the expression is `true` **or** `null`, and only a `false` result is a violation. So an assertion never doubles as a null check: `LENGTH(postcode) <= 10` constrains the length of the values that *are* present but says nothing about missing ones. Pair it with the `required` constraint (or an explicit `IS NOT NULL`) when the column must also be non-null.
-
-Assertions state what must be **true**, so conditional rules are written as implications, e.g. `NOT(q3) OR q4 IS NOT NULL`.
-
-Assertions are deliberately **single-table**: an expression sees only the columns of one table. There are no subqueries — cross-table rules belong in [`relationships`](#relationships). Within a table an expression has two grains available: a column reference is read one row at a time, and an aggregate folds a column over every row into one value. The two can be mixed, so `value <= 2 * MIN(value)` is a legitimate rule; an assertion that uses no aggregate is checked row by row, and a violation can name the offending row. Aside from `NOW()`, assertions are deterministic: the same data always gives the same result.
-
-The language offers the SQL operators you'd expect — comparisons, `AND`/`OR`/`NOT`, `IS NULL`, `BETWEEN`, `IN`, `LIKE`, `SIMILAR TO`, `CASE`, and arithmetic — over column references, numeric, string, boolean, and `NULL` literals, plus a handful of string (`LENGTH`, `LOWER`, `UPPER`, `TRIM`, `STARTS_WITH`, `ENDS_WITH`), numeric (`ABS`, `ROUND`, `FLOOR`, `CEIL`, `MOD`), date/time (`NOW()`, `interval(<n>, <unit>)`), and aggregate (`MIN`, `MAX`, `SUM`, `AVG`, `COUNT`, `ROW_COUNT`, `COUNT_DISTINCT`, `ANY`, `ALL`) functions. A `COLUMNS(...)` expression applies one predicate to many columns at once:
-
-```yaml
-constraints:
-  # Every q4–q8 answer is present whenever q3 is true.
-  - assert: NOT(q3) OR COLUMNS('q[4-8]') IS NOT NULL
-    description: q4–q8 must be answered when q3 is true.
-```
-
-[Expressions](expressions.md) documents the language in full: every operator and function with its input and output types, precedence, the `COLUMNS(...)` forms, the type rules a validator enforces, and the grammar.
-
-#### Writing an expression in another language {#other-languages}
-
-Expressions are written in data-dict's own [expression language](expressions.md) by default. An author who already thinks in another language can write the rule there instead, and say so with a `language` key beside the `assert` or `expr` it applies to:
-
-```yaml
-columns:
-  - name: postcode
-    type: string
-    constraints:
-      - assert: nchar(postcode) <= 10
-        language: r
-```
-
-One thing to watch, and it is YAML's doing rather than the language's: a value beginning with `!` is a YAML *tag*, so an expression that starts with one has to be quoted.
-
-```yaml
-constraints:
-  - assert: "!is.na(postcode)"
-    language: r
-```
-
-`language` names a language, not a dialect and not a package: `data-dict` (the default) or `r`. `r` covers the spellings base R, dplyr/stringr, and data.table. Each use (e.g.`nchar` and `str_length`) are read, and nothing has to say which one was meant. Writing `language: data-dict` is always allowed and means exactly what leaving the key out means. The set is closed and grows with the spec, so a `language` a validator can't read is rejected outright rather than left to mean something later.
-
-A table can hold rules written in different languages side by side:
-
-```yaml
-tables:
-  - name: survey
-    constraints:
-      - assert: end_date >= start_date
-      - assert: nchar(postcode) <= 10
-        language: r
-```
-
-Whatever language an expression is written in, it is read into the one expression language. The language an author writes in changes how a rule is *spelled*, never what it *means*: `nchar(postcode) <= 10` under `language: r` is the rule `LENGTH(postcode) <= 10`, [three-valued logic](expressions.md#truth-and-null) and all, and not whatever R would do with that line.
-
-A construct whose meaning in its own language differs from the reading it is given. R's `round` rounds halves to even where the language rounds them away from zero. This still reads, and carries a note saying how the two differ ([S36](validation.md#spec-validation-checks)). A construct the language has no equivalent for at all is an error ([S35](validation.md#spec-validation-checks)): the rule has to be rewritten, in either language.
-
-The dictionary keeps what the author wrote. The `assert` text is quoted back verbatim wherever a rule is named, so the line a problem points at is the line in the file. IF the data-dict spelling is wanted too, e.g. to compare two rules written in different languages, or to rewrite a dictionary in one, `data-dict translate --target data-dict` prints it, and the [export document](export.md#assertion) carries it beside the original.
+Assertions are documented in detail in [Validation](validate.md#assertions): what they mean, when a row passes, and how you can validate assertions against a dataset.
 
 ### Definitions
 
@@ -401,8 +338,8 @@ A table's `definitions` property is a list of named expressions — the metrics,
 Each entry is a map with:
 
 * `name` (required): the definition's name. Must be non-empty and unique within the table. Definitions and columns share a namespace: a definition's name must not match any column name in the same table.
-* `expr` (required): an expression in the [expression language](expressions.md), or [written in another language](#other-languages) and read into it. Unlike an assertion, it need not be boolean.
-* `language`: the language `expr` is written in; see [Writing an expression in another language](#other-languages). Omitted, it is data-dict's own.
+* `expr` (required): an expression in the [expression language](expressions.md), or [written in another language](validate.md#expression-languages) and read into it. Unlike an assertion, it need not be boolean.
+* `language`: the language `expr` is written in; see [Expression languages](validate.md#expression-languages). Omitted, it is `sql`.
 * `label`, `description`, `details`: human-readable documentation for the definition; see [Name, label, description & details](#name-label-description--details).
 * `todo`: a note of work that remains before the definition is complete; see [Todo](#todo).
 
@@ -527,4 +464,4 @@ version:
 
 `todo` may appear at every level that describes something: the top level (the dataset), a table, a column, a struct field, a relationship, and a definition. Put each note on the thing it's about, so the work travels with its subject.
 
-Every remaining `todo` is reported when the spec is validated (see S31 in [validation](validation.md)), so a dictionary announces its own unfinished work each time it's checked. It's reported as a warning rather than an error, so an unfinished dictionary can still be validated against its data — but you should resolve every `todo` before you consider the dictionary finished.
+Every remaining `todo` is reported when the spec is validated (see S31 in [validation](dev-validation.md)), so a dictionary announces its own unfinished work each time it's checked. It's reported as a warning rather than an error, so an unfinished dictionary can still be validated against its data — but you should resolve every `todo` before you consider the dictionary finished.

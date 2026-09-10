@@ -16,9 +16,16 @@ target_triple <- function(sysname, arch) {
     NULL
   )
   if (is.null(triple)) {
-    stop("data-dict has no released binary for ", sysname, " ", arch, ". ",
-         "See https://data-dict.tidyverse.org/install.html to build from ",
-         "source.", call. = FALSE)
+    stop(
+      "data-dict has no released binary for ",
+      sysname,
+      " ",
+      arch,
+      ". ",
+      "See https://data-dict.tidyverse.org/install.html to build from ",
+      "source.",
+      call. = FALSE
+    )
   }
   triple
 }
@@ -33,16 +40,29 @@ target_triple <- function(sysname, arch) {
 #'   accepted). Defaults to the latest release.
 #' @param force Whether to download again when a binary is already installed.
 #' @param quiet Whether to suppress the download progress bar and messages.
+#' @param dest The destination path for the downloaded binary. Defaults to
+#'   machines canonical data directory, see [tools::R_user_dir()].
+#'   Warning: if you change the default then datadict will **not** be
+#'   able to find it automatically, so we strongly suggest leaving it as
+#'   the default.
 #' @return The path to the installed binary, invisibly.
 #' @export
 #' @examplesIf FALSE
 #' dd_install()
-dd_install <- function(version = "latest", force = FALSE, quiet = FALSE) {
-  dest <- file.path(dd_dir(), bin_name())
+dd_install <- function(
+  version = "latest",
+  force = FALSE,
+  quiet = FALSE,
+  dest = NULL
+) {
+  dest <- dest %||% file.path(dd_dir(), bin_name())
   if (file.exists(dest) && !force) {
     if (!quiet) {
-      message("data-dict is already installed at ", dest,
-              "\nUse force = TRUE to download it again.")
+      message(
+        "data-dict is already installed at ",
+        dest,
+        "\nUse force = TRUE to download it again."
+      )
     }
     return(invisible(dest))
   }
@@ -78,17 +98,30 @@ dd_install <- function(version = "latest", force = FALSE, quiet = FALSE) {
 
   # The tar archives wrap everything in a directory named after the target,
   # the zip does not, so find the binary rather than assume where it landed.
-  found <- list.files(exdir, pattern = "^data-dict(\\.exe)?$",
-                      recursive = TRUE, full.names = TRUE)
+  found <- list.files(
+    exdir,
+    pattern = "^data-dict(\\.exe)?$",
+    recursive = TRUE,
+    full.names = TRUE
+  )
   if (length(found) != 1) {
-    stop("Found ", length(found), " data-dict binaries in ", asset,
-         ", expected exactly one.", call. = FALSE)
+    stop(
+      "Found ",
+      length(found),
+      " data-dict binaries in ",
+      asset,
+      ", expected exactly one.",
+      call. = FALSE
+    )
   }
 
   dir.create(dd_dir(), recursive = TRUE, showWarnings = FALSE)
   if (!file.copy(found, dest, overwrite = TRUE)) {
-    stop("Failed to install the data-dict binary into ", dd_dir(),
-         call. = FALSE)
+    stop(
+      "Failed to install the data-dict binary into ",
+      dd_dir(),
+      call. = FALSE
+    )
   }
   Sys.chmod(dest, "0755")
 
@@ -105,8 +138,12 @@ download <- function(url, path, quiet) {
     error = function(err) conditionMessage(err)
   )
   if (!identical(status, 0L)) {
-    stop("Failed to download ", url,
-         if (is.character(status)) paste0("\n", status), call. = FALSE)
+    stop(
+      "Failed to download ",
+      url,
+      if (is.character(status)) paste0("\n", status),
+      call. = FALSE
+    )
   }
   invisible(path)
 }
@@ -117,8 +154,15 @@ verify_sha256 <- function(sums, archive) {
   expected <- strsplit(line, "\\s+")[[1]][[1]]
   actual <- cli::hash_file_sha256(archive)
   if (!identical(tolower(expected), tolower(actual))) {
-    stop("Checksum mismatch for ", basename(archive),
-         "\n  expected: ", expected, "\n  found:    ", actual, call. = FALSE)
+    stop(
+      "Checksum mismatch for ",
+      basename(archive),
+      "\n  expected: ",
+      expected,
+      "\n  found:    ",
+      actual,
+      call. = FALSE
+    )
   }
   invisible(actual)
 }

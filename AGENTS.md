@@ -22,7 +22,7 @@ The repo contains:
 
 ## Spec and implementation must stay in sync
 
-The spec (`site/spec.md` + validation details in `site/validation.md`) and the implementation (the crates + `schema.yaml`) are two views of the same thing and must never drift apart.
+The spec (`site/spec.md` + validation details in `site/dev-validation.md`) and the implementation (the crates + `schema.yaml`) are two views of the same thing and must never drift apart.
 
 - **New features start in the spec, and REQUIRE human sign-off.** This is the single most important rule in this file. Any new feature is a two-phase process with a hard stop between the phases:
     1. **Write the spec.** Draft and iterate the change in `site/spec.md` *only*. Do not touch `schema.yaml`, the crates, the tests, or any other file in this phase.
@@ -64,7 +64,7 @@ Rust workspace with three crates:
 
 ### Validation levels
 
-The three levels and every check code (`S##` / `M##` / `D##`) are defined in `site/validation.md` — the single source of truth. Don't re-document the checks here or in code comments; point to that file. Each level implies the ones before it.
+The three levels and every check code (`S##` / `M##` / `D##`) are defined in `site/dev-validation.md` — the single source of truth. Don't re-document the checks here or in code comments; point to that file. Each level implies the ones before it.
 
 Implementation, one module per level (entry points re-exported at the crate root):
 
@@ -118,6 +118,7 @@ Any new feature that moves data values toward the user — a new profile statist
 ## Data format
 
 - Keys in `data-dict.yaml` use snake_case (e.g. `primary_key`, `foreign_key`, `$learn_more`).
+- The `language` key names the expression language: `sql` (the default), `r`, or `python`. The translation target that prints the language's own spelling is `SQL(data-dict)`, a dialect of the `SQL` family alongside `ANSI`/`duckdb`/`postgres`.
 
 ## Prose
 

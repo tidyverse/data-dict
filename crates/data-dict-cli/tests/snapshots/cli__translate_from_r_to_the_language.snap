@@ -18,7 +18,7 @@ expression: stdout
     ],
     "translations": [
       {
-        "target": "data-dict",
+        "target": "SQL(data-dict)",
         "code": "LENGTH(postcode) <= 10",
         "notes": []
       }

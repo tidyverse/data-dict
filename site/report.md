@@ -1,10 +1,10 @@
 # Report
 
-A **report** is one validation run's findings as JSON, so a program can act on them. Every check in [validation.md](validation.md) (`S##`, `M##`, or `D##`) reports through this one document, and only those checks do. The `data-dict` CLI writes one for any validation run it can get started: `validate-spec`, `validate-meta` and `validate-data` all write it with `--json`, and `render-report` runs `validate-data` and writes the same report as a self-contained page for a person to read.
+A **report** is one validation run's findings as JSON, so a program can act on them. Every check in [validation.md](dev-validation.md) (`S##`, `M##`, or `D##`) reports through this one document, and only those checks do. The `data-dict` CLI writes one for any validation run it can get started: `validate-spec`, `validate-meta` and `validate-data` all write it with `--json`, and `render-report` runs `validate-data` and writes the same report as a self-contained page for a person to read.
 
 A report is a superset of the diagnostics rendered for a person: every position a diagnostic highlights is in it, and it names more offending rows.
 
-The [level](validation.md#three-levels-of-validation) validated determines which checks ran, not the shape of what they report: a data-level report carries `S##` and `M##` problems too, since each level implies the ones before it. `D##` problems do carry something the earlier levels have no use for: found by reading the data, they name the offending rows, not just the table and column the dictionary declares. If an earlier level finds an error, the run stops there and reports only what it got to. A run that finds nothing still produces a report, with an empty `problems` list.
+The [level](dev-validation.md#three-levels-of-validation) validated determines which checks ran, not the shape of what they report: a data-level report carries `S##` and `M##` problems too, since each level implies the ones before it. `D##` problems do carry something the earlier levels have no use for: found by reading the data, they name the offending rows, not just the table and column the dictionary declares. If an earlier level finds an error, the run stops there and reports only what it got to. A run that finds nothing still produces a report, with an empty `problems` list.
 
 A failure that stops the run before any check can be applied is not a finding about the data dictionary and has no code, so it is not reported this way at all: the file can't be read or isn't YAML, a Parquet file fails mid-read, or the table asked for isn't in the dictionary. The CLI reports such a failure as a plain error and writes no report. Every problem in a report therefore carries a `code`.
 
@@ -69,7 +69,7 @@ The problems are in no promised order beyond this: a spec problem sits at its po
 
 `dictionary` is the file the run read, as the producer resolved it: a relative path stays relative rather than being made absolute, so an archived report doesn't record where the machine that made it kept its files. It names the file every [`Location`](#location) in the report is a span of. It is not a promise that the file is still there, or that it can be found from wherever the report ends up.
 
-`level` is the [level](validation.md#three-levels-of-validation) that ran, and so what decides which checks the report could carry. It can't be inferred from the findings: a data-level run that found nothing in the data reports what a spec-level run reports.
+`level` is the [level](dev-validation.md#three-levels-of-validation) that ran, and so what decides which checks the report could carry. It can't be inferred from the findings: a data-level run that found nothing in the data reports what a spec-level run reports.
 
 `table` is present only for a run over a single table, and names it; a whole-dictionary run omits it. This can't be inferred either — a one-table dictionary and a single-table run over a larger one list the same steps.
 
@@ -83,7 +83,7 @@ A report carries no copy of the dictionary's text. A consumer that wants to draw
 
 ```jsonc
 {
-  "code": "D04",                 // the check's code in validation.md
+  "code": "D04",                 // the check's code in dev-validation.md
   "step?": 3,                    // the `id` of the step that found it
   "severity": "error" | "warning",
   "kind": "values_outside_enum", // the finding's shape, see below
@@ -115,7 +115,7 @@ A column named by a `columns` entry is written as its dotted path when it is a s
 ```jsonc
 {
   "id": 3,                       // 1-based, unique within this report
-  "code": "D04",                 // the check's code in validation.md
+  "code": "D04",                 // the check's code in dev-validation.md
   "table": "otters",             // the table the step checked
   "columns?": ["site", "day"],   // the columns it checked, dotted for a struct field
   "assertion?": "weight > 0",    // the expression, for an assertion step
@@ -174,7 +174,7 @@ Lines and columns count from 0. A column counts Unicode characters, not bytes an
 
 ### Kinds
 
-`kind` names the shape of the finding, and decides which further keys the problem carries. Each kind maps to one check, except `schema` and `spec`, which cover every structural and every semantic spec check respectively; consult `validation.md` for what a check means.
+`kind` names the shape of the finding, and decides which further keys the problem carries. Each kind maps to one check, except `schema` and `spec`, which cover every structural and every semantic spec check respectively; consult `dev-validation.md` for what a check means.
 
 | `kind` | `code` | Additional keys |
 |--------|--------|-----------------|
@@ -251,7 +251,7 @@ Redaction is per column: a restricted column's key is left out of each entry, wh
 
 `redacted` is always present on the kinds that can carry values or keys, so `"redacted": false` positively states that nothing was withheld.
 
-[Withholding](validation.md#reporting) is a property of validation itself rather than of this format: a restricted column's values are never reported, in a report or in a diagnostic.
+[Withholding](dev-validation.md#reporting) is a property of validation itself rather than of this format: a restricted column's values are never reported, in a report or in a diagnostic.
 
 ## Example
 

@@ -1102,6 +1102,12 @@ tables:
 
       `sales.exchange_rate` is drawn from this table, specifically the
       `USD` → order-currency rate on `order_date`, verified to match exactly.
+      To reproduce that join, match `sales.order_date = date` and
+      `sales.currency_code = to_currency` and filter to
+      `from_currency = 'USD'` — without the filter the join fans out
+      five-to-one across base currencies. (This relationship is not declared
+      in `relationships` because the join grammar can't express the constant
+      filter; see tidyverse/data-dict#252.)
     source:
       parquet: parquet/fx.parquet
     columns:
@@ -1189,13 +1195,6 @@ relationships:
 
   - join: orders.delivery_date = calendar.date
     cardinality: many-to-one
-
-  - join: sales.order_date = fx.date AND sales.currency_code = fx.to_currency
-    cardinality: many-to-one
-    description: >
-      Recovers the rate already stored in `sales.exchange_rate`. Filter to
-      `fx.from_currency = 'USD'` or the join fans out five-to-one across base
-      currencies.
 
 glossary:
   Contoso: >

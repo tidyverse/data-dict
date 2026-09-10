@@ -18,8 +18,12 @@ test_that("a value outside the dictionary's enum fails, with a report", {
   dict <- write_fixture(withr::local_tempdir(), species = "enhydra")
   html <- withr::local_tempfile(fileext = ".html")
 
-  report <- dd_validate_data(dict, table = "otters", html = html,
-                             browse = FALSE)
+  report <- dd_validate_data(
+    dict,
+    table = "otters",
+    html = html,
+    browse = FALSE
+  )
 
   expect_true(report$status != 0)
   expect_true(file.exists(html))
@@ -30,8 +34,11 @@ test_that("a dictionary that cannot be read is an R error", {
   dir <- withr::local_tempdir()
   writeLines("tables: [", file.path(dir, "data-dict.yaml"))
   expect_error(
-    dd_validate_data(dir, html = withr::local_tempfile(fileext = ".html"),
-                     browse = FALSE),
+    dd_validate_data(
+      dir,
+      html = withr::local_tempfile(fileext = ".html"),
+      browse = FALSE
+    ),
     "wrote no report"
   )
 })

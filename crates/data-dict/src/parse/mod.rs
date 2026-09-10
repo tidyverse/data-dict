@@ -104,7 +104,7 @@ impl Language {
 pub fn languages() -> &'static [Language] {
     &[
         Language {
-            name: "data-dict",
+            name: "sql",
             read: |source| AssertExpr::parse(source).map(Parsed::exact),
         },
         Language {
@@ -231,12 +231,12 @@ mod tests {
             panic!("no such language")
         };
         assert!(err.contains("unknown expression language"), "{err}");
-        assert!(err.contains("data-dict, r"), "{err}");
+        assert!(err.contains("sql, r"), "{err}");
     }
 
     #[test]
     fn the_default_is_the_language_itself() {
-        assert_eq!(default_language().name, "data-dict");
+        assert_eq!(default_language().name, "sql");
         // Reading it is just parsing it, so it never has anything to warn about.
         let parsed = default_language().read("qty > 0").expect("parses");
         assert!(parsed.notes.is_empty());

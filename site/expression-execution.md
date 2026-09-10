@@ -8,7 +8,7 @@ Both start from the same place. An expression is [parsed and type-checked](expre
 
 ## Evaluation
 
-`data-dict validate-data` evaluates each of a table's assertions against the table's data, reporting the rows that break them ([D07](validation.md#data-validation-checks)).
+`data-dict validate-data` evaluates each of a table's assertions against the table's data, reporting the rows that break them ([D07](dev-validation.md#data-validation-checks)).
 
 This is also the language's **reference implementation**. Where this page and [expressions.md](expressions.md) describe a behaviour, `validate-data` is what that behaviour means, and every [translation](#translating-expressions) is judged by whether it agrees.
 
@@ -33,7 +33,7 @@ Null is used for one thing only: a value that is missing or unknown. It is never
 
 One situation leaves an expression with no answer to give. It yields no value; it is reported, and the assertion's verdict for that table is withdrawn rather than guessed at — a `D09` replaces the `D07` that would otherwise be reported.
 
-**Integer overflow** ([D09](validation.md#data-validation-checks)), when integer arithmetic leaves the 64-bit range — in `+`, `-` and `*`, in `ABS` and unary minus at the extreme negative integer, in an `interval` count or a shift by one, and in `SUM` as it accumulates. Wrapping or saturating would mean the arithmetic no longer computes what the expression says. Floats are unaffected: they overflow to `INF`, which is [a value the language has](floating-point.md#non-finite), so the expression still reaches a verdict.
+**Integer overflow** ([D09](dev-validation.md#data-validation-checks)), when integer arithmetic leaves the 64-bit range — in `+`, `-` and `*`, in `ABS` and unary minus at the extreme negative integer, in an `interval` count or a shift by one, and in `SUM` as it accumulates. Wrapping or saturating would mean the arithmetic no longer computes what the expression says. Floats are unaffected: they overflow to `INF`, which is [a value the language has](floating-point.md#non-finite), so the expression still reaches a verdict.
 
 This does mean evaluation is not total — some data can stop an assertion from reaching a verdict. That is a deliberate trade. A rule that cannot be computed has not been checked, and saying so is more useful than a pass nobody earned.
 
@@ -49,11 +49,11 @@ Division by zero is not among the situations above: `7 / 0` is `INF`, `0 / 0` is
 
 `SIMILAR TO` and `COLUMNS('<regex>')` take [RE2](https://github.com/google/re2/wiki/Syntax) regular expressions, which the reference implementation matches exactly. `LIKE` is defined in terms of its own two wildcards and does not depend on a regex flavour.
 
-A literal pattern is compiled when the dictionary is validated, so a malformed one is an S21 at the spec level. A pattern read from a column can only be compiled once the data is in hand, and one that doesn't compile is [reported as D08](validation.md#data-validation-checks) rather than treated as a non-match — a non-match would make the row *pass*, quietly retiring the rule on exactly the rows whose pattern is broken.
+A literal pattern is compiled when the dictionary is validated, so a malformed one is an S21 at the spec level. A pattern read from a column can only be compiled once the data is in hand, and one that doesn't compile is [reported as D08](dev-validation.md#data-validation-checks) rather than treated as a non-match — a non-match would make the row *pass*, quietly retiring the rule on exactly the rows whose pattern is broken.
 
 ### When an assertion can't be run
 
-An assertion can only be evaluated if the columns it names can be read as the types the dictionary declares for them, and if the patterns it matches against compile. When either fails, it is reported as an error ([D08](validation.md#data-validation-checks)).
+An assertion can only be evaluated if the columns it names can be read as the types the dictionary declares for them, and if the patterns it matches against compile. When either fails, it is reported as an error ([D08](dev-validation.md#data-validation-checks)).
 
 Not as a warning, and not as a pass. An assertion that was never evaluated has not been satisfied, and treating it as satisfied is the one outcome that hides the problem: the dictionary would go on claiming a rule the data was never held to. Reporting it says what is actually true — that this rule is currently unenforceable, and either the declared type or the data has to change.
 
@@ -71,23 +71,23 @@ A target is named `family(dialect)`. A bare family name means that family's defa
 |--------|--------------------------------|-----------------|
 | `R` | `base`, `tidyverse`, `data.table` | `R(base)` |
 | `Python` | `polars`, `pandas` | `Python(polars)` |
-| `SQL` | `ANSI`, `duckdb`, `postgres` | `SQL(ANSI)` |
+| `SQL` | `data-dict`, `ANSI`, `duckdb`, `postgres` | `SQL(ANSI)` |
 
 : {tbl-colwidths="[15,45,40]"}
 
-Seven of the eight targets are defined by something outside this specification: `R(tidyverse)` means what dplyr and stringr do, `Python(polars)` what polars does, `SQL(duckdb)` what DuckDB does. Those are versioned, testable things, and the translation for each is fixed by agreement with the reference implementation rather than by wording here.
+Seven of the nine targets are defined by something outside this specification: `R(tidyverse)` means what dplyr and stringr do, `Python(polars)` what polars does, `SQL(duckdb)` what DuckDB does. Those are versioned, testable things, and the translation for each is fixed by agreement with the reference implementation rather than by wording here.
 
-`SQL(ANSI)` is the exception, and [has a grammar of its own](#ansi) — there is no "ANSI engine" to define it.
+The exceptions are `SQL(data-dict)`, which is the language itself as [Expressions](expressions.md) defines it, and `SQL(ANSI)`, which [has a grammar of its own](#ansi) — there is no "ANSI engine" to define it.
 
 ### Sources
 
-Translation also runs the other way. An expression [tagged with a `language`](spec.md#other-languages) is *read* from that language into the data-dict language, and `translate --from` reads an ad-hoc one the same way.
+Translation also runs the other way. An expression [tagged with a `language`](validate.md#expression-languages) is *read* from that language into the data-dict language, and `translate --from` reads an ad-hoc one the same way.
 
 A source is named by family alone, where a target is named `family(dialect)`. The asymmetry is real rather than an oversight: an emitter has to choose one spelling and so must be told which, while a reader can accept every spelling in the family at once. `nchar` and `str_length` are different names, so the text already says which idiom it is; there is no R expression whose meaning depends on being told it is base rather than tidyverse.
 
 | Family | Written | Reads |
 |--------|---------|-------|
-| data-dict | `data-dict` | the language itself |
+| SQL | `sql` | the `SQL(data-dict)` spelling — the language itself |
 | R | `r` | every spelling the three `R(...)` targets emit |
 | Python | `python` | the polars expression style `Python(polars)` emits |
 
@@ -95,7 +95,7 @@ A source is named by family alone, where a target is named `family(dialect)`. Th
 
 Each surface is exactly what that family's targets emit, and no more. That is a deliberate bound: it makes the surface a finite, testable list rather than "R", and it makes the round trip a property that can be checked — every expression this specification can emit as R must read back as itself.
 
-`data-dict` is a target as well as a source. It has no dialects, so it is written bare. It is left out of the targets emitted by default, since an expression already written in the language has nothing to gain from being printed back — but reading from another language is exactly the case where the data-dict spelling is the interesting one, so `--from` puts it back in. `--target data-dict` asks for it outright.
+`SQL(data-dict)` is a target as well as a source. It is left out of the targets emitted by default, since an expression already written in the language has nothing to gain from being printed back — but reading from another language is exactly the case where the data-dict spelling is the interesting one, so `--from` puts it back in. `--target SQL(data-dict)` asks for it outright.
 
 #### What a round trip normalises
 
@@ -154,9 +154,9 @@ The same scale grades a [reading](#sources), with two of the four classes unreac
 
 **A reading is never Guarded.** Guarded means the translation adds code the expression didn't ask for, and a reader never does that: it records what the author wrote, and adding a guard would make the dictionary state a rule nobody typed. Where a construct's meaning differs, the difference is reported rather than silently repaired. This is the one place the two directions are not mirror images, and the reason is that they are read by different audiences — emitted code is for a machine to run, where a guard is invisible and welcome, while a reading becomes the dictionary's own statement of the rule, which a person has to be able to recognise as theirs.
 
-**A reading is never Unsupported either.** Outbound, one target's refusal costs nothing, because the other seven still translate. Inbound there is nowhere else to go: a construct with no reading is a rule the dictionary cannot state at all, so it is a validation error ([S35](validation.md#spec-validation-checks)) and the dictionary does not validate until the rule is rewritten. So anything that reaches an evaluation, a translation, or an export was read Exactly or Divergently.
+**A reading is never Unsupported either.** Outbound, one target's refusal costs nothing, because the other seven still translate. Inbound there is nowhere else to go: a construct with no reading is a rule the dictionary cannot state at all, so it is a validation error ([S35](dev-validation.md#spec-validation-checks)) and the dictionary does not validate until the rule is rewritten. So anything that reaches an evaluation, a translation, or an export was read Exactly or Divergently.
 
-A Divergent reading is reported as a warning ([S36](validation.md#spec-validation-checks)). It is a difference between what the author wrote and what the dictionary will enforce, it is knowable before any data is read, and nothing else would surface it.
+A Divergent reading is reported as a warning ([S36](dev-validation.md#spec-validation-checks)). It is a difference between what the author wrote and what the dictionary will enforce, it is knowable before any data is read, and nothing else would surface it.
 
 #### Standing divergences
 
@@ -258,7 +258,7 @@ The unit of translation is one expression. By default every assertion in the dic
 
 An `--expr` expression is parsed, resolved and type-checked exactly like an assertion, with one relaxation: it need not be boolean. `a + b` translates, and its type is reported. Its column names resolve against one table — the only table if the dictionary has one, and otherwise the table named by `--table`.
 
-`--from` says what language `--expr` is written in. It applies to `--expr` alone: a dictionary's assertions each carry their own [`language`](spec.md#other-languages), which is the author's statement about the author's file, and no flag overrides it — a dictionary that validated differently depending on how the command was invoked would be no dictionary at all.
+`--from` says what language `--expr` is written in. It applies to `--expr` alone: a dictionary's assertions each carry their own [`language`](validate.md#expression-languages), which is the author's statement about the author's file, and no flag overrides it — a dictionary that validated differently depending on how the command was invoked would be no dictionary at all.
 
 ## `SQL(ANSI)` {#ansi}
 

@@ -1,0 +1,19 @@
+/*-- scss:defaults --*/
+
+// Light colour scheme on top of cosmo, from the Posit brand colours:
+// blue #447099, orange #ee6331, gray #404041, off-white #f2f2f2.
+
+$primary: #447099;
+$secondary: #ee6331;
+
+// White page with near-black text for stronger contrast than the off-white
+// brand background gave.
+$body-bg: #ffffff;
+$body-color: #1d1d1f;
+
+$link-color: $primary;
+
+// Inline code keeps the surrounding text colour, set off by a pale grey
+// background instead.
+$code-bg: rgba(64, 64, 65, 0.07);
+$code-color: inherit;

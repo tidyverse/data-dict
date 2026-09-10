@@ -1629,7 +1629,7 @@
     {
       "name": "fx",
       "description": "<p>Each row is a daily exchange rate for one ordered currency pair: the complete 5x5 matrix of AUD, CAD, EUR, GBP, and USD for all 1,461 days from 2021-01-01 to 2024-12-31 (25 pairs x 1,461 days = 36,525 rows, with no gaps).</p>",
-      "details": "<p>Internally consistent: self-pairs are exactly 1.0, and reciprocal pairs multiply to 1.0 to within rounding. Because the matrix is complete, no chaining through USD is ever needed — look the pair up directly.\n<code>sales.exchange_rate</code> is drawn from this table, specifically the <code>USD</code> → order-currency rate on <code>order_date</code>, verified to match exactly.</p>",
+      "details": "<p>Internally consistent: self-pairs are exactly 1.0, and reciprocal pairs multiply to 1.0 to within rounding. Because the matrix is complete, no chaining through USD is ever needed — look the pair up directly.\n<code>sales.exchange_rate</code> is drawn from this table, specifically the <code>USD</code> → order-currency rate on <code>order_date</code>, verified to match exactly. To reproduce that join, match <code>sales.order_date = date</code> and <code>sales.currency_code = to_currency</code> and filter to <code>from_currency = 'USD'</code> — without the filter the join fans out five-to-one across base currencies. (This relationship is not declared in <code>relationships</code> because the join grammar can't express the constant filter; see tidyverse/data-dict#252.)</p>",
       "source": {
         "parquet": "parquet/fx.parquet"
       },
@@ -1890,34 +1890,6 @@
         }
       ],
       "join": "orders.delivery_date = calendar.date"
-    },
-    {
-      "description": "<p>Recovers the rate already stored in <code>sales.exchange_rate</code>. Filter to <code>fx.from_currency = 'USD'</code> or the join fans out five-to-one across base currencies.</p>",
-      "cardinality": "many-to-one",
-      "declared_cardinality": "many-to-one",
-      "pairs": [
-        {
-          "left": {
-            "table": "sales",
-            "column": "order_date"
-          },
-          "right": {
-            "table": "fx",
-            "column": "date"
-          }
-        },
-        {
-          "left": {
-            "table": "sales",
-            "column": "currency_code"
-          },
-          "right": {
-            "table": "fx",
-            "column": "to_currency"
-          }
-        }
-      ],
-      "join": "sales.order_date = fx.date AND sales.currency_code = fx.to_currency"
     }
   ],
   "glossary": [
