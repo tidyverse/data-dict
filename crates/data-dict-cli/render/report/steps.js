@@ -153,7 +153,7 @@ function ChecksTable({ table }) {
       : "No data-level checks.";
   return html`<section class="rsection">
     <div class="checks-head">
-      <h2>Checks</h2>
+      <h2>Checks<span class="row-total">(${fmtNum(counts.fail)} / ${fmtNum(all.length)} checks failed)</span></h2>
       <div class="checks-tools">
         <input class="checks-filter" type="search" placeholder="Filter to a column…"
           value=${query} onInput=${(e) => setQuery(e.target.value)} />

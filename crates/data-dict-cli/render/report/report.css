@@ -3,23 +3,18 @@
    modal primitives in tables.css, and is concatenated after both so its
    narrower rules win at equal specificity. */
 
+h2 {
+  font-size: var(--text-lg);
+  font-weight: 650;
+  margin: 0;
+}
+
 /* ---- Sections -----------------------------------------------------------*/
 
 .rsection { margin: 0 0 30px; }
-.rsection > h2 {
-  font-size: var(--text-lg);
-  font-weight: 650;
-  margin: 0 0 12px;
-}
 .rsection-note { color: var(--ink-soft); font-size: var(--text-sm); margin: 0 0 12px; }
-.rsection-title {
-  font-family: var(--font-mono);
-  font-size: var(--text-xl);
-  font-weight: 650;
-  margin: 0 0 18px;
-}
-/* A count trailing a heading — a table's rows, a card's failures — small and
-   quiet in the page's sans. */
+/* A count trailing a heading — a card's failures, a roster's checks — small
+   and quiet in the page's sans. */
 .row-total {
   font-family: var(--font-sans);
   font-size: var(--text-sm);
@@ -37,7 +32,7 @@
    cells still, so pointing changes nothing. The group selector is the one that
    covers the pointed-at row too. */
 .steps tbody.tgroup:hover td { background: var(--surface-2); }
-.steps th { white-space: nowrap; }
+.steps th { white-space: nowrap; background: var(--surface-0);}
 
 /* The grid the summary and the detail tables share: fixed layout, so every
    table on the page draws the same column edges, and long content clips
@@ -214,7 +209,6 @@ main:has(.report-body) .pagehead { padding: 0 28px; }
 /* A table hugs its content rather than stretching to the measure; `.rcontent`
    owns the cap, so the wrap only has to not outrun it. */
 .report-main .tlist-wrap, .row-table { width: fit-content; max-width: 100%; }
-.checks-head h2 { margin: 0; }
 .checks-tools { 
   display: flex; 
   align-items: center; 
@@ -238,11 +232,7 @@ main:has(.report-body) .pagehead { padding: 0 28px; }
    step's summary, a table of failed rows. */
 
 .problem-card, .step-summary {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface-1);
-  padding: 16px 18px;
-  margin: 0 0 16px;
+  padding: 16px 0;
 }
 
 /* The failed rows are a block rather than a card: the table rules its own cells,
@@ -251,27 +241,18 @@ main:has(.report-body) .pagehead { padding: 0 28px; }
 .failed-rows-card { margin: 0 0 16px; }
 
 /* The step page's title block: the h1 names the target beside its verdict
-   square; the line below says what was checked. */
+   square. */
 /* The way back centres on the title's own line. Left inline, the link is placed
    by baseline — its box bottom on the text's baseline — which rides above the
    line's centre. */
 .step-title h1 { display: flex; align-items: center; }
 .step-title .target { font-family: var(--font-mono); font-size: 0.8em; }
-.step-title .sub { margin: 3px 0 0; color: var(--ink-soft); font-size: var(--text-lg); }
 
-/* The step page's summary card: the row counts and the failure meter on one
-   line, with the dictionary excerpt behind an expando below. */
-.step-summary .counts { display: flex; align-items: center; gap: 14px; }
-.step-summary .meta {
-  color: var(--ink-soft);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-}
+/* The step page's summary card: the dictionary excerpt behind an expando. */
 .step-summary details summary {
   cursor: pointer;
   color: var(--ink-soft);
   font-size: var(--text-sm);
-  margin-top: 8px;
 }
 
 .problem-card .head {
@@ -395,7 +376,7 @@ code.tick {
   top: 0;
   z-index: 1;
   /* Opaque, so scrolled rows never peek through from behind the header. */
-  background: var(--surface-1);
+  background: var(--surface-0);
   text-align: left;
   padding: 6px 10px;
   white-space: nowrap;

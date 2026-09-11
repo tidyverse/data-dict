@@ -116,9 +116,8 @@ function BackLink({ table, label }) {
     <span class="chev"><${Icon} svg=${ICONS.back} /></span><span>${label}</span></a>`;
 }
 
-/* The step page's title block: the h1 names the target beside its verdict
-   square and carries the way back to its table in its chevron; the line
-   below says what was checked, in the author's words where they wrote them. */
+/* The step page's title block: the h1 names the target beside the check's
+   verdict square and carries the way back to the table's page in its chevron. */
 function StepTitle({ step }) {
   const columns = step.columns || [];
   const target = step.table + (columns.length ? `.${columns.join(", ")}` : "");
@@ -127,7 +126,6 @@ function StepTitle({ step }) {
         onClick=${(e) => { e.preventDefault(); go(tableHash(step.table)); }}
       ><span class="chev"><${Icon} svg=${ICONS.back} /></span></a
       ><span class="sqname"><${VerdictSquare} outcome=${step.outcome} /><span class="target">${target}</span></span></h1>
-    <p class="sub">${stepLabel(step)}</p>
   </div>`;
 }
 
@@ -144,18 +142,14 @@ function StepPage({ id }) {
   const location = located ? located.location : step.location;
   const context = located ? located.context : step.context;
   return html`<section class="rsection">
-    <article class="step-summary${problems[0] ? ` is-${problems[0].severity}` : ""}">
-      <div class="counts">
-        <span class="meta">${step.row_count != null
-          ? `${fmtNum(step.row_count)} rows checked, ${fmtNum(step.failed_row_count || 0)} failed`
-          : "no rows counted"}</span>
-        <${StepMeter} rows=${step.row_count} failed=${step.failed_row_count || 0} />
-      </div>
-      ${location ? html`<details>
+    <h2>${stepLabel(step)}${step.row_count != null && html`<span class="row-total"
+      >(${fmtNum(step.failed_row_count || 0)} / ${fmtNum(step.row_count)} rows failed)</span>`}</h2>
+    ${location ? html`<section class="step-summary${problems[0] ? ` is-${problems[0].severity}` : ""}">
+      <details>
         <summary>Constraint declaration</summary>
         <${YamlExcerpt} location=${location} context=${context} />
-      </details>` : null}
-    </article>
+      </details>
+    </section>` : null}
     ${problems.map((problem) => html`<${preact.Fragment} key=${problem.index}>
       <${OffendingRows} problem=${problem} />
       <${RowsNote} problem=${problem} />
@@ -181,11 +175,7 @@ function TablePage({ table }) {
   const failures = entry
     ? cellFailures(REPORT.problems.filter((p) => p.table === table))
     : null;
-  const counts = tableRowCounts(table);
   return html`<div>
-    <h2 class="rsection-title"><span class="sqname"
-      ><${VerdictSquare} outcome=${tableVerdict(table)} /><span>${table}</span></span>
-      ${counts && html`<span class="row-total">(${fmtNum(counts.total)} rows)</span>`}</h2>
     <${ChecksTable} table=${table} />
     ${problems.length ? html`<section class="rsection">
       <h2>Problems</h2>
@@ -286,7 +276,9 @@ function App() {
       <div class="head-title">
         ${storyStep
           ? html`<${StepTitle} step=${storyStep} />`
-          : html`<h1>${route && route.view === "problem"
+          : table
+            ? html`<h1><span class="sqname"><${VerdictSquare} outcome=${tableVerdict(table)} /><span>${table}</span></span></h1>`
+            : html`<h1>${route && route.view === "problem"
             ? html`<${BackLink} table=${active} label=${BASE_TITLE} />`
             : html`<span class="sqname"><${VerdictSquare} outcome=${VERDICT_SQUARE[REPORT.status]} />${VERDICTS[REPORT.status]}</span>`}</h1>`}
       </div>
