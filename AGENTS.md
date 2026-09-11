@@ -13,6 +13,10 @@ The repo contains:
 - `schema.yaml`: JSON Schema for structural validation of data dictionary files (`schema-field.yaml` holds the recursive struct-field descriptor it references)
 - `dist-workspace.toml`: release config for [`dist`](https://opensource.axo.dev/cargo-dist/). It generates `.github/workflows/release.yml` — never hand-edit that file; change the config and re-run `dist generate`. Install docs live in `site/install.md` and the README.
 
+## Exploration
+
+- When delegating repository discovery or context gathering, prefer a subagent and direct it to use `rg` through bash for file and content discovery; do not use the `search` tool.
+
 ## Code principles
 
 * Reserve comments for explaining why, not what or how. Default to no comment. Before writing one, check it isn't already said by the item's name, its type, its doc comment, or the line below it — if so, drop it.

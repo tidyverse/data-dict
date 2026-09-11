@@ -23,8 +23,8 @@ details.xdetails > summary:focus-visible { outline: 2px solid var(--link); outli
 .toolbar { margin-bottom: 14px; }
 .toolbar input[type=search] {
   width: 100%;
-  padding: 8px 12px; border: 1px solid var(--rule); border-radius: 8px;
-  background: var(--paper); color: var(--ink); font-size: var(--text-sm);
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface-1); color: var(--ink); font-size: var(--text-sm);
 }
 
 /* ---- table index ---- */
@@ -109,9 +109,9 @@ abbr.gterm:hover { text-decoration-color: var(--accent1); }
    lead, the table's header, and the column list. They all share the one
    surface, so the border is what separates them. */
 .lead, .tpage-top, .tpage-list {
-  border: 1px solid var(--rule);
+  border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--paper);
+  background: var(--surface-1);
 }
 .lead { padding: 14px 16px; margin-bottom: 20px; }
 .lead p { margin: 0 0 16px; max-width: 1000px; color: var(--ink); }
@@ -131,9 +131,9 @@ abbr.gterm:hover { text-decoration-color: var(--accent1); }
 .tnav {
   flex: none; width: 232px;
   padding: 12px;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--paper);
+  background: var(--surface-1);
   position: sticky; top: 14px;
   max-height: calc(100vh - 28px);
   display: flex; flex-direction: column; gap: 10px;
@@ -143,8 +143,8 @@ abbr.gterm:hover { text-decoration-color: var(--accent1); }
 .tnav-toggle { display: none; }
 .tnav-filter {
   flex: none; min-width: 0; padding: 7px 11px;
-  border: 1px solid var(--rule); border-radius: 8px;
-  background: var(--paper); color: var(--ink); font-size: var(--text-sm);
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface-1); color: var(--ink); font-size: var(--text-sm);
 }
 .tnav-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
 .tnav-item {
@@ -156,7 +156,7 @@ abbr.gterm:hover { text-decoration-color: var(--accent1); }
 .tnav-item:hover { background: var(--chip); }
 .tnav-item:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
 /* the table being read, wearing the same fill as a held key badge */
-.tnav-item.on { background: var(--accent1); color: var(--on-accent1); font-weight: 650; }
+.tnav-item.on { background: var(--accent1); color: var(--ink-inverse); font-weight: 650; }
 .tnav-none { margin: 0; padding: 4px 8px; color: var(--ink-faint); font-size: var(--text-sm); }
 
 /* The name, its stats and the description on the left; the related-tables box
@@ -175,7 +175,7 @@ abbr.gterm:hover { text-decoration-color: var(--accent1); }
    gets a short box and several of them share a line. */
 .tpage-related {
   flex: 0 1 auto; max-width: 420px;
-  border-left: 1px solid var(--rule);
+  border-left: 1px solid var(--line);
   padding: 10px 12px;
 }
 .tpage-related[hidden] { display: none; }
@@ -188,17 +188,17 @@ abbr.gterm:hover { text-decoration-color: var(--accent1); }
 
 .tpage-controls { display: flex; gap: 10px; align-items: center; }
 .tpage-sort {
-  flex: none; padding: 8px 30px 8px 12px; border: 1px solid var(--rule); border-radius: 8px;
-  background: var(--paper) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><path d="M0 0l5 6 5-6z" fill="%237a7a7a"/></svg>') no-repeat right 11px center;
+  flex: none; padding: 8px 30px 8px 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface-1) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><path d="M0 0l5 6 5-6z" fill="%237a7a7a"/></svg>') no-repeat right 11px center;
   color: var(--ink); font-size: var(--text-sm); cursor: pointer;
   -webkit-appearance: none; appearance: none;
 }
 .tpage-filter {
-  flex: 1 1 auto; min-width: 0; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 8px;
-  background: var(--paper); color: var(--ink); font-size: var(--text-sm);
+  flex: 1 1 auto; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface-1); color: var(--ink); font-size: var(--text-sm);
 }
 
-.col-item { padding: 11px 13px; border-bottom: 1px solid var(--rule); display: flex; gap: 22px; align-items: flex-start; margin: 0 -13px; }
+.col-item { padding: 11px 13px; border-bottom: 1px solid var(--line); display: flex; gap: 22px; align-items: flex-start; margin: 0 -13px; }
 .col-item:last-child { border-bottom: none; }
 /* The permalinked column: "you are here", lifted off the list. */
 .col-item.is-target {
@@ -207,8 +207,8 @@ abbr.gterm:hover { text-decoration-color: var(--accent1); }
   margin: 7px -21px;
   padding: 16px 21px;
   border-radius: 10px;
-  border: 1px solid var(--rule);
-  background: var(--paper);
+  border: 1px solid var(--line);
+  background: var(--surface-1);
   box-shadow: 0 1px 2px var(--shadow-near), 0 8px 22px -8px var(--shadow-far);
 }
 .col-item:has(+ .is-target) { border-bottom-color: transparent; padding-bottom: 5px }
@@ -221,17 +221,17 @@ abbr.gterm:hover { text-decoration-color: var(--accent1); }
 }
 .modal-overlay[hidden] { display: none; }
 .modal {
-  background: var(--paper); border: 1px solid var(--rule); border-radius: 14px;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: 14px;
   width: min(760px, 96vw); max-height: 86vh;
   display: flex; flex-direction: column; overflow: hidden;
   box-shadow: 0 24px 60px var(--modal-shadow), 0 0 44px var(--modal-glow);
 }
-.modal-head { flex: none; padding: 18px 22px 14px; border-bottom: 1px solid var(--rule); position: relative; }
+.modal-head { flex: none; padding: 18px 22px 14px; border-bottom: 1px solid var(--line); position: relative; }
 .modal-title-row { display: flex; align-items: center; gap: 10px; }
 .modal-substat { color: var(--ink-soft); font-size: var(--text-sm); margin: 7px 0 13px; }
 .modal-filter {
-  width: 100%; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 8px;
-  background: var(--background); color: var(--ink); font-size: var(--text-sm);
+  width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface-0); color: var(--ink); font-size: var(--text-sm);
 }
 .modal-close {
   position: absolute; top: 12px; right: 15px; border: none; background: transparent;
@@ -262,7 +262,7 @@ a.col-name:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; 
 a.col-name .anchor-mark { margin-left: 6px; font-weight: 400; color: var(--ink-soft); opacity: 0; }
 a.col-name:hover .anchor-mark, a.col-name:focus-visible .anchor-mark { opacity: 1; }
 .col-desc { color: var(--ink); font-size: var(--text-sm); margin-top: 4px; line-height: 1.5; }
-.col-meta code { font-family: var(--font-mono); background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; padding: 0 5px; color: var(--ink); }
+.col-meta code { font-family: var(--font-mono); background: var(--surface-1); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--ink); }
 /* a chip cut short for its length: click reveals the whole value, wrapped */
 button.val { font: inherit; }
 .val.cut { cursor: pointer; }
@@ -284,7 +284,7 @@ button.val { font: inherit; }
 /* Join chips share the value chip's shell; what sets them apart is what they
    carry (a wire icon, mono names) and that they act. */
 .join-chip {
-  background: var(--paper); border: 1px solid var(--rule); border-radius: 4px;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: 4px;
   padding: 0 3px; color: var(--ink);
   display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); cursor: pointer; transition: border-color .1s ease, color .1s ease;
 }
@@ -297,7 +297,7 @@ button.val { font: inherit; }
   margin-top: 2px;
   padding: 9px 10px 8px;
   border-radius: 6px;
-  background: var(--paper);
+  background: var(--surface-1);
 }
 .hist-svg { display: block; }
 .hist-svg .hist-bar { fill: var(--hist-bar); transition: fill .08s ease; shape-rendering: crispEdges;}
@@ -314,7 +314,7 @@ button.val { font: inherit; }
    the right */
 .hist-cap-range { display: flex; justify-content: space-between; gap: 8px; }
 .hist-cap-range .cap-mid { color: var(--ink-faint); }
-.gloss-item { padding: 12px 0; border-bottom: 1px solid var(--rule); }
+.gloss-item { padding: 12px 0; border-bottom: 1px solid var(--line); }
 .gloss-item:last-child { border-bottom: none; }
 .gloss-term { font-weight: 700; font-size: var(--text-base); color: var(--ink); }
 .gloss-def { color: var(--ink); font-size: var(--text-sm); margin-top: 3px; line-height: 1.55; }
@@ -335,7 +335,7 @@ mark { background: var(--mark); color: inherit; border-radius: 2px; padding: 0 1
   color: var(--ink-soft);
 }
 
-.key.fk { color: var(--accent2); background: var(--accent2-soft); }
+.key.fk { color: var(--accent2); background: var(--accent2-fill); }
 
 /* The mark an unresolved `todo` leaves on the thing that carries it. Quiet
    until pointed at: it is a note to whoever is still writing the dictionary,
@@ -350,7 +350,7 @@ mark { background: var(--mark); color: inherit; border-radius: 2px; padding: 0 1
   cursor: help;
 }
 .todo-flag svg { display: block; width: 13px; height: 13px; }
-.todo-flag:hover, .todo-flag:focus-visible { background: var(--warn-soft); }
+.todo-flag:hover, .todo-flag:focus-visible { background: var(--warn-fill); }
 .todo-flag:focus-visible { outline: 2px solid var(--warn); outline-offset: 1px; }
 /* beside the dataset's name it sits against 29px type, and centres on it
    rather than on the baseline the rest of the head shares */

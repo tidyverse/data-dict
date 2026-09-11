@@ -22,6 +22,10 @@ function useRoute() {
     const follow = () => {
       hideTip();
       setRoute(parseHash());
+      /* A new page starts at its top. The hash only ever names a route, never
+         an in-page anchor, so the fragment scroll the browser just attempted
+         (a no-op — no element matches) is safe to override. */
+      scrollTo(0, 0);
     };
     addEventListener("hashchange", follow);
     return () => removeEventListener("hashchange", follow);

@@ -1,6 +1,6 @@
-/* The datasets summary and the per-dataset detail tables of the run's steps.
-   Rendered by report.js, which owns the reading helpers (stepCounts,
-   problemsByStep, tableOrder) this file uses. */
+/* One table's checks: the data-level steps it was validated against, sortable
+   and filterable. Rendered by report.js, which owns the reading helpers
+   (stepCounts, problemsByStep, tableOrder) this file uses. */
 
 /* What a step checked. An assertion names the columns it reads and carries its
    expression on the check itself, since the columns are what a reader scans
@@ -98,149 +98,43 @@ function VerdictSquare({ outcome }) {
 }
 
 /* Only a failed step links to its page — a passed or unevaluated step has
-   nothing actionable to show there. */
+   nothing actionable to show there. The link wears the check's name. */
 function StepRow({ step }) {
   const failed = step.failed_row_count;
   const evaluated = step.outcome !== "unevaluated";
   const href = step.outcome === "fail" ? `#step/${step.id}` : null;
-  return html`<tr data-href=${href}>
+  return html`<tr>
     <td>
-      <span class="sqname"><${VerdictSquare} outcome=${step.outcome} /><${StepCheck} step=${step} /></span>
+      <span class="sqname"><${VerdictSquare} outcome=${step.outcome} />${href
+        ? html`<a class="step-link" href=${href}><${StepCheck} step=${step} /></a>`
+        : html`<${StepCheck} step=${step} />`}</span>
     </td>
     <td><${StepTarget} step=${step} /></td>
-    <td class="num">${!evaluated || failed == null
-      ? "—"
-      : href && failed > 0
-        ? html`<a href=${href} title="Failed rows">${fmtNum(failed)}</a>`
-        : fmtNum(failed)}</td>
+    <td class="num">${!evaluated || failed == null ? "—" : fmtNum(failed)}</td>
     <td><${StepMeter} rows=${step.row_count} failed=${step.failed_row_count || 0} /></td>
   </tr>`;
 }
 
-/* The table's verdict as one bar: the rows its steps checked and failed,
-   summed, so the band weighs the table the way each row of the roster does. */
-function tableRows(steps) {
-  let rows = 0, failed = 0;
-  for (const step of steps) {
-    if (step.row_count == null) continue;
-    rows += step.row_count;
-    failed += step.failed_row_count || 0;
-  }
-  return { rows, failed };
-}
-
-/* A step row navigates to the step's page; a link or button inside it speaks
-   for itself. */
-function rowNav(e) {
-  if (e.target.closest("a, button")) return;
-  const tr = e.target.closest("tr[data-href]");
-  if (tr) go(tr.dataset.href);
-}
-
-/* Where a dataset's detail table sits on the page, so the summary can scroll
-   to it. */
-function datasetAnchor(table) {
-  return `ds-${table}`;
-}
-
-/* The data-level steps of one dataset. The summary and the detail tables both
-   weigh data-level checks only: the metadata checks a data run implies (a
-   column exists, a source is declared) are means, not findings. */
-function dataSteps(steps, table) {
-  return steps.filter((step) => step.table === table && !step.code.startsWith("M"));
-}
-
-/* The summary and the detail tables share one grid — same columns, same
-   widths — so a reader scanning down the page never loses the column edges.
-   The first column takes the width the others leave. */
+/* The table's fixed grid: long content clips rather than shifting the column
+   edges. The first column takes the width the others leave. */
 function ReportColGroup() {
   return html`<colgroup>
     <col /><col class="col-mid" /><col class="col-num" /><col class="col-meter" />
   </colgroup>`;
 }
 
-/* ---- The datasets summary ------------------------------------------------
-   One row per dataset the run covered, linked to its detail table below. */
-
-/* A dataset's verdict as one square: red if any of its checks failed, green
-   if at least one passed, and nothing when none reached a verdict. */
-function datasetSquare(counts) {
-  if (counts.fail) return "fail";
-  if (counts.pass) return "pass";
-  return "off";
-}
-
-/* The columns the summary can sort by. A dataset whose rows were never
-   counted sorts its failures last, rather than masquerading as zero. */
-const DATASET_SORTS = {
-  dataset: (row) => row.table,
-  checks: (row) => row.counts.fail,
-  failed: (row) => (row.counted ? row.failed : null),
-};
-
-function DatasetRow({ row }) {
-  const { table, steps, counts, counted, rows, failed } = row;
-  const scroll = () => {
-    const target = document.getElementById(datasetAnchor(table));
-    if (target) target.scrollIntoView();
-  };
-  /* The row scrolls to the dataset's own section in the roster below; the count
-     links past it to the failed rows, so it must not let the scroll fire too. */
-  const hasRows = (REPORT.failed_rows || []).some((e) => e.table === table);
-  const href = hasRows && failed > 0 ? `#rows/${encodeURIComponent(table)}` : null;
-  return html`<tr onClick=${scroll}>
-    <td><span class="sqname"><${VerdictSquare} outcome=${datasetSquare(counts)} /><span class="dataset-name">${table}</span></span></td>
-    <td class="num">${steps.length ? `${fmtNum(counts.fail)}/${fmtNum(steps.length)}` : "—"}</td>
-    <td class="num">${!counted ? "—" : href
-      ? html`<a href=${href} title="Failed rows"
-          onClick=${(e) => e.stopPropagation()}>${fmtNum(failed)}</a>`
-      : fmtNum(failed)}</td>
-    <td><${StepMeter} rows=${rows} failed=${failed} label="failures" /></td>
-  </tr>`;
-}
-
-function DatasetsCard({ steps }) {
+/* The data-level steps of one table. The metadata checks a data run implies
+   (a column exists, a source is declared) are means, not findings — the table
+   page shows them as problems instead. A table whose data could not be read
+   leaves every check of it unevaluated, so the reason is given once above the
+   table rather than repeated down every row. */
+function ChecksTable({ table }) {
   const [sort, setSort] = useState(null);
-  const tables = tableOrder(steps);
-  if (!tables.length) return null;
-  const rows = tables.map((table) => {
-    const dsteps = dataSteps(steps, table);
-    const { rows: rowCount, failed } = tableRows(dsteps);
-    return {
-      table,
-      steps: dsteps,
-      counts: stepCounts(dsteps),
-      counted: dsteps.some((step) => step.row_count != null),
-      rows: rowCount,
-      failed,
-    };
-  });
-  return html`<section class="rsection">
-    <h2>Datasets</h2>
-    <div class="tlist-wrap">
-      <table class="tlist datasets rtable">
-        <${ReportColGroup} />
-        <thead><tr>
-          <${SortHead} label="Dataset" sortKey="dataset" sort=${sort} onSort=${setSort} />
-          <${SortHead} label="Checks" sortKey="checks" sort=${sort} onSort=${setSort} numeric=${true} />
-          <${SortHead} label="Failures" sortKey="failed" sort=${sort} onSort=${setSort} numeric=${true} />
-          <th></th>
-        </tr></thead>
-        <tbody>
-          ${sortBy(rows, sort, DATASET_SORTS).map((row) => html`<${DatasetRow} key=${row.table} row=${row} />`)}
-        </tbody>
-      </table>
-    </div>
-  </section>`;
-}
-
-/* ---- The detail tables ---------------------------------------------------
-   Every dataset gets one, even one with no checks: an absent table would ask
-   the reader to notice a silence. A dataset whose data could not be read
-   leaves every check of it unevaluated, so the reason is given once under its
-   name rather than repeated down every row. */
-function DatasetSection({ table, steps, sort, onSort, query, failuresOnly }) {
-  const all = dataSteps(steps, table);
+  const [query, setQuery] = useState("");
+  const [failuresOnly, setFailuresOnly] = useState(false);
+  const all = REPORT.steps.filter(
+    (step) => step.table === table && !step.code.startsWith("M"),
+  );
   let shown = all;
   if (failuresOnly) shown = shown.filter((step) => step.outcome === "fail");
   if (query) {
@@ -250,15 +144,23 @@ function DatasetSection({ table, steps, sort, onSort, query, failuresOnly }) {
   }
   const counts = stepCounts(all);
   const unreadable = REPORT.problems.find(
-    (p) => p.table === table && (p.code === "M04" || p.code === "M05")
+    (p) => p.table === table && (p.code === "M04" || p.code === "M05"),
   );
   const note = query
     ? "No checks match."
     : all.length
       ? "No failures."
       : "No data-level checks.";
-  return html`<section class="rsection dataset-section" id=${datasetAnchor(table)}>
-    <h3>${table}</h3>
+  return html`<section class="rsection">
+    <div class="checks-head">
+      <h2>Checks<span class="row-total">(${fmtNum(counts.fail)} / ${fmtNum(all.length)} checks failed)</span></h2>
+      <div class="checks-tools">
+        <input class="checks-filter" type="search" placeholder="Filter to a column…"
+          value=${query} onInput=${(e) => setQuery(e.target.value)} />
+        <label class="checks-only"><input type="checkbox" checked=${failuresOnly}
+          onChange=${(e) => setFailuresOnly(e.target.checked)} /> Failures only</label>
+      </div>
+    </div>
     ${counts.unevaluated && unreadable
       ? html`<p class="rsection-note">${
           unreadable.code === "M04" ? "No source declared" : "Data could not be read"
@@ -269,33 +171,16 @@ function DatasetSection({ table, steps, sort, onSort, query, failuresOnly }) {
           <table class="tlist steps rtable">
             <${ReportColGroup} />
             <thead><tr>
-              <${SortHead} label="Check" sortKey="check" sort=${sort} onSort=${onSort} />
-              <${SortHead} label="Target" sortKey="target" sort=${sort} onSort=${onSort} />
-              <${SortHead} label="Failed rows" sortKey="failed" sort=${sort} onSort=${onSort} numeric=${true} />
+              <${SortHead} label="Check" sortKey="check" sort=${sort} onSort=${setSort} />
+              <${SortHead} label="Target" sortKey="target" sort=${sort} onSort=${setSort} />
+              <${SortHead} label="Failed rows" sortKey="failed" sort=${sort} onSort=${setSort} numeric=${true} />
               <th></th>
             </tr></thead>
-            <tbody class="tgroup" onClick=${rowNav}>
+            <tbody class="tgroup">
               ${sortBy(shown, sort, SORTS).map((step) => html`<${StepRow} key=${step.id} step=${step} />`)}
             </tbody>
           </table>
         </div>`
       : html`<p class="rsection-note">${note}</p>`}
-  </section>`;
-}
-
-function ChecksCard({ steps }) {
-  const [sort, setSort] = useState(null);
-  const [query, setQuery] = useState("");
-  const [failuresOnly, setFailuresOnly] = useState(false);
-  return html`<section class="rsection">
-    <h2>Checks</h2>
-    <div class="checks-tools">
-      <input class="checks-filter" type="search" placeholder="Filter to a column…"
-        value=${query} onInput=${(e) => setQuery(e.target.value)} />
-      <label class="checks-only"><input type="checkbox" checked=${failuresOnly}
-        onChange=${(e) => setFailuresOnly(e.target.checked)} /> Failures only</label>
-    </div>
-    ${tableOrder(steps).map((table) => html`<${DatasetSection} key=${table} table=${table}
-      steps=${steps} sort=${sort} onSort=${setSort} query=${query} failuresOnly=${failuresOnly} />`)}
   </section>`;
 }
