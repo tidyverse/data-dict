@@ -5,16 +5,36 @@
 :root {
   color-scheme: light dark;
 
+  /* ---- neutrals -------------------------------------------------------------
+     Three ladders, rung-numbered from recessed to raised. Surfaces climb from
+     the page to the float: a thing sits on the rung below its own. Ink fades
+     from the text to the whispers. Lines come in two strengths. A new neutral
+     belongs on one of these ladders, not in a component's own variable. */
+  /* Every surface is the base mixed with the ink. In light mode a higher rung
+     holds less ink (closer to white); in dark mode it holds more (closer to
+     the light ink) — so elevation reads the same way in both schemes, and one
+     base and one ink tune the whole ladder. */
+  --surface-base: light-dark(#ffffff, #0e1216);
+  --surface-0: light-dark( /* the page */
+    color-mix(in oklab, var(--ink) 6%, var(--surface-base)),
+    color-mix(in oklab, var(--ink) 3%, var(--surface-base)));
+  --surface-1: light-dark( /* panels and cards */
+    color-mix(in oklab, var(--ink) 2.5%, var(--surface-base)),
+    color-mix(in oklab, var(--ink) 6%, var(--surface-base)));
+  --surface-2: light-dark( /* table cells, wells */
+    color-mix(in oklab, var(--ink) 1%, var(--surface-base)),
+    color-mix(in oklab, var(--ink) 9%, var(--surface-base)));
+  --surface-3: light-dark( /* tooltip, search results, controls */
+    var(--surface-base),
+    color-mix(in oklab, var(--ink) 12%, var(--surface-base)));
+
   --ink: light-dark(#1c2430, #e3e6ea);
   --ink-soft: light-dark(#5b6675, #a3acb7);
   --ink-faint: light-dark(#66707e, #8d97a2);
-  --float: light-dark(#ffffff, #161b21); /* tooltip, search results, controls */
-  --rule: light-dark(#d6d0c4, #333b44);
-  --row-line: light-dark(#e4e0d7, #2a3138);
+  --ink-inverse: light-dark(#ffffff, #14142c); /* text on an accent1 fill */
 
-  /* The page background and the surface everthing sits on */
-  --background: light-dark(#f1eee8, #181d22);
-  --paper: light-dark(#f8f6f4, #0e1216);
+  --line: light-dark(#d6d0c4, #333b44); /* card borders, strong separators */
+  --line-soft: light-dark(#e4e0d7, #2a3138); /* in-table separators */
 
   /* ---- accents ------------------------------------------------------------
      Solarized's eight. Everything coloured on the page is one of them as it
@@ -42,37 +62,37 @@
   --accent1: light-dark(
     color-mix(in oklab, var(--accent1-hue) 80%, black),
     color-mix(in oklab, var(--accent1-hue) 80%, white));
-  --accent1-soft: light-dark(
+  --accent1-fill: light-dark(
     color-mix(in oklab, var(--accent1-hue) 20%, white),
-    color-mix(in oklab, var(--accent1-hue) 20%, var(--background)));
+    color-mix(in oklab, var(--accent1-hue) 20%, var(--surface-0)));
   /* a caveat rather than a fact, which is what the palette's yellow is for and
      what its three tenants have in common: an unresolved todo, a restricted
      column, and a validation warning */
   --warn: light-dark(
     color-mix(in oklab, var(--yellow) 80%, black),
     color-mix(in oklab, var(--yellow) 80%, white));
-  --warn-soft: light-dark(
+  --warn-fill: light-dark(
     color-mix(in oklab, var(--yellow) 20%, white),
-    color-mix(in oklab, var(--yellow) 20%, var(--background)));
+    color-mix(in oklab, var(--yellow) 20%, var(--surface-0)));
   /* a verdict: green passed, red failed. Only the validation report has
      verdicts to report, so only it uses these. */
-  --good: light-dark(
+  --ok: light-dark(
     color-mix(in oklab, var(--green) 80%, black),
     color-mix(in oklab, var(--green) 80%, white));
-  --good-soft: light-dark(
+  --ok-fill: light-dark(
     color-mix(in oklab, var(--green) 20%, white),
-    color-mix(in oklab, var(--green) 20%, var(--background)));
-  --bad: light-dark(
+    color-mix(in oklab, var(--green) 20%, var(--surface-0)));
+  --fail: light-dark(
     color-mix(in oklab, var(--red) 80%, black),
     color-mix(in oklab, var(--red) 80%, white));
-  --bad-soft: light-dark(
+  --fail-fill: light-dark(
     #f6e1d9,
-    color-mix(in oklab, var(--red) 20%, var(--background)));
+    color-mix(in oklab, var(--red) 20%, var(--surface-0)));
   /* every row that takes part in a relationship wears this, so it is the
      quietest step on the ladder */
-  --hover-row: light-dark(
+  --accent1-wash: light-dark(
     color-mix(in oklab, var(--accent1-hue) 10%, white),
-    color-mix(in oklab, var(--accent1-hue) 10%, var(--background)));
+    color-mix(in oklab, var(--accent1-hue) 10%, var(--surface-0)));
   --shadow-far: light-dark(rgba(28, 36, 48, 0.25), rgba(0, 0, 0, 0.5));
   --shadow-lift: light-dark(rgba(28, 36, 48, 0.45), rgba(0, 0, 0, 0.7));
 
@@ -80,7 +100,7 @@
   --chip: light-dark(#e9ecf2, #21262d);
   --link: var(--accent1); /* a link is the accent doing its plainest job */
   /* a bar is a mark rather than text or a fill, so it takes the raw value */
-  --fail-bar: var(--red);
+  --fail-mark: var(--red);
 
   /* The two faces everything on the page wears: sans for prose, mono for
      names, values, and micro-labels. */
@@ -105,7 +125,7 @@
 
 body {
   margin: 0;
-  background: var(--background);
+  background: var(--surface-0);
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: var(--text-base);
@@ -145,8 +165,8 @@ main { max-width: 1180px; margin: 0 auto; padding: 40px 44px 90px; }
 .homelink:hover .chev { transform: translateX(-.1em); }
 .head-actions { display: flex; align-items: center; gap: 10px; }
 .icon-btn {
-  flex: none; width: 38px; height: 38px; border: 1px solid var(--rule); border-radius: 9px;
-  background: var(--paper); color: var(--ink); cursor: pointer;
+  flex: none; width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 9px;
+  background: var(--surface-1); color: var(--ink); cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
 }
 /* The key badges, worn identically by a column in the diagram's tables and by
@@ -157,11 +177,11 @@ main { max-width: 1180px; margin: 0 auto; padding: 40px 44px 90px; }
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--accent1);
-  background: var(--accent1-soft);
+  background: var(--accent1-fill);
   border-radius: 3px;
   padding: 1px 4px;
 }
-.key.restricted { color: var(--warn); background: var(--warn-soft); }
+.key.restricted { color: var(--warn); background: var(--warn-fill); }
 
 .icon-btn:hover { border-color: var(--accent1); color: var(--accent1); }
 .icon-btn svg { display: block; width: 19px; height: 19px; }
@@ -180,8 +200,8 @@ main { max-width: 1180px; margin: 0 auto; padding: 40px 44px 90px; }
   z-index: 2000;
   max-width: 40ch;
   padding: 7px 9px;
-  background: var(--float);
-  border: 1px solid var(--rule);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
   border-radius: 6px;
   box-shadow: 0 8px 24px -12px var(--shadow-lift);
   font-size: var(--row-text);
@@ -198,13 +218,16 @@ main { max-width: 1180px; margin: 0 auto; padding: 40px 44px 90px; }
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 5px;
-  border-bottom: 1px solid var(--row-line);
+  border-bottom: 1px solid var(--line-soft);
   color: var(--ink);
 }
 #tip .tip-head code { color: var(--accent1); }
 /* the aside keeps its line; the code beside it is what wraps */
 #tip .tip-sub { color: var(--ink-faint); white-space: nowrap; }
 #tip p { margin: 0; color: var(--ink-soft); }
+#tip p + p { margin-top: 4px; }
+/* a check named as the checks table names it: description, code quiet after */
+#tip .code { color: var(--ink-faint); font-family: var(--font-mono); }
 #tip .tip-head + p { margin-top: 5px; }
 /* a second relationship behind the same chip, set off from the first */
 #tip .tip-head ~ .tip-head { margin-top: 9px; }

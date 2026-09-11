@@ -77,53 +77,21 @@ function cellFailures(problems) {
   return byCell;
 }
 
-/* Why a cell failed, for its tooltip: one head and constraint per problem
-   that names the cell — the author's own description where they wrote one,
-   the check's name where they didn't. */
-function cellTip(problems, column) {
+/* Why a cell failed, for its tooltip: one line per problem that names the
+   cell, styled as the checks table styles a check — the author's description
+   (or the check's name), the code quiet in parentheses. */
+function cellTip(problems) {
   const box = el("div");
   for (const problem of problems) {
     const step = problem.step != null ? stepsById.get(problem.step) : null;
-    box.appendChild(tipHead(`${problem.code} · ${column}`));
-    box.appendChild(el("p", null, step ? stepLabel(step) : checkName(problem.code)));
-  }
-  return box;
-}
-
-/* The checks a row broke, one entry per code. A row can say why it is here
-   without the reader hunting for the shaded cell, which on a wide table may be
-   scrolled out of sight. */
-function rowChecks(failures, row) {
-  const columns = failures && failures.get(row);
-  if (!columns) return [];
-  const byCode = new Map();
-  for (const problems of columns.values()) {
-    for (const problem of problems) {
-      if (!byCode.has(problem.code)) byCode.set(problem.code, new Set());
-      byCode.get(problem.code).add(problem);
-    }
-  }
-  return [...byCode.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([code, problems]) => ({ code, problems: [...problems] }));
-}
-
-/* What a code in the row's own column stands for. */
-function checkTip(problems) {
-  const box = el("div");
-  for (const problem of problems) {
-    const step = problem.step != null ? stepsById.get(problem.step) : null;
-    box.appendChild(tipHead(problem.code));
-    box.appendChild(el("p", null, step ? stepLabel(step) : checkName(problem.code)));
+    const line = el("p", "step-check", step ? stepLabel(step) : checkName(problem.code));
+    line.appendChild(el("span", "code", ` (${problem.code})`));
+    box.appendChild(line);
   }
   return box;
 }
 
 function RowTable({ rows, keys, values, failures }) {
-  /* The checks column earns its place only where the rows came from several of
-     them. A problem's own card lists rows that all broke the one check it is
-     about, so there the column would repeat a constant the card already states. */
-  const blame = !!failures;
   const keyCols = valueColumns(keys);
   const valCols = valueColumns(values);
   const columns = [...keyCols, ...valCols];
@@ -136,18 +104,15 @@ function RowTable({ rows, keys, values, failures }) {
   };
   return html`<div class="row-table">
     <table>
-      <thead><tr><th class="rownum">Row</th>${blame ? html`<th class="row-checks">Failed</th>` : null}${columns.map((c, j) => html`<th key=${c} class=${j === keyCols.length && j > 0 ? "val-start" : null}>${c}</th>`)}</tr></thead>
+      <thead><tr><th class="rownum"></th>${columns.map((c, j) => html`<th key=${c} class=${j === keyCols.length && j > 0 ? "val-start" : null}>${c}</th>`)}</tr></thead>
       <tbody>
         ${rows.map((row, i) => html`<tr key=${row}>
           <td class="rownum">${fmtNum(row)}</td>
-          ${blame ? html`<td class="row-checks">${rowChecks(failures, row).map((c) => html`<span key=${c.code}
-            class="code-chip" onMouseEnter=${(e) => showTip(checkTip(c.problems), e)}
-            onMouseMove=${moveTip} onMouseLeave=${hideTip}>${c.code}</span>`)}</td>` : null}
           ${columns.map((c, j) => {
             const blamed = failures && failures.get(row) && failures.get(row).get(c);
             return html`<td key=${c}
               class=${[formats[c].numeric ? "num" : null, j === keyCols.length && j > 0 ? "val-start" : null, blamed ? "bad" : null].filter(Boolean).join(" ") || null}
-              onMouseEnter=${blamed ? (e) => showTip(cellTip(blamed, c), e) : null}
+              onMouseEnter=${blamed ? (e) => showTip(cellTip(blamed), e) : null}
               onMouseMove=${blamed ? moveTip : null}
               onMouseLeave=${blamed ? hideTip : null}>
               <${Value} value=${cell(i, c)} format=${formats[c]} />
@@ -179,20 +144,22 @@ function RowsNote({ problem }) {
 /* A table of failed rows as its own card: the heading, the withheld badge and
    note, and the grid itself. A problem's card, an overflow's single row, and a
    dataset's failed-rows page are the same thing wearing different evidence. */
-function FailedRowsCard({ title = "Failed rows", rows, keys, values, count, redacted, severity, failures, note }) {
-  return html`<article class="failed-rows-card is-${severity}">
-    <div class="head">
-      <h3>${title}${count > rows.length &&
-        html` <span class="cap">(first ${fmtNum(rows.length)} out of ${fmtNum(count)})</span>`}</h3>
-      ${redacted && html`<span class="key restricted">values withheld</span>`}
-    </div>
+function FailedRowsCard({ rows, keys, values, count, redacted, severity, failures, note }) {
+  return html`<section class="failed-rows-card is-${severity}">
+    <h2>Failed rows${count != null && html`<span class="row-total"
+      >(${fmtNum(count)} ${count === 1 ? "failure" : "failures"}${count > rows.length
+        ? `, first ${fmtNum(rows.length)} shown`
+        : ""})</span>`}</h2>
+    ${redacted && html`<div class="summary">
+      <p><span class="key restricted">values withheld</span></p>
+    </div>`}
     <${RowTable} rows=${rows} keys=${keys} values=${values} failures=${failures} />
     ${redacted &&
       html`<p class="note">A column here is${" "}
         <code class="tick">display: restricted</code>, so its values are withheld.
         The row numbers are exact.</p>`}
     ${note && html`<p class="note">${note}</p>`}
-  </article>`;
+  </section>`;
 }
 
 /* The rows that broke a problem, as their own card. Dispatch is on what the

@@ -18,14 +18,25 @@
   font-weight: 650;
   margin: 0 0 18px;
 }
+/* A count trailing a heading — a table's rows, a card's failures — small and
+   quiet in the page's sans. */
+.row-total {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--ink-faint);
+  margin-left: 10px;
+}
 
 /* ---- The roster of checks ------------------------------------------------
    `.tlist` gives the card, the header row and the numeric alignment. What it
    doesn't give is the right hover: its group-wide highlight suits a four-row
    table block and not a forty-step roster, so the hover moves down to the row. */
 
-.steps tbody.tgroup:hover td { background: transparent; }
-.steps tbody.tgroup tr[data-href]:hover td { background: var(--hover-row); }
+/* `.tlist` tints every row while its group is pointed at; the roster holds its
+   cells still, so pointing changes nothing. The group selector is the one that
+   covers the pointed-at row too. */
+.steps tbody.tgroup:hover td { background: var(--surface-2); }
 .steps th { white-space: nowrap; }
 
 /* The grid the summary and the detail tables share: fixed layout, so every
@@ -41,19 +52,33 @@
 /* The shared table styles pad a heading more than this table pads its cells,
    which would leave every heading short of the column edge its values sit on. */
 .rtable thead th { padding: 6px 10px; }
-.rtable td { overflow: hidden; text-overflow: ellipsis; }
+/* The cells sit on the same lighter surface the failed-rows table draws, with
+   a faint line between rows. */
+.rtable td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line-soft);
+}
+/* Faint lines between rows and columns alike. The failed-rows table's key/value
+   seam (`.val-start`) is the one stronger column line, and outranks these. */
+.rtable td + td, .rtable th + th,
+.row-table td + td, .row-table th + th { border-left: 1px solid var(--line-soft); }
 
 /* What a step checked: the columns, or the whole table. */
 .step-target { font-family: var(--font-mono); font-size: var(--text-sm); }
 .step-target .whole { color: var(--ink-faint); font-family: var(--font-sans); }
 /* The check's name, with its code quiet in parentheses. */
 .step-check .code { color: var(--ink-faint); font-family: var(--font-mono); font-size: var(--text-sm); }
+/* A failed step's name is the link to its page: the row's own colour, the
+   underline kept. */
+a.step-link { color: inherit; }
 
 /* The two verdicts a problem can carry, as `.key` variants. */
-.key.fail { color: var(--bad); background: var(--bad-soft); }
+.key.fail { color: var(--fail); background: var(--fail-fill); }
 /* A warning severity. It shares yellow with a restricted column but not the
    badge: `restricted` says one particular thing, and a warning is not it. */
-.key.warn { color: var(--warn); background: var(--warn-soft); }
+.key.warn { color: var(--warn); background: var(--warn-fill); }
 
 /* The share of rows a step failed. Geometry from `.missbar`, including the
    min-width that keeps two failures out of ninety thousand visible; the
@@ -61,8 +86,8 @@
 .step-meter { width: 110px; }
 .step-track {
   height: 9px;
-  background: var(--good);
-  border: 0.5px solid var(--rule);
+  background: var(--ok);
+  border: 0.5px solid var(--line);
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
@@ -75,7 +100,7 @@
   bottom: -0.5px;
   min-width: 6px;
   border-radius: 999px 0 0 999px;
-  background: var(--fail-bar);
+  background: var(--fail-mark);
   box-sizing: border-box;
 }
 .step-fill.full { right: -0.5px; min-width: 0; }
@@ -96,27 +121,79 @@
    parent's metrics and sit high beside a mono name. Baseline keeps the square
    on the first line when the name wraps. */
 .sqname { display: inline-flex; align-items: baseline; }
-.verdict-square.pass { background: var(--good); }
+.verdict-square.pass { background: var(--ok); }
 .verdict-square.warn { background: var(--warn); }
-.verdict-square.fail { background: var(--fail-bar); }
+.verdict-square.fail { background: var(--fail-mark); }
 .verdict-square.off { visibility: hidden; }
 
-/* ---- The datasets summary ------------------------------------------------
-   One row per dataset, each row a link to the dataset's detail table. */
+/* ---- The sidebar ----------------------------------------------------------
+   One pill per table, anchored to the window's left edge; the table's page
+   takes the rest, a gap between them. The report breaks out of `main`'s
+   centred column, and the pagehead keeps its own padding. */
 
-/* Every row scrolls to its dataset's section, so every row offers the pointer
-   and the hover. */
-.datasets tbody tr { cursor: pointer; }
-.datasets tbody tr:hover td { background: var(--hover-row); }
-.dataset-name { font-family: var(--font-mono); font-weight: 700; color: var(--accent1); }
+main:has(.report-body) { max-width: none; padding-left: 0; padding-right: 0; }
+main:has(.report-body) .pagehead { padding: 0 28px; }
 
-/* A dataset's detail table, scrolled to from the summary. */
-.dataset-section { scroll-margin-top: 14px; }
-.dataset-section > h3 {
+/* The right padding matches the pagehead's, so the panel's right edge ends
+   where the theme toggle's does. */
+.report-body { display: flex; align-items: flex-start; gap: 16px; padding-right: 28px; }
+/* The table's page sits on the paper surface, framed on all sides now that the
+   sidebar's pills no longer join onto it. */
+.report-main {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 24px 28px;
+}
+/* Everything the panel holds — heading rows, cards, table wraps — shares one
+   measure, so the filter row ends where the tables end. */
+.rcontent { max-width: 72em; }
+
+.sidebar {
+  flex: none;
+  width: 220px;
+  position: sticky;
+  top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 0 10px 10px;
+}
+/* Each table's selector is a pill: bordered on all sides, corners rounded. */
+.sidebar a {
+  display: block;
+  padding: 10px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.sidebar a:hover { background: var(--accent1-wash); }
+/* The active pill wears the panel's own surface and shows its border. */
+.sidebar a.active {
+  background: var(--surface-1);
+  border-color: var(--line);
+}
+.sidebar a.active .sqname {font-weight: 700;}
+.sidebar .sqname { max-width: 100%; }
+.sidebar .side-name {
   font-family: var(--font-mono);
-  font-size: var(--text-base);
-  font-weight: 650;
-  margin: 0 0 10px;
+  font-size: var(--text-sm);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The failed against the total rows, set under the name and clearing the
+   verdict square's width (0.57em plus its 0.45em gap). */
+.sidebar .side-count {
+  display: block;
+  margin-left: 1.02em;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--ink-faint);
 }
 
 /* Sortable column heads look like the plain heads they replace. */
@@ -132,11 +209,23 @@
 .rtable th.num .sort-head { flex-direction: row-reverse; }
 .sort-ind.off { visibility: hidden; }
 
-.checks-tools { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; }
+/* The heading and the filters share one row, the filters held to the right. */
+.checks-head { display: flex; align-items: baseline; gap: 12px; margin: 0 0 10px; }
+/* A table hugs its content rather than stretching to the measure; `.rcontent`
+   owns the cap, so the wrap only has to not outrun it. */
+.report-main .tlist-wrap, .row-table { width: fit-content; max-width: 100%; }
+.checks-head h2 { margin: 0; }
+.checks-tools { 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  margin-left: auto; 
+  margin-right: 10px; /* Match cell padding for better visual alignment */
+}
 .checks-filter {
   padding: 5px 10px;
-  border: 1px solid var(--rule); border-radius: 6px;
-  font: inherit; background: var(--float, #fff); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 6px;
+  font: inherit; background: var(--surface-3, #fff); color: var(--ink);
   min-width: 240px;
 }
 .checks-only {
@@ -149,9 +238,9 @@
    step's summary, a table of failed rows. */
 
 .problem-card, .step-summary {
-  border: 1px solid var(--rule);
+  border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--paper);
+  background: var(--surface-1);
   padding: 16px 18px;
   margin: 0 0 16px;
 }
@@ -231,9 +320,9 @@ code.tick {
    suggested fix wears the same box, drawn as a diff. */
 
 .yaml-excerpt, .suggestion-diff {
-  border: 1px solid var(--rule);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--background);
+  background: var(--surface-0);
   padding: 10px 0;
   margin: 12px 0;
   overflow-x: auto;
@@ -252,18 +341,18 @@ code.tick {
   color: var(--ink-faint);
   user-select: none; /* so copying the snippet yields YAML, not line numbers */
   width: 1%;
-  border-right: 1px solid var(--rule);
+  border-right: 1px solid var(--line);
 }
 .ex-text { color: var(--ink-soft); }
 /* The underline is the faithful analogue of the terminal's `^^^^`, and it
    survives a reader who can't tell the fill from the text around it. */
 .ex-hit {
-  background: var(--bad-soft);
-  box-shadow: inset 0 -2px 0 var(--bad);
+  background: var(--fail-fill);
+  box-shadow: inset 0 -2px 0 var(--fail);
   color: var(--ink);
 }
-.is-warning .ex-hit { background: var(--warn-soft); box-shadow: inset 0 -2px 0 var(--warn); }
-.ex-ctx { background: var(--hover-row); }
+.is-warning .ex-hit { background: var(--warn-fill); box-shadow: inset 0 -2px 0 var(--warn); }
+.ex-ctx { background: var(--accent1-wash); }
 .ex-fold .ex-num { color: var(--ink-faint); }
 
 .suggestion-diff .title {
@@ -272,89 +361,80 @@ code.tick {
   color: var(--accent1);
   padding: 0 12px 6px;
 }
-.diff-del .ex-text { background: var(--bad-soft); }
-.diff-add .ex-text { background: var(--good-soft); }
+.diff-del .ex-text { background: var(--fail-fill); }
+.diff-add .ex-text { background: var(--ok-fill); }
 .diff-del .ex-num, .diff-add .ex-num { color: var(--ink-faint); }
 
 /* ---- Failed rows --------------------------------------------------------*/
 
-.failed-rows-card .head { display: flex; align-items: baseline; gap: 10px; margin: 14px 0 0; }
-.failed-rows-card .head h3 { font-size: var(--text-base); font-weight: 650; margin: 0; }
-.failed-rows-card .cap { font-weight: 400; }
+.failed-rows-card h2 {margin-block-end: 0}
+.failed-rows-card .summary p {
+  margin-top: 0;
+}
 .failed-rows-card .note, .rows-note {
   color: var(--ink-soft);
   font-size: var(--text-sm);
   margin: 8px 0 0;
 }
 
-/* The wrap scrolls; at ~1.94em a row (text-sm, 3px padding, grid line) it
-   shows ten rows under the sticky header. */
+/* The wrap is framed and scrolled like the checks table's `.tlist-wrap`, sized
+   with it by the shared rule above. The scrollport hugs the table, so rounding
+   it rounds the frame — and clips all four corners even mid-scroll, which a
+   radius on the corner cells could not do. */
 .row-table {
   overflow: auto;
   max-height: 21.5em;
   margin: 12px 0 0;
-  /* The scrollport hugs the table, so rounding it rounds the grid — and clips
-     all four corners even mid-scroll, which a radius on the corner cells could
-     not do. A cell radius is undefined under `border-collapse: collapse`. */
-  width: max-content;
-  max-width: 100%;
-  border-radius: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
 }
-/* The table takes the width its columns need; the wrap scrolls when that is
-   more than there is room for. */
-.row-table table { border-collapse: collapse; font-size: var(--text-sm); }
-.row-table th, .row-table td {
-  border: 1px solid var(--row-line);
-  padding: 3px 10px;
-  text-align: left;
-}
-/* A table of a few columns has no width to spare its content, so its cells take
-   more of it. Counted rather than measured: the scrollport is sized by the table,
-   so it can't be asked how wide it came out. A wide table keeps the tighter
-   padding, which is what lets more of it fit before scrolling. */
-.row-table table:not(:has(thead th:nth-child(4))) :is(th, td) {
-  padding-left: 16px;
-  padding-right: 16px;
-}
-/* A wide table scrolls sideways; a long value clips rather than wraps. The data
-   sits on its own surface, a step above the page the block no longer frames it
-   against — `.bad` outranks this, so a blamed cell keeps its tint. */
-.row-table td {
-  white-space: nowrap;
-  max-width: 24em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  background: light-dark(#ffffff, var(--paper));
-}
+.row-table table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+/* The head matches `.tlist thead th`. */
 .row-table th {
   position: sticky;
   top: 0;
   z-index: 1;
   /* Opaque, so scrolled rows never peek through from behind the header. */
-  background: color-mix(in oklab, var(--ink) 6%, var(--paper));
-  background-clip: padding-box;
-  /* Border-collapse would leave the header's top border at the table's edge;
-     a shadow on the sticky cells scrolls with them. */
-  box-shadow: inset 0 1px 0 var(--row-line);
-  font-family: var(--font-mono);
-  font-weight: 700;
-  color: var(--ink-soft);
+  background: var(--surface-1);
+  text-align: left;
+  padding: 6px 10px;
   white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--line);
+}
+/* A wide table scrolls sideways; a long value clips rather than wraps. The data
+   sits on its own surface, a step above the paper the panel no longer contrasts
+   it against — `.bad` outranks this, so a blamed cell keeps its tint. */
+.row-table td {
+  padding: 6px 10px;
+  text-align: left;
+  white-space: nowrap;
+  max-width: 24em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line-soft);
 }
 /* The seam between the primary key and the values the check is about. */
-.row-table .val-start { border-left: 4px solid var(--rule); }
+.row-table .val-start { border-left: 4px solid var(--line); }
 .row-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 /* A cell a problem blames; the tooltip says why. */
-.row-table td.bad { background: var(--bad-soft); cursor: default; }
+.row-table td.bad { background: var(--fail-fill); cursor: default; }
 .rownum { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink-faint); text-align: right; }
-/* The codes a row broke, beside its number rather than out among the values. */
-.row-table .row-checks { white-space: nowrap; width: 1%; }
-.row-table td.row-checks .code-chip { cursor: default; }
-.row-table td.row-checks .code-chip + .code-chip { margin-left: 6px; }
+
 /* A missing value is not the string "null", so it stands out in red. */
-.row-table .is-null { color: var(--bad); }
+.row-table .is-null { color: var(--fail); }
 .row-table .is-absent { color: var(--ink-faint); }
 
 @media (max-width: 720px) {
   .step-meter { display: none; }
+  /* Too narrow for a column of tabs: they stack above the page instead. */
+  .report-body { flex-direction: column; }
+  .sidebar { position: static; width: auto; flex-direction: row; flex-wrap: wrap; }
+  /* Stacked, the pills row sits above the page, which runs edge to edge. */
+  .report-main { border-radius: 0; }
 }

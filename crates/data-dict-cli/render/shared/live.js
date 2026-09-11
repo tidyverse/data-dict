@@ -11,13 +11,13 @@
     #${PANEL} {
       position: fixed; left: 14px; bottom: 14px; z-index: 2000;
       max-width: min(760px, calc(100vw - 28px)); max-height: 42vh; overflow: auto;
-      background: var(--float, #fff); color: var(--ink, #1c2430);
-      border: 1px solid var(--rule, #dfdcd5); border-left: 3px solid var(--edge);
+      background: var(--surface-3, #fff); color: var(--ink, #1c2430);
+      border: 1px solid var(--line, #dfdcd5); border-left: 3px solid var(--edge);
       border-radius: 8px; padding: 10px 14px 12px;
       box-shadow: 0 10px 30px var(--shadow-far, rgba(0,0,0,.25));
       font-size: 12px;
     }
-    #${PANEL}.err { --edge: var(--bad, #d80d0d); }
+    #${PANEL}.err { --edge: var(--fail, #d80d0d); }
     #${PANEL}.warn { --edge: var(--warn, #9d5d00); }
     #${PANEL}.off { --edge: var(--ink-faint, #98a2b0); }
     #${PANEL} .hd {

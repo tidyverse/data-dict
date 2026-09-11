@@ -6,10 +6,10 @@
   --accent2: light-dark(
     color-mix(in oklab, var(--accent2-hue) 80%, black),
     color-mix(in oklab, var(--accent2-hue) 80%, white));
-  --accent2-soft: light-dark(
+  --accent2-fill: light-dark(
     color-mix(in oklab, var(--accent2-hue) 20%, white),
-    color-mix(in oklab, var(--accent2-hue) 20%, var(--background)));
-  --on-accent1: light-dark(#ffffff, #14142c); /* text on an accent1 fill */
+    color-mix(in oklab, var(--accent2-hue) 20%, var(--surface-0)));
+
   --tag-ink: var(--accent2-hue);
   --mark-hue: var(--accent2-hue);
   --mark: color-mix(in oklab, var(--mark-hue) 40%, transparent);
@@ -33,22 +33,22 @@
   /* mixed off the Solarized accents in app.css, towards whatever sits behind */
   --head-bg: light-dark(
     color-mix(in oklab, var(--accent1-hue) 80%, black),
-    color-mix(in oklab, var(--accent1-hue) 40%, var(--background)));
+    color-mix(in oklab, var(--accent1-hue) 40%, var(--surface-0)));
   --head-ink: light-dark(#ffffff, #e7f1ef);
   --demo-head: light-dark(#6b7684, #3a434d);
   --demo-rule: light-dark(#c9c4b8, #454e58);
   /* row touched by the hovered relationship */
   --tint-edge: light-dark(
     color-mix(in oklab, var(--accent1-hue) 20%, white),
-    color-mix(in oklab, var(--accent1-hue) 20%, var(--background)));
+    color-mix(in oklab, var(--accent1-hue) 20%, var(--surface-0)));
   /* row matching the search */
   --tint-search: light-dark(
     color-mix(in oklab, var(--mark-hue) 20%, white),
-    color-mix(in oklab, var(--mark-hue) 20%, var(--background)));
+    color-mix(in oklab, var(--mark-hue) 20%, var(--surface-0)));
   /* the match you selected */
   --tint-search-on: light-dark(
     color-mix(in oklab, var(--mark-hue) 40%, white),
-    color-mix(in oklab, var(--mark-hue) 40%, var(--background)));
+    color-mix(in oklab, var(--mark-hue) 40%, var(--surface-0)));
 }
 
 /* ---- diagram surface ---------------------------------------------------- */
@@ -67,12 +67,12 @@
 #canvas {
   height: min(87.5vh, 775px);
   overflow: auto;
-  background-color: var(--background);
+  background-color: var(--surface-0);
   /* faint dot grid, pinned to the board so it pans with it */
   background-image: radial-gradient(circle at 1px 1px, var(--grid-dot) 1.4px, transparent 0);
   background-size: 24px 24px;
   background-attachment: local;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--line);
   border-radius: 10px;
   box-shadow: inset 0 1px 3px var(--shadow-inset);
   overscroll-behavior: contain;
@@ -104,8 +104,8 @@
   left: 0;
   width: max-content;
   max-width: 340px;
-  background: var(--paper);
-  border: 1px solid var(--rule);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
   border-radius: 7px;
   box-shadow: 0 1px 2px var(--shadow-near), 0 6px 16px -10px var(--shadow-far);
   overflow: hidden;
@@ -153,7 +153,7 @@
   right: 0;
   bottom: 0;
   height: 14px;
-  background: linear-gradient(to top, var(--paper), transparent);
+  background: linear-gradient(to top, var(--surface-1), transparent);
   pointer-events: none;
   transition: opacity 120ms;
 }
@@ -171,17 +171,17 @@
   font-size: var(--row-text);
   white-space: nowrap;
 }
-.row + .row { border-top: 1px solid var(--row-line); }
+.row + .row { border-top: 1px solid var(--line-soft); }
 .row { background: var(--row-bg, transparent); }
 /* primary keys stay put while the rest of the columns scroll under them */
 .row.pinned {
   position: sticky;
   z-index: 1;
-  --row-bg: var(--paper);
+  --row-bg: var(--surface-1);
 }
-.row.pinned.linked { --row-bg: var(--hover-row); }
-.row.pin-last { box-shadow: 0 1px 0 var(--rule), 0 3px 6px -4px var(--shadow-far); }
-.row.linked { --row-bg: var(--hover-row); }
+.row.pinned.linked { --row-bg: var(--accent1-wash); }
+.row.pin-last { box-shadow: 0 1px 0 var(--line), 0 3px 6px -4px var(--shadow-far); }
+.row.linked { --row-bg: var(--accent1-wash); }
 /* the link to this column's entry on its table page */
 .row .name {
   color: var(--ink);
@@ -200,7 +200,7 @@
 .row .key.live:hover { box-shadow: inset 0 0 0 1px currentColor; }
 /* a badge clicked to hold its highlight on */
 .row .key.held {
-  color: var(--on-accent1);
+  color: var(--ink-inverse);
   background: var(--accent1);
   box-shadow: none;
 }
@@ -322,7 +322,7 @@
 /* a table the board is being laid out around */
 .node.picked {
   border-color: var(--accent1);
-  box-shadow: 0 0 0 3px var(--accent1-soft), 0 1px 2px var(--shadow-near),
+  box-shadow: 0 0 0 3px var(--accent1-fill), 0 1px 2px var(--shadow-near),
     0 6px 16px -10px var(--shadow-far);
 }
 
@@ -356,8 +356,8 @@
   font: inherit;
   font-size: var(--text-sm);
   color: var(--ink);
-  background: var(--float);
-  border: 1px solid var(--rule);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
   border-radius: 6px;
   box-shadow: 0 2px 6px -3px var(--shadow-far);
   cursor: pointer;
@@ -367,10 +367,10 @@
 #showall:hover { border-color: var(--accent1); }
 /* nothing has been dragged, so there is nothing to tidy */
 #tidy[disabled] { opacity: 0.45; cursor: default; }
-#tidy[disabled]:hover { border-color: var(--rule); }
+#tidy[disabled]:hover { border-color: var(--line); }
 /* only there while something is off the board */
 #showall[hidden] { display: none; }
-#showall { color: var(--accent1); border-color: var(--accent1-soft); }
+#showall { color: var(--accent1); border-color: var(--accent1-fill); }
 
 #find {
   user-select: text;
@@ -380,8 +380,8 @@
   font: inherit;
   font-size: var(--text-sm);
   color: var(--ink);
-  background: var(--float);
-  border: 1px solid var(--rule);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
   border-radius: 6px;
   box-shadow: 0 2px 6px -3px var(--shadow-far);
 }
@@ -397,8 +397,8 @@
   max-height: 232px;
   overflow-y: auto;
   overflow-x: hidden; /* long names ellipsise instead of scrolling sideways */
-  background: var(--float);
-  border: 1px solid var(--rule);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
   border-radius: 6px;
   box-shadow: 0 10px 26px -14px var(--shadow-lift);
   font-size: var(--text-sm);
@@ -417,15 +417,15 @@
   text-align: left;
   cursor: pointer;
 }
-#hits button + button { border-top: 1px solid var(--row-line); }
+#hits button + button { border-top: 1px solid var(--line-soft); }
 #hits button .hit-path {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#hits button:hover { background: var(--hover-row); }
-#hits button[aria-current="true"] { background: var(--accent1-soft); }
+#hits button:hover { background: var(--accent1-wash); }
+#hits button[aria-current="true"] { background: var(--accent1-fill); }
 
 /* Highlighted rows all speak the same language: a background, no border. The
    pinned variants are spelled out so they outrank .row.pinned.linked above, and
