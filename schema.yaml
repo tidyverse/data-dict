@@ -41,6 +41,12 @@ object:
     # the dataset. Unenforced: no S-check, never fetched or resolved.
     origin: string
 
+    # The default expression language for `assert` and definition `expr`
+    # expressions that omit their own `language`; itself defaults to `sql`.
+    # Join expressions are always SQL and unaffected.
+    language:
+      enum: [sql, r, python]
+
     # A note of work that remains to be done. Accepted at every describing
     # level (dataset, table, column, field, relationship, definition); each
     # remaining note is reported by S31.

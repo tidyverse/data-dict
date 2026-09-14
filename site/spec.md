@@ -13,6 +13,8 @@ The descriptive keys — `name`, `label`, `description`, and `details` — ident
 
 The dataset may also carry an optional `origin` key: a link to the code that produced it (see [Origin](#origin)). The same key is available on each table.
 
+The top level may also carry an optional `language` key: the default [expression language](validate.md#expression-languages) for the whole dictionary — `sql` (the default), `r`, or `python`. Every `assert` and definition `expr` that omits its own `language` is read in this language; a per-assertion or per-definition `language` overrides it.
+
 Every level of the dictionary — this top level, a table, a column, a struct field, a relationship — may also carry a `todo` key recording work that remains to be done; see [Todo](#todo).
 
 In the common case of a dictionary that describes a single table, these top-level keys should be used to describe the dataset, leaving the table itself undescribed.
@@ -339,7 +341,7 @@ Each entry is a map with:
 
 * `name` (required): the definition's name. Must be non-empty and unique within the table. Definitions and columns share a namespace: a definition's name must not match any column name in the same table.
 * `expr` (required): an expression in the [expression language](expressions.md), or [written in another language](validate.md#expression-languages) and read into it. Unlike an assertion, it need not be boolean.
-* `language`: the language `expr` is written in; see [Expression languages](validate.md#expression-languages). Omitted, it is `sql`.
+* `language`: the language `expr` is written in; see [Expression languages](validate.md#expression-languages). Omitted, it is the dictionary's top-level `language`, itself defaulting to `sql`.
 * `label`, `description`, `details`: human-readable documentation for the definition; see [Name, label, description & details](#name-label-description--details).
 * `todo`: a note of work that remains before the definition is complete; see [Todo](#todo).
 

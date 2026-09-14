@@ -38,6 +38,10 @@ pub struct DataDict {
     pub glossary: Vec<GlossaryEntry>,
     /// The dataset-level `todo`, when present (see S31).
     pub todo: Option<Spanned<String>>,
+    /// The top-level `language`: the default expression language for `assert`
+    /// and definition `expr` expressions that don't name their own. Join
+    /// expressions are always SQL and unaffected.
+    pub language: Option<Spanned<Language>>,
 }
 
 /// The dictionary's own `version`: exactly one of the three kinds (S17).
@@ -57,6 +61,14 @@ pub struct GlossaryEntry {
 impl DataDict {
     /// The first table with the given name, or `None`. Duplicate names are an
     /// error (S10); lookups resolve to the first so downstream checks still run.
+    /// The dictionary's default expression language: `sql` unless the
+    /// top-level `language` key says otherwise.
+    pub fn language(&self) -> Language {
+        self.language
+            .as_ref()
+            .map_or(Language::DataDict, |l| l.value)
+    }
+
     pub fn table(&self, name: &str) -> Option<&Table> {
         self.tables.iter().find(|t| t.name.value == name)
     }
@@ -120,11 +132,10 @@ pub struct Assertion {
 }
 
 impl Assertion {
-    /// The language this was written in, defaulting to the dictionary's own.
-    pub fn language(&self) -> Language {
-        self.language
-            .as_ref()
-            .map_or(Language::DataDict, |l| l.value)
+    /// The language this was written in: the author's own `language`, or the
+    /// dictionary default when omitted.
+    pub fn language(&self, default: Language) -> Language {
+        self.language.as_ref().map_or(default, |l| l.value)
     }
 }
 
@@ -186,11 +197,10 @@ pub struct Definition {
 }
 
 impl Definition {
-    /// The language this was written in, defaulting to the dictionary's own.
-    pub fn language(&self) -> Language {
-        self.language
-            .as_ref()
-            .map_or(Language::DataDict, |l| l.value)
+    /// The language this was written in: the author's own `language`, or the
+    /// dictionary default when omitted.
+    pub fn language(&self, default: Language) -> Language {
+        self.language.as_ref().map_or(default, |l| l.value)
     }
 }
 

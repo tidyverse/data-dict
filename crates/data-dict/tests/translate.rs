@@ -189,3 +189,23 @@ fn an_untranslatable_construct_names_itself() {
     assert!(rendered.contains("`sapply()`"), "{rendered}");
     assert!(rendered.contains("no equivalent"), "{rendered}");
 }
+
+/// An assertion that inherits the dictionary's top-level `language` is
+/// reported the same as one that names its own: `language` and `canonical`
+/// appear, and `SQL(data-dict)` joins the default targets because the source
+/// was a foreign language.
+#[test]
+fn an_assertion_inheriting_the_dictionarys_language_reports_its_reading() {
+    insta::assert_snapshot!(translate_json(indoc! {r#"
+        language: r
+        description: Each row is a survey response.
+        tables:
+          - name: survey
+            columns:
+              - name: postcode
+                type: string
+                examples: ["NZ-1010"]
+            constraints:
+              - assert: nchar(postcode) <= 10
+    "#}));
+}

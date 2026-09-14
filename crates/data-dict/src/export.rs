@@ -22,8 +22,8 @@ use data_dict_parquet::{
 use crate::assert_expr::{self, ColumnsSelector, DefType, Expr, ExprKind, Ty};
 use crate::emit;
 use crate::model::{
-    Assertion, Cardinality, Column, Constraint, DataDict, Definition, Relationship, Representation,
-    Scalar, Spanned, Table, Version,
+    Assertion, Cardinality, Column, Constraint, DataDict, Definition, Language, Relationship,
+    Representation, Scalar, Spanned, Table, Version,
 };
 use crate::problem::{ProblemKind, ProblemSet, Severity};
 use crate::validate_spec::{DefEnv, resolve_definitions};
@@ -638,12 +638,12 @@ fn build_table(
         constraints: table
             .constraints
             .iter()
-            .map(|a| build_assertion(a, table, &defs))
+            .map(|a| build_assertion(a, table, &defs, dict.language()))
             .collect(),
         definitions: table
             .definitions
             .iter()
-            .map(|d| build_definition(d, table, &defs))
+            .map(|d| build_definition(d, table, &defs, dict.language()))
             .collect(),
     }
 }
@@ -767,7 +767,7 @@ fn build_column(
         assertions: col
             .assertions
             .iter()
-            .map(|a| build_assertion(a, table, defs))
+            .map(|a| build_assertion(a, table, defs, dict.language()))
             .collect(),
         profile,
     }
@@ -777,6 +777,7 @@ fn build_definition(
     def: &Definition,
     table: &Table,
     defs: &HashMap<String, DefType>,
+    default_language: Language,
 ) -> ExportDefinition {
     let mut columns = Vec::new();
     let mut definitions = Vec::new();
@@ -806,7 +807,13 @@ fn build_definition(
         Ty::Interval => Some("interval"),
         Ty::Struct | Ty::List | Ty::Any | Ty::Unknown => None,
     });
-    let reading = reading(def.language(), def.expr.as_ref(), table, defs, &def.notes);
+    let reading = reading(
+        def.language(default_language),
+        def.expr.as_ref(),
+        table,
+        defs,
+        &def.notes,
+    );
     ExportDefinition {
         name: def.name.value.clone(),
         label: def.label.clone(),
@@ -871,6 +878,7 @@ fn build_assertion(
     assertion: &Assertion,
     table: &Table,
     defs: &HashMap<String, DefType>,
+    default_language: Language,
 ) -> ExportAssertion {
     let mut columns = Vec::new();
     let mut definitions = Vec::new();
@@ -880,7 +888,7 @@ fn build_assertion(
         translations = translate_expression(&expr.root, table, defs);
     }
     let reading = reading(
-        assertion.language(),
+        assertion.language(default_language),
         assertion.expr.as_ref(),
         table,
         defs,
