@@ -1,0 +1,29 @@
+# expected: S06
+# `tab2` has a composite primary key (id1, date), so joining on `tab2.id1`
+# alone does not uniquely identify a row. `cardinality: one-to-one` must
+# fail even though `id1` is marked `primary_key` (issue #244).
+
+$version: "0.1.0"
+
+tables:
+  - name: tab1
+    columns:
+      - name: id1
+        type: string
+        constraints: [primary_key]
+        examples: [id01, id02, id03]
+
+  - name: tab2
+    columns:
+      - name: id1
+        type: string
+        constraints: [primary_key, foreign_key]
+        examples: [id01, id02, id03]
+      - name: date
+        type: date
+        constraints: [primary_key]
+        range: [2023-12-05, 2026-08-31]
+
+relationships:
+  - join: tab1.id1 = tab2.id1
+    cardinality: one-to-one

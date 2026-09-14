@@ -484,6 +484,16 @@ fn s06_self_join_one_to_many() {
     assert_snapshot!(failing_diagnostic("spec/s06-self-join-one-to-many.yaml"));
 }
 
+// A column of a composite primary key is not unique on its own, so joining on
+// it alone cannot support `one-to-one` (issue #244).
+#[test]
+fn s06_composite_primary_key() {
+    let diagnostic = failing_diagnostic("spec/s06-composite-primary-key.yaml");
+    diagnostic.assert_contains(&["S06", "tab2"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
+
 // Names that aren't plain identifiers are referenced from a `join` in
 // backticks, so S02/S03 resolve them like any other name.
 #[test]

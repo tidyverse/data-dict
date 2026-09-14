@@ -1248,14 +1248,14 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
         let lhs_side = first.lhs.table.clone();
         let rhs_side = first.rhs.table.clone();
 
-        // Which columns are "the join side" for each table?  For the
+        // Which columns are "the join side" for each table? For the
         // single-conjunct equality case this is straightforward. For
-        // multi-conjunct (range) joins we require ALL conjunct columns on the
-        // "one" side to be jointly unique-implied — in practice users
-        // typically mark just one of them as PK/unique. We err on the
-        // permissive side and check whether *any* column on the "one" side
-        // is unique-implied; that matches the loose intuition behind range
-        // joins without producing noise for legitimate overlap joins.
+        // multi-conjunct (range) joins we are permissive: any `unique`
+        // column on the "one" side is enough, matching the loose intuition
+        // behind range joins without producing noise for legitimate overlap
+        // joins. A `primary_key` column, though, only counts when the join
+        // covers the whole (possibly composite) key — one column of a
+        // composite key is not unique on its own.
 
         let lhs_cols_unique =
             side_has_unique_implied(dict, rel, &lhs_side, join, /* use_lhs = */ true);
@@ -1266,12 +1266,17 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
         match rel.cardinality.value {
             Cardinality::OneToOne => {
                 if !lhs_cols_unique || !rhs_cols_unique {
+                    let bad: Vec<String> =
+                        [(lhs_cols_unique, &lhs_side), (rhs_cols_unique, &rhs_side)]
+                            .into_iter()
+                            .filter_map(|(ok, side)| (!ok).then(|| format!("`{side}`")))
+                            .collect();
                     out.push_spec_error(
                         "S06",
-                        "A `one-to-one` join must have `primary_key` or `unique` columns on both sides.",
+                        "A `one-to-one` join must have join columns that uniquely identify a row on both sides: a `unique` column or the full primary key.",
                         format!(
-                            "the join columns on `{}` or `{}` are not marked `primary_key` or `unique`",
-                            lhs_side, rhs_side
+                            "the join columns on {} do not uniquely identify a row",
+                            bad.join(" and ")
                         ),
                         [
                             rel.join_text.span.clone(),
@@ -1286,9 +1291,9 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                 if !lhs_cols_unique {
                     out.push_spec_error(
                         "S06",
-                        "A `one-to-many` join must have a `primary_key` or `unique` column on its left (\"one\") side.",
+                        "A `one-to-many` join must have join columns that uniquely identify a row on its left (\"one\") side: a `unique` column or the full primary key.",
                         format!(
-                            "the left-side join column on `{}` is not marked `primary_key` or `unique`",
+                            "the left-side join columns on `{}` do not uniquely identify a row",
                             lhs_side
                         ),
                         [
@@ -1302,9 +1307,9 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
                 if !rhs_cols_unique {
                     out.push_spec_error(
                         "S06",
-                        "A `many-to-one` join must have a `primary_key` or `unique` column on its right (\"one\") side.",
+                        "A `many-to-one` join must have join columns that uniquely identify a row on its right (\"one\") side: a `unique` column or the full primary key.",
                         format!(
-                            "the right-side join column on `{}` is not marked `primary_key` or `unique`",
+                            "the right-side join columns on `{}` do not uniquely identify a row",
                             rhs_side
                         ),
                         [
@@ -1320,6 +1325,10 @@ fn validate_s06_cardinality_consistency(dict: &DataDict, out: &mut ProblemSet) {
 
 /// `side` is the name as it appears in the join — an alias or a table name —
 /// so the two sides of a self-join stay distinguishable.
+///
+/// A side is unique-implied when its join columns pin down at most one row:
+/// either one of them is `unique`, or together they cover the table's entire
+/// (possibly composite) primary key.
 fn side_has_unique_implied(
     dict: &DataDict,
     rel: &Relationship,
@@ -1330,15 +1339,28 @@ fn side_has_unique_implied(
     let Some(table) = dict.table(rel.resolve(side)) else {
         return false;
     };
-    join.conjuncts.iter().any(|conj| {
-        let q: &QCol = if use_lhs { &conj.lhs } else { &conj.rhs };
-        if q.table != side {
-            return false;
-        }
-        table
-            .column(&q.column)
-            .is_some_and(|c| c.is_unique_implied())
-    })
+    let side_cols: Vec<&str> = join
+        .conjuncts
+        .iter()
+        .filter_map(|conj| {
+            let q: &QCol = if use_lhs { &conj.lhs } else { &conj.rhs };
+            (q.table == side).then_some(q.column.as_str())
+        })
+        .collect();
+
+    if side_cols
+        .iter()
+        .any(|c| table.column(c).is_some_and(|c| c.has(Constraint::Unique)))
+    {
+        return true;
+    }
+    let primary_key: Vec<&str> = table
+        .columns
+        .iter()
+        .filter(|c| c.has(Constraint::PrimaryKey))
+        .map(|c| c.name.value.as_str())
+        .collect();
+    !primary_key.is_empty() && primary_key.iter().all(|c| side_cols.contains(c))
 }
 
 // --- Type helpers -----------------------------------------------------
