@@ -6,7 +6,7 @@
 //! one against the other.
 
 mod common;
-use common::{assert_snapshot, temp_dir, write_dict, write_parquet};
+use common::{assert_snapshot, temp_dir, write_converted_date_parquet, write_dict, write_parquet};
 
 use std::path::{Path, PathBuf};
 
@@ -58,6 +58,28 @@ fn animals_dict(dir: &Path, parquet: &str, columns: &str) -> PathBuf {
             {columns}
         "},
     )
+}
+
+#[test]
+fn converted_date_annotation_matches_date() {
+    let dir = temp_dir();
+    write_converted_date_parquet(&dir.join("dates.parquet"));
+    let yaml = write_dict(
+        &dir,
+        indoc! {"
+            tables:
+              - name: dates
+                source:
+                  parquet: dates.parquet
+                columns:
+                  - name: d
+                    type: date
+                    range: [2000-01-01, .inf]
+        "},
+    );
+
+    let problems = validate_meta(&yaml, None);
+    assert_eq!(problems.status(), Status::Ok, "got {:?}", problems.items);
 }
 
 #[test]

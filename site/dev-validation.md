@@ -107,6 +107,8 @@ These are the semantic checks: the document is shaped correctly, and they ask wh
 
 M01–M03 descend into `struct` fields, recursively and through `list(struct)`: each declared field is checked like a column against the corresponding child of the data's struct type — its type must be compatible (M01), a declared field must exist in the data (M02, error), and a child the dictionary doesn't describe is reported (M03, warning).
 
+Parquet records a column's meaning in two places: the logical type, and the older converted type that logical types replaced. A column is read by its logical type, falling back to the converted type when a writer records only that (DuckDB, for one, annotates a date column with just the converted type `DATE`, in versions 1.4 through 2.0 as of November 2026). The fallback applies wherever a column's annotation matters: the M01 comparison, the profile, and the [comparable types](#comparable-types) rule alike.
+
 ### Nested Parquet types {#nested-parquet-types}
 
 How Parquet's nested shapes read as data-dict types, for the M01 comparison:

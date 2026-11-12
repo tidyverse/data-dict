@@ -9,7 +9,7 @@ expression: "sanitize(&json, &path)"
     {
       "name": "species",
       "type": "string",
-      "parquet_type": "BYTE_ARRAY",
+      "parquet_type": "BYTE_ARRAY / String",
       "distinct": {
         "exact": 3
       },

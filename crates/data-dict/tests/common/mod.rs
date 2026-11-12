@@ -12,10 +12,12 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use data_dict::RenderStyle;
 use indoc::indoc;
-use parquet::data_type::{ByteArray, ByteArrayType, DoubleType};
+use parquet::basic::{ConvertedType, Repetition, Type as PhysicalType};
+use parquet::data_type::{ByteArray, ByteArrayType, DoubleType, Int32Type};
 use parquet::file::properties::WriterProperties;
 use parquet::file::writer::SerializedFileWriter;
 use parquet::schema::parser::parse_message_type;
+use parquet::schema::types::Type;
 
 static COUNTER: AtomicU32 = AtomicU32::new(0);
 
@@ -62,6 +64,34 @@ pub fn write_parquet(path: &Path) {
         .unwrap();
     col.close().unwrap();
 
+    rg.close().unwrap();
+    writer.close().unwrap();
+}
+
+/// Write a one-column parquet file whose `d` column (2001-01-01 and
+/// 2002-06-15) carries only the legacy converted type `DATE` and no logical
+/// type, the way DuckDB (1.4 through 2.0, as of November 2026) writes dates.
+/// The schema parser always sets the logical type, so the field is built by
+/// hand.
+pub fn write_converted_date_parquet(path: &Path) {
+    let d = Type::primitive_type_builder("d", PhysicalType::INT32)
+        .with_repetition(Repetition::REQUIRED)
+        .with_converted_type(ConvertedType::DATE)
+        .build()
+        .unwrap();
+    let schema = Type::group_type_builder("schema")
+        .with_fields(vec![Arc::new(d)])
+        .build()
+        .unwrap();
+    let file = File::create(path).unwrap();
+    let props = Arc::new(WriterProperties::builder().build());
+    let mut writer = SerializedFileWriter::new(file, Arc::new(schema), props).unwrap();
+    let mut rg = writer.next_row_group().unwrap();
+    let mut col = rg.next_column().unwrap().unwrap();
+    col.typed::<Int32Type>()
+        .write_batch(&[11323, 11853], None, None)
+        .unwrap();
+    col.close().unwrap();
     rg.close().unwrap();
     writer.close().unwrap();
 }
