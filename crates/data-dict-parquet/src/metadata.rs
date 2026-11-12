@@ -7,6 +7,7 @@ use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::schema::types::Type;
 
 use crate::ParquetError;
+use crate::annotation;
 
 pub struct ColumnTypeInfo {
     pub name: String,
@@ -116,18 +117,15 @@ pub fn column_type_info(path: &Path) -> Result<Vec<ColumnTypeInfo>, ParquetError
     Ok(schema
         .get_fields()
         .iter()
-        .map(|field| {
-            let info = field.get_basic_info();
-            ColumnTypeInfo {
-                name: field.name().to_string(),
-                dict_type: parquet_type_to_dict_type(field),
-                logical_type: info.logical_type().map(format_logical_type),
-                physical_type: if field.is_primitive() {
-                    format!("{:?}", field.get_physical_type())
-                } else {
-                    "GROUP".to_string()
-                },
-            }
+        .map(|field| ColumnTypeInfo {
+            name: field.name().to_string(),
+            dict_type: parquet_type_to_dict_type(field),
+            logical_type: annotation::logical_type(field).map(format_logical_type),
+            physical_type: if field.is_primitive() {
+                format!("{:?}", field.get_physical_type())
+            } else {
+                "GROUP".to_string()
+            },
         })
         .collect())
 }
@@ -197,7 +195,7 @@ pub(crate) fn uniqueness_comparability(field: &Type) -> Comparability {
     {
         return Incomparable("nested");
     }
-    if let Some(logical) = field.get_basic_info().logical_type() {
+    if let Some(logical) = annotation::logical_type(field) {
         return match logical {
             LogicalType::String
             | LogicalType::Enum
@@ -258,7 +256,7 @@ fn parquet_type_to_dict_type(field: &Type) -> String {
 
 /// The data-dict type of `field` itself, ignoring its repetition.
 fn parquet_element_type(field: &Type) -> String {
-    if let Some(logical) = field.get_basic_info().logical_type() {
+    if let Some(logical) = annotation::logical_type(field) {
         match logical {
             LogicalType::String => return "string".into(),
             LogicalType::Enum => return "enum".into(),
@@ -361,8 +359,7 @@ pub(crate) fn leaf_index(schema: &Type, path: &[String]) -> Option<usize> {
 /// The element node when `field` is list-shaped (LIST-annotated, or the legacy
 /// repeated encoding where the field is its own element), `None` otherwise.
 fn list_wrapper_element(field: &Type) -> Option<&Type> {
-    let info = field.get_basic_info();
-    if matches!(info.logical_type(), Some(LogicalType::List)) {
+    if matches!(annotation::logical_type(field), Some(LogicalType::List)) {
         return parquet_list_element(field);
     }
     None
@@ -417,7 +414,7 @@ fn struct_group<'a>(field: &'a Type, dict_type: &str) -> Option<&'a Type> {
         let info = node.get_basic_info();
         let legacy_repeated = info.has_repetition()
             && info.repetition() == Repetition::REPEATED
-            && !matches!(info.logical_type(), Some(LogicalType::List));
+            && !matches!(annotation::logical_type(node), Some(LogicalType::List));
         if !legacy_repeated {
             node = parquet_list_element(node)?;
         }
@@ -427,8 +424,12 @@ fn struct_group<'a>(field: &'a Type, dict_type: &str) -> Option<&'a Type> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::{Comparability, parquet_type_to_dict_type, uniqueness_comparability};
+    use parquet::basic::{ConvertedType, Repetition, Type as PhysicalType};
     use parquet::schema::parser::parse_message_type;
+    use parquet::schema::types::Type;
 
     fn classify(field_line: &str) -> Comparability {
         let message = format!("message schema {{ {field_line}; }}");
@@ -453,6 +454,54 @@ mod tests {
             let schema = parse_message_type(message).unwrap();
             assert_eq!(parquet_type_to_dict_type(&schema.get_fields()[0]), expected);
         }
+    }
+
+    /// DuckDB (1.4 through 2.0, as of November 2026) annotates its columns
+    /// with only the legacy converted type. The schema parser always sets the
+    /// logical type too, so these fields are built by hand.
+    #[test]
+    fn converted_type_alone_maps_like_the_logical_type() {
+        for (physical, converted, expected) in [
+            (PhysicalType::INT32, ConvertedType::DATE, "date"),
+            (
+                PhysicalType::INT64,
+                ConvertedType::TIMESTAMP_MICROS,
+                "datetime",
+            ),
+            (PhysicalType::BYTE_ARRAY, ConvertedType::UTF8, "string"),
+            (PhysicalType::BYTE_ARRAY, ConvertedType::ENUM, "enum"),
+            (PhysicalType::INT32, ConvertedType::INT_8, "number"),
+        ] {
+            let field = Type::primitive_type_builder("c", physical)
+                .with_converted_type(converted)
+                .build()
+                .unwrap();
+            assert_eq!(field.get_basic_info().logical_type(), None);
+            assert_eq!(parquet_type_to_dict_type(&field), expected);
+        }
+    }
+
+    #[test]
+    fn converted_list_annotation_reads_as_list() {
+        let element = Type::primitive_type_builder("element", PhysicalType::BYTE_ARRAY)
+            .with_repetition(Repetition::OPTIONAL)
+            .with_converted_type(ConvertedType::UTF8)
+            .build()
+            .unwrap();
+        let list = Type::group_type_builder("list")
+            .with_repetition(Repetition::REPEATED)
+            .with_fields(vec![Arc::new(element)])
+            .build()
+            .unwrap();
+        let tags = Type::group_type_builder("tags")
+            .with_repetition(Repetition::OPTIONAL)
+            .with_converted_type(ConvertedType::LIST)
+            .with_fields(vec![Arc::new(list)])
+            .build()
+            .unwrap();
+        assert_eq!(tags.get_basic_info().logical_type(), None);
+        assert_eq!(parquet_type_to_dict_type(&tags), "list(string)");
+        assert!(super::list_wrapper_element(&tags).is_some());
     }
 
     #[test]

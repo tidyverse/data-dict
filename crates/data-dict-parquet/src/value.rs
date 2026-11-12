@@ -20,6 +20,8 @@ use arrow_array::{
 };
 use arrow_schema::DataType;
 use parquet::basic::{LogicalType, Repetition, TimeUnit, Type as PhysicalType};
+
+use crate::annotation;
 use parquet::schema::types::Type;
 
 use crate::ParquetError;
@@ -254,7 +256,7 @@ pub(crate) fn classify(field: &Type) -> (ValueKind, Repr) {
     {
         return unsupported("nested");
     }
-    if let Some(logical) = field.get_basic_info().logical_type() {
+    if let Some(logical) = annotation::logical_type(field) {
         return match logical {
             LogicalType::String | LogicalType::Enum => (ValueKind::Text, Repr::Plain),
             LogicalType::Date => (ValueKind::Date, Repr::Plain),
@@ -421,7 +423,9 @@ fn text(bytes: &[u8]) -> Decoded {
 #[cfg(test)]
 mod tests {
     use super::{F64, Repr, TimeGrain, Value, ValueKind, classify};
+    use parquet::basic::{ConvertedType, Type as PhysicalType};
     use parquet::schema::parser::parse_message_type;
+    use parquet::schema::types::Type;
 
     fn kind_of(field_line: &str) -> (ValueKind, Repr) {
         let message = format!("message schema {{ {field_line}; }}");
@@ -449,6 +453,15 @@ mod tests {
             kind_of("REQUIRED INT32 d (DATE)"),
             (ValueKind::Date, Repr::Plain)
         );
+    }
+
+    #[test]
+    fn converted_type_alone_is_classified_like_the_logical_type() {
+        let field = Type::primitive_type_builder("d", PhysicalType::INT32)
+            .with_converted_type(ConvertedType::DATE)
+            .build()
+            .unwrap();
+        assert_eq!(classify(&field), (ValueKind::Date, Repr::Plain));
     }
 
     #[test]

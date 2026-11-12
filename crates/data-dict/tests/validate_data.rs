@@ -6,7 +6,7 @@
 //! and data levels are genuinely distinct.
 
 mod common;
-use common::{assert_snapshot, temp_dir, write_dict};
+use common::{assert_snapshot, temp_dir, write_converted_date_parquet, write_dict};
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -161,6 +161,31 @@ fn build_composite_key_with_display(first: &[f64], second: &[f64], display: &str
 /// The defining difference between the two levels: a `required` column with
 /// nulls is a *value* problem, so it is invisible to `validate-meta` (which
 /// reads only names and types) but caught by `validate-data` (which scans).
+/// A date column annotated only with the legacy converted type (as DuckDB
+/// 1.4 through 2.0 writes it, as of November 2026) passes the metadata gate
+/// and scans cleanly as dates.
+#[test]
+fn converted_date_annotation_scans_as_dates() {
+    let dir = temp_dir();
+    write_converted_date_parquet(&dir.join("dates.parquet"));
+    let yaml = write_dict(
+        &dir,
+        indoc! {"
+            tables:
+              - name: dates
+                source:
+                  parquet: dates.parquet
+                columns:
+                  - name: d
+                    type: date
+                    range: [2000-01-01, .inf]
+        "},
+    );
+
+    let problems = validate_data(&yaml, None);
+    assert_eq!(problems.status(), Status::Ok, "got {:?}", problems.items);
+}
+
 #[test]
 fn meta_ignores_null_values_that_data_catches() {
     let yaml = build_column(
