@@ -40,7 +40,7 @@ This checks column names and types, ranges, and any constraints that you've decl
 ## Render it as a website
 
 ```sh
-data-dict render-spec data-dict.yaml
+data-dict render data-dict.yaml
 ```
 
 This produces a self-contained HTML page — tables, columns, relationships, and glossary — that you can share with anyone. See the [rendered otters dictionary](examples/rendered/otters.html) for what the output looks like.
