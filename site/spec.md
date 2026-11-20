@@ -118,6 +118,7 @@ Each descriptor has the following properties:
 Some properties only apply to certain types:
 
 * `units`: the unit of measurement, for `number(quantity)` columns only (see [Measures](#measures)).
+* `labels`: what particular values mean, for `number` columns of any measure (see [Value labels](#value-labels)).
 * `time_zone`: the time zone, for `datetime` columns only (see [Time zones](#time-zones)).
 
 Each column also needs to describe some representative values, using `values`, `range`, or `examples` as its type requires. See [Representative values](#representative-values) for details.
@@ -156,7 +157,7 @@ Types capture data types at a level that makes sense for analysis, which is typi
 
 The supported types are:
 
-* `number`: numeric values (integers or floating-point). Can be qualified with a measure in parentheses: `number(id)`, `number(ordinal)`, or `number(quantity)`. See [Measures](#measures).
+* `number`: numeric values (integers or floating-point). Can be qualified with a measure in parentheses: `number(id)`, `number(nominal)`, `number(ordinal)`, or `number(quantity)`. See [Measures](#measures).
 * `string`: UTF-8 text strings.
 * `boolean`: true/false values.
 * `date`: calendar dates, written as ISO 8601 strings (`YYYY-MM-DD`, e.g. `2024-01-31`).
@@ -171,9 +172,12 @@ The `number` type can be qualified with a measure in parentheses that classifies
 
 | Type | Can compare | Can average | Can sum | Examples |
 |------------|-------------|-------------|---------|----------|
-| `number(id)` | No | No | No | primary keys, foreign keys, codes |
+| `number(id)` | No | No | No | primary keys, foreign keys |
+| `number(nominal)` | No | No | No | category codes, such as a survey answer coded 1 = yes, 2 = no |
 | `number(ordinal)` | Yes | No | No | ranks, years, sequence numbers |
 | `number(quantity)` | Yes | Yes | Yes | weights, counts, amounts |
+
+`number(id)` and `number(nominal)` allow the same operations but say different things about the column. An `id` identifies a row or the thing it refers to, so its values are typically many and distinct, and it's what keys and joins are made of. A `nominal` column holds one of a small set of categories, coded as numbers, and its values repeat from row to row. A numeric category usually comes with [labels](#value-labels) saying what each code means.
 
 A `number(quantity)` column can also declare its `units`: a free-text string naming the unit of measurement, such as `kg`, `USD`, or `seconds`. Units are only meaningful for quantities — they're how you tell apart two columns that share a `range` but measure different things — so `units` is an error on any other type.
 
@@ -184,9 +188,56 @@ A `number(quantity)` column can also declare its `units`: a free-text string nam
   range: [0, 5000]
 ```
 
+#### Value labels
+
+Many datasets record a categorical answer as a number and document what each number means: surveys, administrative records, and files exported from SPSS, Stata, or SAS. The `labels` property records those meanings. It's a map from a value of the column to its label:
+
+```yaml
+- name: abany
+  label: Abortion if woman wants for any reason
+  type: number(nominal)
+  examples: [1, 2]
+  labels:
+    1: "yes"
+    2: "no"
+```
+
+`labels` applies to `number` columns of any measure, and the measure says what the labelled numbers are:
+
+* `number(nominal)`: the numbers name categories, like `abany` above. They can't be compared or averaged.
+* `number(ordinal)`: the numbers are ordered categories, like a 7-point scale.
+* `number(quantity)`: the numbers are amounts, and a few of them carry a note, like a top-coded age.
+
+```yaml
+- name: polviews
+  label: Think of self as liberal or conservative
+  type: number(ordinal)
+  range: [1, 7]
+  labels:
+    1: extremely liberal
+    2: liberal
+    3: slightly liberal
+    4: moderate, middle of the road
+    5: slightly conservative
+    6: conservative
+    7: extremely conservative
+
+- name: age
+  label: Age of respondent
+  type: number(quantity)
+  units: years
+  range: [18, 89]
+  labels:
+    89: 89 or older
+```
+
+The keys are numbers, written unquoted, and the labels are strings. A label documents a value; it doesn't restrict the column. A column may label all of its values, as `polviews` does, or only some, as `age` does. To restrict a column to its labelled values, write an [assertion](validate.md), such as `abany IN (1, 2)`.
+
+`labels` is not one of the [representative values](#representative-values) and doesn't replace them: a `number(nominal)` column still gives `examples`, and an ordinal or quantity still gives a `range`. Labels on a string column are written as an `enum`'s `values` instead.
+
 #### List element types
 
-The element type in `list(element_type)` may be any type: `string`, `number`, `number(id)`, `number(ordinal)`, `number(quantity)`, `boolean`, `date`, `datetime`, `enum`, `struct`, or another `list(...)`, nested to any depth. The same properties that apply to a column of that type apply when it is used as a list element type — `values` for `enum`, `fields` for `struct`, `units` for `number(quantity)`, `time_zone` for `datetime`, and so on. For nested lists those properties follow the *innermost* element type: a `list(list(number(quantity)))` declares `units` and a `range`, and they describe the innermost values.
+The element type in `list(element_type)` may be any type: `string`, `number`, `number(id)`, `number(nominal)`, `number(ordinal)`, `number(quantity)`, `boolean`, `date`, `datetime`, `enum`, `struct`, or another `list(...)`, nested to any depth. The same properties that apply to a column of that type apply when it is used as a list element type — `values` for `enum`, `fields` for `struct`, `units` for `number(quantity)`, `labels` for any `number`, `time_zone` for `datetime`, and so on. For nested lists those properties follow the *innermost* element type: a `list(list(number(quantity)))` declares `units` and a `range`, and they describe the innermost values.
 
 ```yaml
 - name: tags
@@ -259,14 +310,14 @@ Most typed columns carry at least one of the following three properties to repre
 A numeric or temporal column may give both `range` and `examples`, since the two say different things: the extremes the column reaches, and what a typical value looks like. One is usually enough — reach for the pair only when the extremes alone would mislead, as in a column whose maximum is a rare outlier. Which one the type *requires* is unchanged; the other is optional.
 
 * `values`: the allowed values for an `enum` column. Can be a list (`[M, F, U]`) when values are self-explanatory, or a map (`{M: Male, F: Female, U: Unknown}`) when values need labels. The values themselves must be **strings**, and there must be at least one of them; in the map form the labels must be strings too. (`boolean` columns implicitly have `values: [true, false]`, no need to explicitly include it.)
-* `range`: a two-element list `[min, max]` giving the inclusive minimum and maximum *observed* in the column. Like `examples`, it describes the data rather than constraining it: nothing is validated against it, and a value outside it is not an error. To constrain a column, write an [`assert`](validate.md). Required for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`. Optional on the other numeric types, `number` and `number(id)`, where it may accompany their `examples`. Both elements must match the column's type, and the minimum must not exceed the maximum.
+* `range`: a two-element list `[min, max]` giving the inclusive minimum and maximum *observed* in the column. Like `examples`, it describes the data rather than constraining it: nothing is validated against it, and a value outside it is not an error. To constrain a column, write an [`assert`](validate.md). Required for the ordered numeric and temporal types: `number(ordinal)`, `number(quantity)`, `date`, and `datetime`. Optional on the other numeric types, `number`, `number(id)`, and `number(nominal)`, where it may accompany their `examples`. Both elements must match the column's type, and the minimum must not exceed the maximum.
 
     Either bound may be left open with negative infinity (`-.inf`) for the minimum or positive infinity (`.inf`) for the maximum. An open bound says the true extent is unknown or constantly moving, as in a daily export whose date column always runs up to the present. If you leave a bound open, make sure to describe the range in prose in the column's `description`. `.inf` here means the bound is *open*, not that the column was observed to contain an infinity — a column really can hold one, but a range is descriptive, so the two readings are not worth distinguishing. `.nan` is not a bound at all, and is rejected in `examples` too (S12).
-* `examples`: a list of ~5 representative values from the column. Required for all other types: `string`, `number`, and `number(id)`. Optional on the ordered numeric and temporal types, where it may accompany their `range`. Each example must match the column's type, so a `string` column's examples need quoting whenever they read as numbers (`['02134', '94110']`). A handful of concrete examples helps LLMs understand the column far better than a description alone. For instance, knowing that an id column holds `[1, 2, 3, 4, 5]` versus `[10000, 1235452, 234234]` tells a very different story. A good baseline is to select 5 evenly spaced values along the sorted unique values, and then add any particularly surprising values as you encounter them. Example values are evocative rather than exhaustive; long values will be truncated and restricted values will have plausible, but fake data.
+* `examples`: a list of ~5 representative values from the column. Required for all other types: `string`, `number`, `number(id)`, and `number(nominal)`. Optional on the ordered numeric and temporal types, where it may accompany their `range`. Each example must match the column's type, so a `string` column's examples need quoting whenever they read as numbers (`['02134', '94110']`). A handful of concrete examples helps LLMs understand the column far better than a description alone. For instance, knowing that an id column holds `[1, 2, 3, 4, 5]` versus `[10000, 1235452, 234234]` tells a very different story. A good baseline is to select 5 evenly spaced values along the sorted unique values, and then add any particularly surprising values as you encounter them. Example values are evocative rather than exhaustive; long values will be truncated and restricted values will have plausible, but fake data.
 
 `boolean` columns are the exception to this rule because they can only contain `true`, `false`, and (if not required) `null`.
 
-For `list(element_type)` columns, the same properties apply but describe the element values, not the lists themselves. The mapping follows the element type — the innermost one, for nested lists: `values` for `list(enum)`, `range` for `list(number(ordinal))`, `list(number(quantity))`, `list(date)`, and `list(datetime)`, `examples` for `list(string)`, `list(number)`, and `list(number(id))`, and no representative values for `list(boolean)` or `list(struct)` (same as their scalar counterparts). Each property means the same thing it would for a scalar column of the element type — for instance, `range` on a `list(number(quantity))` column gives the minimum and maximum element value observed across all lists.
+For `list(element_type)` columns, the same properties apply but describe the element values, not the lists themselves. The mapping follows the element type — the innermost one, for nested lists: `values` for `list(enum)`, `range` for `list(number(ordinal))`, `list(number(quantity))`, `list(date)`, and `list(datetime)`, `examples` for `list(string)`, `list(number)`, `list(number(id))`, and `list(number(nominal))`, and no representative values for `list(boolean)` or `list(struct)` (same as their scalar counterparts). Each property means the same thing it would for a scalar column of the element type — for instance, `range` on a `list(number(quantity))` column gives the minimum and maximum element value observed across all lists.
 
 #### Time zones
 
