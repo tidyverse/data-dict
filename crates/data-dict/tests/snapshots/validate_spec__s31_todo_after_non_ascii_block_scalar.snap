@@ -1,0 +1,25 @@
+---
+source: crates/data-dict/tests/validate_spec.rs
+---
+$version: "0.1.0"
+$learn_more: http://data-dict.tidyverse.org/
+description: >
+  éééééééééé
+tables:
+  - name: t
+    columns:
+      - name: a
+        type: string
+        examples: [x, y]
+        todo: |
+          Check this.
+────────────────────────────────────────
+warning[S31]: Every `todo` must be resolved.
+  --> dict.yaml:12:11
+   |
+LL |   - name: t
+LL |     columns:
+LL |       - name: a
+...
+LL |           Check this.
+   |           ^^^^^^^^^^^ unresolved todo

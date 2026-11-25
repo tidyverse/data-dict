@@ -17,9 +17,9 @@ repository = "https://github.com/tidyverse/data-dict"
 data-dict = { path = "crates/data-dict", version = "0.0.3" }
 data-dict-lsp = { path = "crates/data-dict-lsp", version = "0.0.3" }
 clap = { version = "4", features = ["derive"] }
-quarto-yaml = { git = "https://github.com/posit-dev/quarto-yaml" }
-quarto-yaml-validation = { git = "https://github.com/posit-dev/quarto-yaml" }
-quarto-source-map = "0.1.0"
+quarto-yaml = { git = "https://github.com/posit-dev/quarto-yaml", tag = "v0.5.0" }
+quarto-yaml-validation = { git = "https://github.com/posit-dev/quarto-yaml", tag = "v0.5.0" }
+quarto-source-map = "0.3"
 annotate-snippets = "0.12"
 parquet = { version = "54", default-features = false }
 arrow-array = "54"
