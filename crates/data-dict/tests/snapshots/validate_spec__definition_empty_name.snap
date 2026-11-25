@@ -14,9 +14,9 @@ tables:
         expr: SUM(order_total)
 ────────────────────────────────────────
 error[S11]: Every definition must have a non-empty `name`.
-  --> dict.yaml:11:9
+  --> dict.yaml:10:14
    |
 LL |   - name: orders
 ...
-LL |         expr: SUM(order_total)
-   |         ^ the `name` is empty
+LL |       - name:
+   |              ^ the `name` is empty

@@ -676,15 +676,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
-name = "encoding_rs"
-version = "0.8.35"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3"
-dependencies = [
- "cfg-if",
-]
-
-[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1553,9 +1544,9 @@ checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
 
 [[package]]
 name = "quarto-error-reporting"
-version = "0.1.0"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2aa95153b93fea9754e121137d5a6e38e30dd1184c73d2266958f698b8cb9503"
+checksum = "526b0f1ff1a646596c2c2ef803608b6f29899c834e074792324be67c90090ec9"
 dependencies = [
  "ariadne",
  "quarto-source-map",
@@ -1567,9 +1558,9 @@ dependencies = [
 
 [[package]]
 name = "quarto-source-map"
-version = "0.1.1"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35f0c3b597ed0a36ed8347703adc17a9070f336d811a89a868eeb8726da88c5a"
+checksum = "df8e902e7d6bedc69a74efec032c2cbb3225e1fdaf0a34c9e098a35cb6209ca9"
 dependencies = [
  "serde",
  "serde_json",
@@ -1578,10 +1569,11 @@ dependencies = [
 
 [[package]]
 name = "quarto-yaml"
-version = "0.1.1"
-source = "git+https://github.com/posit-dev/quarto-yaml#ef1580a396baf0508537b02a662b6aa7c2323bfb"
+version = "0.5.0"
+source = "git+https://github.com/posit-dev/quarto-yaml?tag=v0.5.0#55568d42fa5e01edd02740f1dece00f45fe58e08"
 dependencies = [
  "quarto-source-map",
+ "saphyr-parser",
  "serde",
  "thiserror",
  "yaml-rust2",
@@ -1589,8 +1581,8 @@ dependencies = [
 
 [[package]]
 name = "quarto-yaml-validation"
-version = "0.1.1"
-source = "git+https://github.com/posit-dev/quarto-yaml#ef1580a396baf0508537b02a662b6aa7c2323bfb"
+version = "0.5.0"
+source = "git+https://github.com/posit-dev/quarto-yaml?tag=v0.5.0#55568d42fa5e01edd02740f1dece00f45fe58e08"
 dependencies = [
  "anyhow",
  "quarto-error-reporting",
@@ -1723,6 +1715,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "saphyr-parser"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f54c7c96aa2abeb55dbdcda75287722d5e454f020aaa817895d4d62b9785073a"
+dependencies = [
+ "arraydeque",
+ "thiserror",
 ]
 
 [[package]]
@@ -1912,18 +1914,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.19"
+version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09a43598840e33d5b0331f38c5e30d13bb11c11210a4b58f0d9b18a5a5eefcd9"
+checksum = "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.19"
+version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43cbfe0cf76104d42a574802844187e84a305e531ed54455f11fbde0f10541cd"
+checksum = "fe5197923287db20a58125f0bc85c062f7f2c892de97b18c356f9efb14b28524"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2329,7 +2331,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "631a50d867fafb7093e709d75aaee9e0e0d5deb934021fcea25ac2fe09edc51e"
 dependencies = [
  "arraydeque",
- "encoding_rs",
  "hashlink",
 ]
 
