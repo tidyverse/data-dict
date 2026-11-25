@@ -1160,6 +1160,27 @@ fn s31_block_todo_with_bullets() {
     assert_snapshot!(diagnostic);
 }
 
+// Non-ASCII text in earlier block scalars must not shift later spans
+// (regression test for #270: spans drifted by the extra bytes and rendering
+// could panic when a shifted span ended inside a multi-byte character).
+#[test]
+fn s31_todo_after_non_ascii_block_scalar() {
+    let diagnostic = warning_dict(indoc! {"
+        description: >
+          éééééééééé
+        tables:
+          - name: t
+            columns:
+              - name: a
+                type: string
+                examples: [x, y]
+                todo: |
+                  Check this.
+    "});
+    diagnostic.assert_contains(&["S31", "unresolved todo"]);
+    #[cfg(unix)]
+    assert_snapshot!(diagnostic);
+}
 // A `todo` is a single string; the list form is rejected structurally.
 #[test]
 fn todo_list_rejected() {
